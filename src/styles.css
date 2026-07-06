@@ -170,3 +170,7 @@ button { cursor: pointer; }
 .picker-thumbs { display: flex; flex-wrap: wrap; gap: 8px; }
 .picker-thumbs img { width: 110px; height: 74px; object-fit: cover; border-radius: 6px; cursor: pointer; border: 2px solid transparent; }
 .picker-thumbs img:hover { border-color: #1a3c5e; }
+
+.b-inc { display: flex; gap: 18px; }
+.b-inc > div { flex: 1; }
+.b-inc textarea { width: 100%; }

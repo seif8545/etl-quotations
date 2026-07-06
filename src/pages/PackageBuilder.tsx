@@ -1,29 +1,35 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { loadRefData } from '../lib/supabase'
-import { computeTotals } from '../lib/pricing'
-import { getPdfMake, imageToDataURL } from '../lib/pdf'
+import { computeTotals, tripDays } from '../lib/pricing'
+import { getHtml2Pdf, waitForAssets } from '../lib/pdf'
+import ItineraryDoc from './ItineraryDoc'
+import type { ItineraryData } from './ItineraryDoc'
 import type { QuotationDraft, RefData } from '../lib/types'
 
-interface EditableDay { uid: string; title: string; description: string; photo: string; sites: string[] }
+interface EditableDay { uid: string; title: string; description: string; photo: string; sites: string[]; guide: boolean }
 
-/**
- * Client-facing package PDF builder. Opens an editable preview of a quotation's
- * itinerary (cover + day cards + price), lets the user reorder days, swap photos
- * and edit text, then exports a branded one-click PDF via pdfmake.
- */
+const CONTACT = { phone: '+20 105 537 6633', email: 'info@egypttoplight.net', website: 'egypttoplight.net', social: '@egypttoplighttravel' }
+
+/** Client-facing branded package PDF builder (edit → one-click export). */
 export default function PackageBuilder({ draft, onClose }: { draft: QuotationDraft; onClose: () => void }) {
   const [ref, setRef] = useState<RefData | null>(null)
   const [title, setTitle] = useState(draft.name || 'Egypt Travel Package')
-  const [intro, setIntro] = useState('We are delighted to present the following tailor-made programme for your journey through Egypt.')
+  const [intro, setIntro] = useState('We are delighted to present the following tailor-made programme for your journey through Egypt — thoughtfully arranged to blend iconic landmarks with authentic experiences.')
   const [hero, setHero] = useState('cairo-giza/gem-pyramids.jpeg')
   const [days, setDays] = useState<EditableDay[]>([])
   const [pp, setPp] = useState(0)
   const [sgl, setSgl] = useState(0)
   const [showPrice, setShowPrice] = useState(true)
+  const [included, setIncluded] = useState('')
+  const [excluded, setExcluded] = useState('')
   const [manifest, setManifest] = useState<Record<string, string[]>>({})
   const [picker, setPicker] = useState<{ target: string } | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const docRef = useRef<HTMLDivElement>(null)
+
+  const hotels = (draft.accommodation ?? []).filter((a) => a.nights > 0)
+  const totalNights = hotels.reduce((s, h) => s + h.nights, 0)
 
   useEffect(() => {
     loadRefData().then((r) => {
@@ -32,23 +38,37 @@ export default function PackageBuilder({ draft, onClose }: { draft: QuotationDra
       const dd = draft.days ?? []
       setDays(dd.map((d) => ({
         uid: d.uid, title: d.label, description: d.description, photo: d.photo,
-        sites: (d.siteIds ?? []).map(nameOf).filter(Boolean),
+        sites: (d.siteIds ?? []).map(nameOf).filter(Boolean), guide: !!d.includeGuide,
       })))
       if (dd[0]?.photo) setHero(dd[0].photo)
       const t = computeTotals(draft, r)
       setPp(Math.round(t.perPersonDBL))
       setSgl(Math.round(t.sglSupplementUSD))
+
+      const guideAnywhere = draft.includeGuide || dd.some((x) => x.includeGuide)
+      const hasMeals = Object.values(draft.mealCounts ?? {}).some((q) => q > 0)
+      const inc: string[] = []
+      if (totalNights > 0) inc.push(`${totalNights} nights hotel accommodation on double room basis`)
+      inc.push('Private air-conditioned vehicle for all transfers and excursions')
+      if (guideAnywhere) inc.push('Private licensed Egyptologist guide')
+      inc.push('Entrance fees to all sites listed in the itinerary')
+      inc.push('Meet & assist service on arrival and departure')
+      if (hasMeals) inc.push('Meals as specified in the itinerary')
+      inc.push('All local taxes and service charges')
+      setIncluded(inc.join('\n'))
+      setExcluded([
+        'International airfare', 'Egypt entry visa', 'Travel insurance',
+        'Tipping and gratuities', 'Drinks during meals',
+        'Personal expenses and optional excursions', 'Anything not listed under "Included"',
+      ].join('\n'))
     }).catch((e) => setError(e.message ?? String(e)))
     fetch('/images/tours/manifest.json').then((r) => r.json()).then(setManifest).catch(() => {})
   }, [])
 
-  const hotels = (draft.accommodation ?? []).filter((a) => a.nights > 0)
-
   function move(i: number, dir: -1 | 1) {
     const j = i + dir
     if (j < 0 || j >= days.length) return
-    const copy = days.slice()
-    const tmp = copy[i]; copy[i] = copy[j]; copy[j] = tmp
+    const copy = days.slice(); const tmp = copy[i]; copy[i] = copy[j]; copy[j] = tmp
     setDays(copy)
   }
   const updateDay = (uid: string, patch: Partial<EditableDay>) =>
@@ -62,68 +82,48 @@ export default function PackageBuilder({ draft, onClose }: { draft: QuotationDra
     setPicker(null)
   }
 
+  const data: ItineraryData = useMemo(() => {
+    const tripLen = tripDays(draft)
+    const cities = new Set(hotels.map((h) => h.destination)).size || (days.length ? 1 : 0)
+    return {
+      title, intro,
+      heroUrl: '/images/tours/' + hero,
+      logoUrl: '/images/logo.png',
+      meta: { ref: draft.groupRef, pax: draft.pax, arrival: draft.arrivalDate, departure: draft.departureDate },
+      overview: {
+        days: tripLen || days.length,
+        nights: totalNights || Math.max(0, tripLen - 1),
+        cities, pax: draft.pax,
+      },
+      days: days.map((d) => ({
+        title: d.title, description: d.description,
+        photoUrl: d.photo ? '/images/tours/' + d.photo : '',
+        highlights: [...d.sites, ...(d.guide ? ['Private guide'] : [])],
+      })),
+      hotels,
+      included: included.split('\n').map((s) => s.trim()).filter(Boolean),
+      excluded: excluded.split('\n').map((s) => s.trim()).filter(Boolean),
+      price: { pp, sgl, show: showPrice },
+      contact: CONTACT,
+    }
+  }, [title, intro, hero, days, pp, sgl, showPrice, included, excluded, draft, hotels, totalNights])
+
   async function exportPdf() {
     setBusy(true); setError('')
     try {
-      const pdfMake = await getPdfMake()
-      const images: Record<string, string> = {}
-      const reg = async (path: string, key: string) => {
-        if (!path) return
-        try { images[key] = await imageToDataURL(path) } catch { /* skip missing */ }
-      }
-      await reg('/images/logo.png', 'logo')
-      await reg('/images/tours/' + hero, 'hero')
-      for (let i = 0; i < days.length; i++) {
-        if (days[i].photo) await reg('/images/tours/' + days[i].photo, 'day' + i)
-      }
-
-      const content: any[] = []
-      if (images.logo) content.push({ image: 'logo', width: 130, alignment: 'center', margin: [0, 0, 0, 10] })
-      if (images.hero) content.push({ image: 'hero', fit: [515, 250], alignment: 'center', margin: [0, 0, 0, 12] })
-      content.push({ text: title, style: 'title' })
-      const info: string[] = []
-      if (draft.groupRef) info.push('Ref: ' + draft.groupRef)
-      info.push(draft.pax + ' pax')
-      if (draft.arrivalDate) info.push(draft.arrivalDate + (draft.departureDate ? '  to  ' + draft.departureDate : ''))
-      content.push({ text: info.join('   ·   '), style: 'sub', margin: [0, 0, 0, 10] })
-      if (intro) content.push({ text: intro, margin: [0, 0, 0, 4] })
-
-      days.forEach((d, i) => {
-        content.push({ text: `Day ${i + 1}: ${d.title}`, style: 'dayTitle', margin: [0, 16, 0, 6] })
-        if (images['day' + i]) content.push({ image: 'day' + i, fit: [515, 230], margin: [0, 0, 0, 6] })
-        if (d.description) content.push({ text: d.description, margin: [0, 0, 0, 4] })
-        if (d.sites.length) content.push({ text: [{ text: 'Highlights: ', bold: true }, d.sites.join(', ')] })
-      })
-
-      if (hotels.length) {
-        content.push({ text: 'Accommodation', style: 'dayTitle', margin: [0, 16, 0, 6] })
-        content.push({ ul: hotels.map((h) => `${h.nights} night${h.nights > 1 ? 's' : ''} — ${h.destination}`) })
-      }
-      if (showPrice) {
-        content.push({ text: 'Package Price', style: 'dayTitle', margin: [0, 16, 0, 6] })
-        content.push({ text: `Per person (sharing double room): $${pp.toLocaleString()}`, fontSize: 13 })
-        if (sgl > 0) content.push({ text: `Single room supplement: $${sgl.toLocaleString()}`, margin: [0, 2, 0, 0] })
-      }
-
-      const docDefinition = {
-        content,
-        images,
-        defaultStyle: { fontSize: 11, color: '#222222', lineHeight: 1.25 },
-        styles: {
-          title: { fontSize: 24, bold: true, color: '#1a3c5e', margin: [0, 0, 0, 2] },
-          sub: { fontSize: 11, color: '#666666' },
-          dayTitle: { fontSize: 15, bold: true, color: '#1a3c5e' },
-        },
-        pageMargins: [40, 40, 40, 55],
-        footer: (cur: number, total: number) => ({
-          columns: [
-            { text: 'Egypt Top Light Travel', margin: [40, 0, 0, 0], fontSize: 9, color: '#999999' },
-            { text: `${cur} / ${total}`, alignment: 'right', margin: [0, 0, 40, 0], fontSize: 9, color: '#999999' },
-          ],
-        }),
-      }
+      const html2pdf = await getHtml2Pdf()
+      const node = docRef.current
+      if (!node) throw new Error('Document not ready')
+      await waitForAssets(node)
       const safe = (title || 'package').replace(/[^\w\-]+/g, '_')
-      pdfMake.createPdf(docDefinition).download(`${safe}.pdf`)
+      await html2pdf().set({
+        margin: 0,
+        filename: safe + '.pdf',
+        image: { type: 'jpeg', quality: 0.95 },
+        html2canvas: { scale: 2, useCORS: true, backgroundColor: '#fffefa', logging: false },
+        jsPDF: { unit: 'px', format: [794, 1123], orientation: 'portrait' },
+        pagebreak: { mode: ['css', 'legacy'] },
+      }).from(node).save()
     } catch (e: any) {
       setError(e.message ?? String(e))
     }
@@ -174,7 +174,18 @@ export default function PackageBuilder({ draft, onClose }: { draft: QuotationDra
               </div>
             </section>
           ))}
-          {days.length === 0 && <p className="muted">This quotation has no tour days yet. Add tour-day presets when building the quotation to get a day-by-day itinerary — you can still export the cover and price.</p>}
+          {days.length === 0 && <p className="muted">This quotation has no tour days yet. Add tour-day presets when building the quotation to get a day-by-day itinerary — you can still export the cover, inclusions and price.</p>}
+
+          <section className="b-sec b-inc">
+            <div>
+              <h4>Included <span className="muted small">(one per line)</span></h4>
+              <textarea rows={7} value={included} onChange={(e) => setIncluded(e.target.value)} />
+            </div>
+            <div>
+              <h4>Not included <span className="muted small">(one per line)</span></h4>
+              <textarea rows={7} value={excluded} onChange={(e) => setExcluded(e.target.value)} />
+            </div>
+          </section>
 
           {hotels.length > 0 && (
             <section className="b-sec">
@@ -191,6 +202,11 @@ export default function PackageBuilder({ draft, onClose }: { draft: QuotationDra
             </div>}
           </section>
         </div>
+      </div>
+
+      {/* Off-screen branded document captured for the PDF */}
+      <div style={{ position: 'absolute', left: -99999, top: 0 }}>
+        <ItineraryDoc ref={docRef} data={data} />
       </div>
 
       {picker && (
