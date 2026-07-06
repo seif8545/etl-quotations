@@ -61,7 +61,7 @@ export default function QuotationWizard({ done, initial }: { done: () => void; i
       <nav className="steps">
         {STEPS.map((s, i) => (
           <button key={s} className={i === step ? 'active' : i < step ? 'done' : ''}
-            onClick={() => i < step && setStep(i)}>{i + 1}. {s}</button>
+            onClick={() => (i === 0 || detailsValid) && setStep(i)}>{i + 1}. {s}</button>
         ))}
       </nav>
 
