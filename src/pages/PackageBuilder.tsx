@@ -7,6 +7,7 @@ import type { ItineraryData } from './ItineraryDoc'
 import type { QuotationDraft, RefData } from '../lib/types'
 
 interface EditableDay { uid: string; title: string; description: string; photo: string; sites: string[]; guide: boolean }
+interface FixedDay { on: boolean; title: string; description: string; photo: string }
 
 const CONTACT = { phone: '+20 105 537 6633', email: 'info@egypttoplight.net', website: 'egypttoplight.net', social: '@egypttoplighttravel' }
 
@@ -17,6 +18,16 @@ export default function PackageBuilder({ draft, onClose }: { draft: QuotationDra
   const [intro, setIntro] = useState('We are delighted to present the following tailor-made programme for your journey through Egypt — thoughtfully arranged to blend iconic landmarks with authentic experiences.')
   const [hero, setHero] = useState('cairo-giza/gem-pyramids.jpeg')
   const [days, setDays] = useState<EditableDay[]>([])
+  const [arrival, setArrival] = useState<FixedDay>({
+    on: true, title: 'Arrival — Welcome to Egypt',
+    description: 'On arrival, our representative will meet and assist you through the airport formalities before a private transfer to your hotel for check-in and overnight.',
+    photo: 'cairo-giza/citadel-view.jpeg',
+  })
+  const [departure, setDeparture] = useState<FixedDay>({
+    on: true, title: 'Departure',
+    description: 'After breakfast, check out of your hotel and enjoy a private transfer to the airport for your onward flight. We wish you a safe journey home.',
+    photo: 'luxor-aswan/nile.jpeg',
+  })
   const [pp, setPp] = useState(0)
   const [sgl, setSgl] = useState(0)
   const [showPrice, setShowPrice] = useState(true)
@@ -78,6 +89,8 @@ export default function PackageBuilder({ draft, onClose }: { draft: QuotationDra
   function pickPhoto(photo: string) {
     if (!picker) return
     if (picker.target === 'hero') setHero(photo)
+    else if (picker.target === 'arrival') setArrival((a) => ({ ...a, photo }))
+    else if (picker.target === 'departure') setDeparture((a) => ({ ...a, photo }))
     else updateDay(picker.target, { photo })
     setPicker(null)
   }
@@ -100,24 +113,31 @@ export default function PackageBuilder({ draft, onClose }: { draft: QuotationDra
       }
     }
     for (const h of hotels) citySet.add(REGION_CITY[h.destination] ?? h.destination)
+
+    const seqDays = [
+      ...(arrival.on ? [{ title: arrival.title, description: arrival.description, photoUrl: arrival.photo ? '/images/tours/' + arrival.photo : '', highlights: ['Meet & assist', 'Hotel check-in', 'Overnight'] }] : []),
+      ...days.map((d) => ({
+        title: d.title, description: d.description,
+        photoUrl: d.photo ? '/images/tours/' + d.photo : '',
+        highlights: [...d.sites, ...(d.guide ? ['Private guide'] : [])],
+      })),
+      ...(departure.on ? [{ title: departure.title, description: departure.description, photoUrl: departure.photo ? '/images/tours/' + departure.photo : '', highlights: ['Hotel check-out', 'Airport transfer'] }] : []),
+    ]
+
     return {
       title, intro,
       heroUrl: '/images/tours/' + hero,
       logoUrl: '/images/logo.png',
       meta: { ref: draft.groupRef, pax: draft.pax, arrival: draft.arrivalDate, departure: draft.departureDate },
       overview: { days: oDays, nights: oNights, cities: citySet.size || 1, pax: draft.pax },
-      days: days.map((d) => ({
-        title: d.title, description: d.description,
-        photoUrl: d.photo ? '/images/tours/' + d.photo : '',
-        highlights: [...d.sites, ...(d.guide ? ['Private guide'] : [])],
-      })),
+      days: seqDays,
       hotels,
       included: included.split('\n').map((s) => s.trim()).filter(Boolean),
       excluded: excluded.split('\n').map((s) => s.trim()).filter(Boolean),
       price: { pp, sgl, show: showPrice },
       contact: CONTACT,
     }
-  }, [title, intro, hero, days, pp, sgl, showPrice, included, excluded, draft, hotels, totalNights, ref])
+  }, [title, intro, hero, days, arrival, departure, pp, sgl, showPrice, included, excluded, draft, hotels, totalNights, ref])
 
   async function exportPdf() {
     setBusy(true); setError('')
@@ -139,6 +159,28 @@ export default function PackageBuilder({ draft, onClose }: { draft: QuotationDra
       setError(e.message ?? String(e))
     }
     setBusy(false)
+  }
+
+  function FixedDayEditor({ label, day, set, target }: { label: string; day: FixedDay; set: (d: FixedDay) => void; target: string }) {
+    return (
+      <section className={`b-day b-fixed${day.on ? '' : ' off'}`}>
+        <div className="b-day-head">
+          <label className="check pill-check"><input type="checkbox" checked={day.on} onChange={(e) => set({ ...day, on: e.target.checked })} /> {label}</label>
+          <input value={day.title} disabled={!day.on} onChange={(e) => set({ ...day, title: e.target.value })} />
+        </div>
+        {day.on && (
+          <div className="b-day-body">
+            <div className="b-photo">
+              {day.photo ? <img src={`/images/tours/${day.photo}`} alt="" /> : <div className="b-nophoto">No photo</div>}
+              <button className="link" onClick={() => setPicker({ target })}>Change photo</button>
+            </div>
+            <div className="b-day-text">
+              <textarea rows={3} value={day.description} onChange={(e) => set({ ...day, description: e.target.value })} />
+            </div>
+          </div>
+        )}
+      </section>
+    )
   }
 
   if (!ref) return (
@@ -164,10 +206,12 @@ export default function PackageBuilder({ draft, onClose }: { draft: QuotationDra
             <textarea rows={2} value={intro} onChange={(e) => setIntro(e.target.value)} />
           </section>
 
+          <FixedDayEditor label="Arrival day" day={arrival} set={setArrival} target="arrival" />
+
           {days.map((d, i) => (
             <section key={d.uid} className="b-day">
               <div className="b-day-head">
-                <b>Day {i + 1}</b>
+                <b>Day {i + (arrival.on ? 2 : 1)}</b>
                 <button disabled={i === 0} onClick={() => move(i, -1)}>↑</button>
                 <button disabled={i === days.length - 1} onClick={() => move(i, 1)}>↓</button>
                 <input value={d.title} onChange={(e) => updateDay(d.uid, { title: e.target.value })} />
@@ -185,7 +229,9 @@ export default function PackageBuilder({ draft, onClose }: { draft: QuotationDra
               </div>
             </section>
           ))}
-          {days.length === 0 && <p className="muted">This quotation has no tour days yet. Add tour-day presets when building the quotation to get a day-by-day itinerary — you can still export the cover, inclusions and price.</p>}
+          {days.length === 0 && <p className="muted">No tour days added to this quotation — the arrival and departure days above will still be included. Add tour-day presets when building the quotation for a full day-by-day itinerary.</p>}
+
+          <FixedDayEditor label="Departure day" day={departure} set={setDeparture} target="departure" />
 
           <section className="b-sec b-inc">
             <div>
