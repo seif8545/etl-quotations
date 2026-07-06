@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { loadRefData } from '../lib/supabase'
-import { computeTotals, tripDays } from '../lib/pricing'
+import { computeTotals, tripDays, effectiveSelections } from '../lib/pricing'
 import { getHtml2Pdf, waitForAssets } from '../lib/pdf'
 import ItineraryDoc from './ItineraryDoc'
 import type { ItineraryData } from './ItineraryDoc'
@@ -83,18 +83,29 @@ export default function PackageBuilder({ draft, onClose }: { draft: QuotationDra
   }
 
   const data: ItineraryData = useMemo(() => {
-    const tripLen = tripDays(draft)
-    const cities = new Set(hotels.map((h) => h.destination)).size || (days.length ? 1 : 0)
+    const diff = tripDays(draft)
+    const oNights = diff > 0 ? diff : totalNights
+    const oDays = diff > 0 ? diff + 1 : (totalNights > 0 ? totalNights + 1 : days.length)
+    const REGION_CITY: Record<string, string> = {
+      'Pyramids': 'Cairo', 'Sakkara': 'Cairo', 'Cairo/Giza': 'Cairo', 'More Sites': 'Cairo',
+      'Alexandria/Behera': 'Alexandria', 'Luxor': 'Luxor', 'Aswan': 'Aswan',
+      'Sharm el Sheikh': 'Sharm El Sheikh', 'Kafr el Sheikh/Sharkia/Minya/Sohag/Qena': 'Nile Valley',
+    }
+    const citySet = new Set<string>()
+    if (ref) {
+      for (const id of effectiveSelections(draft).siteIds) {
+        const st = ref.sites.find((x) => x.id === id); if (!st) continue
+        const reg = ref.regions.find((r) => r.id === st.region_id)?.name
+        if (reg) citySet.add(REGION_CITY[reg] ?? reg)
+      }
+    }
+    for (const h of hotels) citySet.add(REGION_CITY[h.destination] ?? h.destination)
     return {
       title, intro,
       heroUrl: '/images/tours/' + hero,
       logoUrl: '/images/logo.png',
       meta: { ref: draft.groupRef, pax: draft.pax, arrival: draft.arrivalDate, departure: draft.departureDate },
-      overview: {
-        days: tripLen || days.length,
-        nights: totalNights || Math.max(0, tripLen - 1),
-        cities, pax: draft.pax,
-      },
+      overview: { days: oDays, nights: oNights, cities: citySet.size || 1, pax: draft.pax },
       days: days.map((d) => ({
         title: d.title, description: d.description,
         photoUrl: d.photo ? '/images/tours/' + d.photo : '',
@@ -106,7 +117,7 @@ export default function PackageBuilder({ draft, onClose }: { draft: QuotationDra
       price: { pp, sgl, show: showPrice },
       contact: CONTACT,
     }
-  }, [title, intro, hero, days, pp, sgl, showPrice, included, excluded, draft, hotels, totalNights])
+  }, [title, intro, hero, days, pp, sgl, showPrice, included, excluded, draft, hotels, totalNights, ref])
 
   async function exportPdf() {
     setBusy(true); setError('')
@@ -121,7 +132,7 @@ export default function PackageBuilder({ draft, onClose }: { draft: QuotationDra
         filename: safe + '.pdf',
         image: { type: 'jpeg', quality: 0.95 },
         html2canvas: { scale: 2, useCORS: true, backgroundColor: '#fffefa', logging: false },
-        jsPDF: { unit: 'px', format: [794, 1123], orientation: 'portrait' },
+        jsPDF: { unit: 'px', format: [794, 1123], orientation: 'portrait', hotfixes: ['px_scaling'] },
         pagebreak: { mode: ['css', 'legacy'] },
       }).from(node).save()
     } catch (e: any) {

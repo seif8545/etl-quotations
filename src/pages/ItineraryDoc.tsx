@@ -101,6 +101,9 @@ const CSS = `
 .contact-row { display: flex; gap: 12px; margin-bottom: 14px; font-size: 15px; align-items: baseline; }
 .contact-row b { color: #e8b015; width: 96px; flex-shrink: 0; font-weight: 600; }
 .contact-row span { color: #fff; }
+.contact-brand { margin-bottom: 30px; }
+.contact-brand-name { display: block; font-size: 38px; font-weight: 600; color: #e8b015; letter-spacing: 2px; }
+.contact-brand-sub { display: block; font-size: 15px; letter-spacing: 10px; color: #c8960a; margin-top: 2px; }
 `
 
 const ItineraryDoc = forwardRef<HTMLDivElement, { data: ItineraryData }>(({ data }, ref) => {
@@ -223,7 +226,7 @@ const ItineraryDoc = forwardRef<HTMLDivElement, { data: ItineraryData }>(({ data
 
       {/* Contact */}
       <div className="itin-contact">
-        <div className="contact-logo"><img src={d.logoUrl} crossOrigin="anonymous" alt="Egypt Top Light" /></div>
+        <div className="contact-brand"><span className="fr contact-brand-name">EGYPT TOP LIGHT</span><span className="contact-brand-sub">T R A V E L</span></div>
         <h2 className="fr contact-thanks">Thank You</h2>
         <div className="contact-tag">We look forward to welcoming you to Egypt.</div>
         <div className="contact-rows">
