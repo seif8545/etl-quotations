@@ -17,6 +17,9 @@ export async function generateQuotationXlsx(d: QuotationDraft, ref: RefData): Pr
   const buf = await res.arrayBuffer()
   const wb = new ExcelJS.Workbook()
   await wb.xlsx.load(buf)
+  // Force Excel to recalculate all formulas (totals row, S.Sup, Guide/Rep) on open —
+  // otherwise it shows the template's stale cached results.
+  wb.calcProperties.fullCalcOnLoad = true
   const ws = wb.getWorksheet('Quotation new')
   if (!ws) throw new Error('Template sheet "Quotation new" not found')
 
@@ -24,8 +27,10 @@ export async function generateQuotationXlsx(d: QuotationDraft, ref: RefData): Pr
 
   ws.getCell('D2').value = d.groupRef
   ws.getCell('E3').value = pax
-  if (d.arrivalDate) ws.getCell('J2').value = new Date(d.arrivalDate + 'T00:00:00')
-  if (d.departureDate) ws.getCell('J3').value = new Date(d.departureDate + 'T00:00:00')
+  // Dates must be written as UTC midnight: ExcelJS converts JS Dates to Excel
+  // serials via UTC, so local-time midnight shifts a day back in UTC+ timezones.
+  if (d.arrivalDate) ws.getCell('J2').value = new Date(d.arrivalDate + 'T00:00:00Z')
+  if (d.departureDate) ws.getCell('J3').value = new Date(d.departureDate + 'T00:00:00Z')
   ws.getCell('M2').value = d.exchangeRate
   ws.getCell('M3').value = d.estimateProfit
 
@@ -92,17 +97,4 @@ export async function generateQuotationXlsx(d: QuotationDraft, ref: RefData): Pr
     ws.getCell('M13').value = d.guideAccommodation
   }
 
-  const out = await wb.xlsx.writeBuffer()
-  return new Blob([out], {
-    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  })
-}
-
-export function downloadBlob(blob: Blob, filename: string) {
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  a.click()
-  URL.revokeObjectURL(url)
-}
+  const out = await wb.
