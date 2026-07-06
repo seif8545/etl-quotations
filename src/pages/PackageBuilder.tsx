@@ -29,11 +29,12 @@ export default function PackageBuilder({ draft, onClose }: { draft: QuotationDra
     loadRefData().then((r) => {
       setRef(r)
       const nameOf = (id: number) => r.sites.find((s) => s.id === id)?.name ?? ''
-      setDays(draft.days.map((d) => ({
+      const dd = draft.days ?? []
+      setDays(dd.map((d) => ({
         uid: d.uid, title: d.label, description: d.description, photo: d.photo,
-        sites: d.siteIds.map(nameOf).filter(Boolean),
+        sites: (d.siteIds ?? []).map(nameOf).filter(Boolean),
       })))
-      if (draft.days[0]?.photo) setHero(draft.days[0].photo)
+      if (dd[0]?.photo) setHero(dd[0].photo)
       const t = computeTotals(draft, r)
       setPp(Math.round(t.perPersonDBL))
       setSgl(Math.round(t.sglSupplementUSD))
@@ -41,7 +42,7 @@ export default function PackageBuilder({ draft, onClose }: { draft: QuotationDra
     fetch('/images/tours/manifest.json').then((r) => r.json()).then(setManifest).catch(() => {})
   }, [])
 
-  const hotels = draft.accommodation.filter((a) => a.nights > 0)
+  const hotels = (draft.accommodation ?? []).filter((a) => a.nights > 0)
 
   function move(i: number, dir: -1 | 1) {
     const j = i + dir
@@ -78,18 +79,18 @@ export default function PackageBuilder({ draft, onClose }: { draft: QuotationDra
 
       const content: any[] = []
       if (images.logo) content.push({ image: 'logo', width: 130, alignment: 'center', margin: [0, 0, 0, 10] })
-      if (images.hero) content.push({ image: 'hero', width: 515, margin: [0, 0, 0, 12] })
+      if (images.hero) content.push({ image: 'hero', fit: [515, 250], alignment: 'center', margin: [0, 0, 0, 12] })
       content.push({ text: title, style: 'title' })
       const info: string[] = []
       if (draft.groupRef) info.push('Ref: ' + draft.groupRef)
       info.push(draft.pax + ' pax')
-      if (draft.arrivalDate) info.push(draft.arrivalDate + (draft.departureDate ? '  →  ' + draft.departureDate : ''))
+      if (draft.arrivalDate) info.push(draft.arrivalDate + (draft.departureDate ? '  to  ' + draft.departureDate : ''))
       content.push({ text: info.join('   ·   '), style: 'sub', margin: [0, 0, 0, 10] })
       if (intro) content.push({ text: intro, margin: [0, 0, 0, 4] })
 
       days.forEach((d, i) => {
         content.push({ text: `Day ${i + 1}: ${d.title}`, style: 'dayTitle', margin: [0, 16, 0, 6] })
-        if (images['day' + i]) content.push({ image: 'day' + i, width: 515, margin: [0, 0, 0, 6] })
+        if (images['day' + i]) content.push({ image: 'day' + i, fit: [515, 230], margin: [0, 0, 0, 6] })
         if (d.description) content.push({ text: d.description, margin: [0, 0, 0, 4] })
         if (d.sites.length) content.push({ text: [{ text: 'Highlights: ', bold: true }, d.sites.join(', ')] })
       })
