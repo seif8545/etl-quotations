@@ -97,4 +97,17 @@ export async function generateQuotationXlsx(d: QuotationDraft, ref: RefData): Pr
     ws.getCell('M13').value = d.guideAccommodation
   }
 
-  const out = await wb.
+  const out = await wb.xlsx.writeBuffer()
+  return new Blob([out], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  })
+}
+
+export function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(url)
+}
