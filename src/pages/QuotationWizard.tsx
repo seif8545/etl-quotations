@@ -61,7 +61,7 @@ export default function QuotationWizard({ done, initial }: { done: () => void; i
       <nav className="steps">
         {STEPS.map((s, i) => (
           <button key={s} className={i === step ? 'active' : i < step ? 'done' : ''}
-            onClick={() => (i === 0 || detailsValid) && setStep(i)}>{i + 1}. {s}</button>
+            onClick={() => setStep(i)}>{i + 1}. {s}</button>
         ))}
       </nav>
 
@@ -98,11 +98,11 @@ export default function QuotationWizard({ done, initial }: { done: () => void; i
       <footer className="wizard-nav">
         <button disabled={step === 0} onClick={() => setStep(step - 1)}>Back</button>
         {step < STEPS.length - 1 ? (
-          <button className="primary" disabled={step === 0 && !detailsValid} onClick={() => setStep(step + 1)}>
+          <button className="primary" onClick={() => setStep(step + 1)}>
             Next
           </button>
         ) : (
-          <button className="primary" disabled={busy} onClick={generate}>
+          <button className="primary" disabled={busy || !detailsValid} onClick={generate}>
             {busy ? 'Generating…' : 'Generate Excel'}
           </button>
         )}
