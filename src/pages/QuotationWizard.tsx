@@ -143,6 +143,8 @@ function Accommodation({ d, up, ref_ }: StepProps) {
     up({ accommodation: list })
   }
   return (
+    <>
+    <datalist id="ppn-opts">{[70, 80, 90, 100, 110, 120, 130, 140, 150, 160, 170, 180].map((v) => <option key={v} value={v} />)}</datalist>
     <table className="grid-table">
       <thead><tr><th>Destination</th><th>Nights</th><th>Price / night (USD, in DBL)</th></tr></thead>
       <tbody>
@@ -152,12 +154,13 @@ function Accommodation({ d, up, ref_ }: StepProps) {
             <tr key={dest.id}>
               <td>{dest.name}</td>
               <td><input type="number" min={0} value={e?.nights ?? 0} onChange={(ev) => set(dest.name, 'nights', +ev.target.value)} /></td>
-              <td><input type="number" min={0} step="0.01" value={e?.pricePerNight ?? 0} onChange={(ev) => set(dest.name, 'pricePerNight', +ev.target.value)} /></td>
+              <td><input type="number" min={0} step={5} list="ppn-opts" value={e?.pricePerNight ?? 0} onChange={(ev) => set(dest.name, 'pricePerNight', +ev.target.value)} /></td>
             </tr>
           )
         })}
       </tbody>
     </table>
+    </>
   )
 }
 
