@@ -5,6 +5,7 @@ import { generateLetterDocx, printLetter } from './Letter'
 import type { LetterData } from './Letter'
 import { generateVoucherDocx, printVoucher } from './Voucher'
 import type { VoucherData } from './Voucher'
+import PackageBuilder from './PackageBuilder'
 import type { QuotationDraft } from '../lib/types'
 
 const TABS = ['Quotations', 'Letters', 'Vouchers'] as const
@@ -16,6 +17,7 @@ export default function Documents({ openQuotation }: { openQuotation: (d: Quotat
   const [search, setSearch] = useState('')
   const [error, setError] = useState('')
   const [busyId, setBusyId] = useState<number | null>(null)
+  const [pdfDraft, setPdfDraft] = useState<QuotationDraft | null>(null)
 
   const table = tab === 'Quotations' ? 'q_quotations' : tab === 'Letters' ? 'q_letters' : 'q_vouchers'
 
@@ -103,6 +105,7 @@ export default function Documents({ openQuotation }: { openQuotation: (d: Quotat
                   <td className="actions">
                     {tab === 'Quotations' && <>
                       <button className="link" onClick={() => excel(r)}>Excel</button>
+                      {r.draft && <button className="link" onClick={() => setPdfDraft(r.draft)}>Package PDF</button>}
                       {r.draft && <button className="link" onClick={() => openQuotation(r.draft)}>Open / Duplicate</button>}
                       {r.draft && <button className="link" onClick={() => saveAsPackage(r)}>Save as package</button>}
                     </>}
@@ -118,6 +121,7 @@ export default function Documents({ openQuotation }: { openQuotation: (d: Quotat
           </table>
         </div>
       </div>
+      {pdfDraft && <PackageBuilder draft={pdfDraft} onClose={() => setPdfDraft(null)} />}
     </div>
   )
 }
