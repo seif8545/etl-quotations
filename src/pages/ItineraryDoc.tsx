@@ -21,11 +21,11 @@ const CSS = `
 .itin .fr { font-family: 'Fraunces', Georgia, serif; }
 
 /* Cover */
-.itin-cover { position: relative; height: 1123px; overflow: hidden; display: flex; flex-direction: column; justify-content: space-between; page-break-after: always; }
+.itin-cover { position: relative; height: 1123px; overflow: hidden; display: flex; flex-direction: column; justify-content: space-between; }
 .cover-hero { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .cover-ov { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(14,42,71,0.15) 0%, rgba(14,42,71,0.30) 45%, rgba(8,26,48,0.90) 100%); }
 .cover-top { position: relative; z-index: 2; padding: 46px; display: flex; justify-content: center; }
-.cover-logo { background: rgba(255,255,255,0.94); border-radius: 999px; padding: 14px 26px; box-shadow: 0 6px 24px rgba(0,0,0,0.25); }
+.cover-logo { background: #ffffff; border-radius: 999px; padding: 14px 26px; box-shadow: 0 6px 24px rgba(0,0,0,0.25); }
 .cover-logo img { height: 48px; display: block; }
 .cover-bottom { position: relative; z-index: 2; padding: 0 60px 76px; color: #fff; }
 .cover-eyebrow { color: #f0c53a; font-weight: 600; font-size: 13px; letter-spacing: 3px; text-transform: uppercase; margin-bottom: 12px; }
@@ -83,7 +83,8 @@ const CSS = `
 .price-sgl { margin-top: 14px; font-size: 13px; color: rgba(255,255,255,0.8); border-top: 1px solid rgba(255,255,255,0.16); padding-top: 12px; }
 
 /* Why us */
-.itin-why { background: #0e2a47; color: #fff; padding: 34px 56px; page-break-inside: avoid; }
+.itin-closing { page-break-before: always; background: linear-gradient(180deg,#0e2a47,#081a30); color: #fff; min-height: 1115px; padding: 46px 56px 56px; display: flex; flex-direction: column; }
+.itin-why { padding: 0 0 30px; }
 .itin-why .sec-h { color: #fff; }
 .why-grid { display: flex; flex-wrap: wrap; gap: 20px 34px; margin-top: 6px; }
 .why-item { width: 45%; }
@@ -91,8 +92,8 @@ const CSS = `
 .why-item span { font-size: 12.5px; color: rgba(255,255,255,0.82); line-height: 1.5; }
 
 /* Contact */
-.itin-contact { page-break-before: always; background: linear-gradient(180deg,#0e2a47,#081a30); color: #fff; padding: 70px 60px; min-height: 620px; text-align: center; }
-.contact-logo { background: rgba(255,255,255,0.94); border-radius: 999px; padding: 14px 28px; display: inline-block; margin-bottom: 30px; }
+.itin-contact { text-align: center; margin-top: auto; }
+.contact-logo { background: #ffffff; border-radius: 999px; padding: 14px 28px; display: inline-block; margin-bottom: 30px; }
 .contact-logo img { height: 50px; display: block; }
 .contact-thanks { font-size: 40px; font-weight: 600; margin: 0 0 10px; color: #fff; }
 .contact-tag { font-size: 15px; color: rgba(255,255,255,0.82); margin-bottom: 34px; }
@@ -128,10 +129,10 @@ const ItineraryDoc = forwardRef<HTMLDivElement, { data: ItineraryData }>(({ data
 
       {/* Overview strip */}
       <div className="itin-strip">
-        <div className="stat"><b>{d.overview.days}</b><span>Days</span></div>
-        <div className="stat"><b>{d.overview.nights}</b><span>Nights</span></div>
-        <div className="stat"><b>{d.overview.cities}</b><span>Cities</span></div>
-        <div className="stat"><b>{d.overview.pax}</b><span>Guests</span></div>
+        <div className="stat"><b>{d.overview.days}</b><span>{d.overview.days === 1 ? 'Day' : 'Days'}</span></div>
+        <div className="stat"><b>{d.overview.nights}</b><span>{d.overview.nights === 1 ? 'Night' : 'Nights'}</span></div>
+        <div className="stat"><b>{d.overview.cities}</b><span>{d.overview.cities === 1 ? 'City' : 'Cities'}</span></div>
+        <div className="stat"><b>{d.overview.pax}</b><span>{d.overview.pax === 1 ? 'Guest' : 'Guests'}</span></div>
       </div>
 
       {/* Intro */}
@@ -207,7 +208,8 @@ const ItineraryDoc = forwardRef<HTMLDivElement, { data: ItineraryData }>(({ data
         </div>
       )}
 
-      {/* Why us */}
+      {/* Closing: why-us + contact on one navy page */}
+      <div className="itin-closing">
       <div className="itin-why">
         <h2 className="fr sec-h">Why Egypt Top Light</h2>
         <div className="rule" />
@@ -230,6 +232,7 @@ const ItineraryDoc = forwardRef<HTMLDivElement, { data: ItineraryData }>(({ data
           <div className="contact-row"><b>Website</b><span>{d.contact.website}</span></div>
           <div className="contact-row"><b>Social</b><span>{d.contact.social}</span></div>
         </div>
+      </div>
       </div>
     </div>
   )
