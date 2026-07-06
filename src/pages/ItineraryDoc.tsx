@@ -50,7 +50,7 @@ const CSS = `
 /* Day cards */
 .day { display: flex; background: #fff; border: 1px solid #ecdcb6; border-radius: 14px; overflow: hidden; margin-bottom: 22px; box-shadow: 0 6px 20px rgba(14,42,71,0.06); page-break-inside: avoid; }
 .day.alt { flex-direction: row-reverse; }
-.day-photo { width: 300px; flex-shrink: 0; object-fit: cover; }
+.day-photo { width: 300px; height: 240px; flex-shrink: 0; object-fit: cover; }
 .day-body { padding: 22px 26px; flex: 1; }
 .day-tag { display: inline-block; background: linear-gradient(135deg,#c8960a,#e8b015); color: #3a2a00; font-weight: 700; font-size: 11px; letter-spacing: 1.2px; padding: 4px 13px; border-radius: 999px; }
 .day-title { font-size: 23px; font-weight: 600; color: #0e2a47; margin: 10px 0 8px; }

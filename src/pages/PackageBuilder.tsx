@@ -21,12 +21,12 @@ export default function PackageBuilder({ draft, onClose }: { draft: QuotationDra
   const [arrival, setArrival] = useState<FixedDay>({
     on: true, title: 'Arrival — Welcome to Egypt',
     description: 'On arrival, our representative will meet and assist you through the airport formalities before a private transfer to your hotel for check-in and overnight.',
-    photo: 'cairo-giza/citadel-view.jpeg',
+    photo: 'arrivedepart/arrival-plane.jpg',
   })
   const [departure, setDeparture] = useState<FixedDay>({
     on: true, title: 'Departure',
     description: 'After breakfast, check out of your hotel and enjoy a private transfer to the airport for your onward flight. We wish you a safe journey home.',
-    photo: 'luxor-aswan/nile.jpeg',
+    photo: 'arrivedepart/departure-plane.jpg',
   })
   const [pp, setPp] = useState(0)
   const [sgl, setSgl] = useState(0)
@@ -153,7 +153,7 @@ export default function PackageBuilder({ draft, onClose }: { draft: QuotationDra
         image: { type: 'jpeg', quality: 0.95 },
         html2canvas: { scale: 2, useCORS: true, backgroundColor: '#fffefa', logging: false },
         jsPDF: { unit: 'px', format: [794, 1123], orientation: 'portrait', hotfixes: ['px_scaling'] },
-        pagebreak: { mode: ['css', 'legacy'] },
+        pagebreak: { mode: ['css', 'legacy'], avoid: ['.day', '.inc-col', '.price-box', '.hotel-card', '.itin-strip', '.itin-why', '.intro-card'] },
       }).from(node).save()
     } catch (e: any) {
       setError(e.message ?? String(e))
