@@ -1,6 +1,6 @@
 import ExcelJS from 'exceljs'
 import type { QuotationDraft, RefData } from './types'
-import { sitePrice, transferPrice } from './pricing'
+import { sitePrice, transferPrice, tripDays } from './pricing'
 
 /**
  * Fills the "Quotation new" sheet of the base template with the draft's data.
@@ -86,8 +86,15 @@ export async function generateQuotationXlsx(d: QuotationDraft, ref: RefData): Pr
 
   // Services: L10 Guide / L11 Rep already in template with M formulas.
   // Clear them if excluded; guide ticket / accommodation go to L12/M12, L13/M13.
-  if (!d.includeGuide) { ws.getCell('L10').value = null; ws.getCell('M10').value = null }
-  if (!d.includeRep) { ws.getCell('L11').value = null; ws.getCell('M11').value = null }
+  const days = tripDays(d)
+  const guideRate = ref.serviceRates.find((s) => s.name === 'Guide')?.rate_le_per_day ?? 0
+  const repRate = ref.serviceRates.find((s) => s.name === 'Rep')?.rate_le_per_day ?? 0
+  if (d.includeGuide) {
+    ws.getCell('M10').value = (d.guideDays ?? days) * (d.guideRate ?? guideRate)
+  } else { ws.getCell('L10').value = null; ws.getCell('M10').value = null }
+  if (d.includeRep) {
+    ws.getCell('M11').value = (d.repDays ?? days) * (d.repRate ?? repRate)
+  } else { ws.getCell('L11').value = null; ws.getCell('M11').value = null }
   if (d.guideTicket > 0) {
     ws.getCell('L12').value = 'Guide Ticket'
     ws.getCell('M12').value = d.guideTicket

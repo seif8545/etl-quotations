@@ -256,14 +256,25 @@ function MealsServices({ d, up, ref_ }: StepProps) {
       <section>
         <h4>Services</h4>
         {ref.serviceRates.map((sr) => {
-          const on = sr.name === 'Guide' ? d.includeGuide : sr.name === 'Rep' ? d.includeRep : false
+          const isGuide = sr.name === 'Guide'
+          const on = isGuide ? d.includeGuide : sr.name === 'Rep' ? d.includeRep : false
+          const oDays = (isGuide ? d.guideDays : d.repDays) ?? days
+          const oRate = (isGuide ? d.guideRate : d.repRate) ?? sr.rate_le_per_day
           return (
-            <label key={sr.id} className="check">
+            <div key={sr.id} className="check">
               <input type="checkbox" checked={on}
-                onChange={() => sr.name === 'Guide' ? up({ includeGuide: !d.includeGuide }) : up({ includeRep: !d.includeRep })} />
-              <span>{sr.name} ({sr.rate_le_per_day} LE/day × {days} days)</span>
-              {on && <em>{fmt(days * sr.rate_le_per_day)} LE</em>}
-            </label>
+                onChange={() => isGuide ? up({ includeGuide: !d.includeGuide }) : up({ includeRep: !d.includeRep })} />
+              <span>{sr.name}</span>
+              {on && <>
+                <input type="number" min={0} value={oDays} style={{ width: 60 }}
+                  onChange={(e) => up(isGuide ? { guideDays: +e.target.value } : { repDays: +e.target.value })} />
+                <span className="muted small">days ×</span>
+                <input type="number" min={0} value={oRate} style={{ width: 80 }}
+                  onChange={(e) => up(isGuide ? { guideRate: +e.target.value } : { repRate: +e.target.value })} />
+                <span className="muted small">LE/day</span>
+                <em>{fmt(oDays * oRate)} LE</em>
+              </>}
+            </div>
           )
         })}
         <label>Guide ticket (LE)<input type="number" min={0} value={d.guideTicket} onChange={(e) => up({ guideTicket: +e.target.value })} /></label>
@@ -347,8 +358,13 @@ async function saveQuotation(d: QuotationDraft, ref: RefData) {
   }
   const days = tripDays(d)
   for (const sr of ref.serviceRates) {
-    const on = (sr.name === 'Guide' && d.includeGuide) || (sr.name === 'Rep' && d.includeRep)
-    if (on) items.push({ quotation_id: q.id, category: 'service', label: sr.name, quantity: days, unit_price: sr.rate_le_per_day, currency: 'LE', sort: sort++ })
+    const isGuide = sr.name === 'Guide'
+    const on = (isGuide && d.includeGuide) || (sr.name === 'Rep' && d.includeRep)
+    if (on) {
+      const qDays = (isGuide ? d.guideDays : d.repDays) ?? days
+      const qRate = (isGuide ? d.guideRate : d.repRate) ?? sr.rate_le_per_day
+      items.push({ quotation_id: q.id, category: 'service', label: sr.name, quantity: qDays, unit_price: qRate, currency: 'LE', sort: sort++ })
+    }
   }
   if (d.guideTicket > 0) items.push({ quotation_id: q.id, category: 'service', label: 'Guide Ticket', quantity: 1, unit_price: d.guideTicket, currency: 'LE', sort: sort++ })
   if (d.guideAccommodation > 0) items.push({ quotation_id: q.id, category: 'service', label: 'Guide Accommodation', quantity: 1, unit_price: d.guideAccommodation, currency: 'LE', sort: sort++ })

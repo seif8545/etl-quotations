@@ -94,6 +94,10 @@ export interface QuotationDraft {
   guideAccommodation: number // LE
   includeGuide: boolean
   includeRep: boolean
+  guideDays: number | null   // null = auto (trip days)
+  guideRate: number | null   // null = auto (DB rate)
+  repDays: number | null
+  repRate: number | null
 }
 
 export const emptyDraft = (): QuotationDraft => ({
@@ -113,4 +117,8 @@ export const emptyDraft = (): QuotationDraft => ({
   guideAccommodation: 0,
   includeGuide: true,
   includeRep: true,
+  guideDays: null,
+  guideRate: null,
+  repDays: null,
+  repRate: null,
 })

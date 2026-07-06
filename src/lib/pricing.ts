@@ -86,8 +86,10 @@ export function computeTotals(d: QuotationDraft, ref: RefData): Totals {
   const days = tripDays(d)
   let servicesLE = 0
   for (const sr of ref.serviceRates) {
-    if (sr.name === 'Guide' && d.includeGuide) servicesLE += days * sr.rate_le_per_day
-    if (sr.name === 'Rep' && d.includeRep) servicesLE += days * sr.rate_le_per_day
+    if (sr.name === 'Guide' && d.includeGuide)
+      servicesLE += (d.guideDays ?? days) * (d.guideRate ?? sr.rate_le_per_day)
+    if (sr.name === 'Rep' && d.includeRep)
+      servicesLE += (d.repDays ?? days) * (d.repRate ?? sr.rate_le_per_day)
   }
   if (d.guideTicket > 0) servicesLE += d.guideTicket
   if (d.guideAccommodation > 0) servicesLE += d.guideAccommodation
