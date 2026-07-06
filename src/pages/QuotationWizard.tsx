@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { loadRefData, supabase } from '../lib/supabase'
-import { computeTotals, sitePrice, transferPrice, tripDays, vehicleFor } from '../lib/pricing'
+import { computeTotals, sitePrice, transferPrice, tripDays, vehicleFor, effectiveSelections } from '../lib/pricing'
 import { generateQuotationXlsx, downloadBlob } from '../lib/excel'
 import { emptyDraft } from '../lib/types'
-import type { QuotationDraft, RefData } from '../lib/types'
+import type { QuotationDraft, RefData, DayPreset, QuotationDay } from '../lib/types'
 
 const STEPS = ['Details', 'Accommodation', 'Sites', 'Transfers', 'Meals & Services', 'Review'] as const
 
@@ -28,9 +28,9 @@ export default function QuotationWizard({ done, initial }: { done: () => void; i
     const pkg = packages.find((p) => p.id === +idStr)
     if (!pkg) return
     const { accommodation, siteIds, transferCounts, mealCounts, guideTicket,
-      guideAccommodation, includeGuide, includeRep, flightTicket } = { ...emptyDraft(), ...pkg.draft }
+      guideAccommodation, includeGuide, includeRep, flightTicket, days } = { ...emptyDraft(), ...pkg.draft }
     setD((prev) => ({ ...prev, accommodation, siteIds, transferCounts, mealCounts,
-      guideTicket, guideAccommodation, includeGuide, includeRep, flightTicket }))
+      guideTicket, guideAccommodation, includeGuide, includeRep, flightTicket, days }))
   }
 
   const totals = useMemo(() => (ref ? computeTotals(d, ref) : null), [d, ref])
@@ -76,7 +76,7 @@ export default function QuotationWizard({ done, initial }: { done: () => void; i
         )}
         {step === 0 && <Details d={d} up={up} />}
         {step === 1 && <Accommodation d={d} up={up} ref_={ref} />}
-        {step === 2 && <Sites d={d} up={up} ref_={ref} />}
+        {step === 2 && <><TourDays d={d} up={up} ref_={ref} /><Sites d={d} up={up} ref_={ref} /></>}
         {step === 3 && <Transfers d={d} up={up} ref_={ref} />}
         {step === 4 && <MealsServices d={d} up={up} ref_={ref} />}
         {step === 5 && <Review d={d} ref_={ref} />}
@@ -161,9 +161,52 @@ function Accommodation({ d, up, ref_ }: StepProps) {
   )
 }
 
+function TourDays({ d, up, ref_ }: StepProps) {
+  const ref = ref_!
+  const presets = ref.dayPresets
+  if (!presets.length) return null
+  function addDay(p: DayPreset) {
+    const uid = typeof crypto !== 'undefined' && crypto.randomUUID
+      ? crypto.randomUUID() : String(Date.now()) + Math.random()
+    const day: QuotationDay = {
+      uid, presetId: p.id, label: p.name, description: p.description, photo: p.photo,
+      siteIds: [...p.site_ids], transferCounts: { ...p.transfer_counts }, includeGuide: p.include_guide,
+    }
+    up({ days: [...d.days, day] })
+  }
+  const removeDay = (uid: string) => up({ days: d.days.filter((x) => x.uid !== uid) })
+  return (
+    <section className="tour-days card">
+      <h4>Quick tour days</h4>
+      <p className="muted small">Add a ready-made day — its sites, transfer and guide are included automatically, and counted in the totals. Remove any time.</p>
+      <div className="day-presets">
+        {presets.map((p) => (
+          <button key={p.id} type="button" className="day-chip-add" onClick={() => addDay(p)}>+ {p.name}</button>
+        ))}
+      </div>
+      {d.days.length > 0 && (
+        <div className="day-cards">
+          {d.days.map((day, i) => (
+            <div key={day.uid} className="day-card">
+              {day.photo && <img src={`/images/tours/${day.photo}`} alt="" />}
+              <div className="day-card-body">
+                <b>Day {i + 1}: {day.label}</b>
+                <span className="muted small">{day.siteIds.length} site(s){day.includeGuide ? ' · guide' : ''}</span>
+              </div>
+              <button type="button" className="link danger" onClick={() => removeDay(day.uid)}>Remove</button>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  )
+}
+
 function Sites({ d, up, ref_ }: StepProps) {
   const ref = ref_!
   const regions = ref.regions.filter((r) => r.kind === 'site')
+  const daySites = new Set<number>()
+  for (const day of d.days) for (const id of day.siteIds) daySites.add(id)
   function toggle(id: number) {
     up({ siteIds: d.siteIds.includes(id) ? d.siteIds.filter((x) => x !== id) : [...d.siteIds, id] })
   }
@@ -175,13 +218,17 @@ function Sites({ d, up, ref_ }: StepProps) {
         return (
           <section key={reg.id}>
             <h4>{reg.name}</h4>
-            {sites.map((s) => (
-              <label key={s.id} className="check">
-                <input type="checkbox" checked={d.siteIds.includes(s.id)} onChange={() => toggle(s.id)} />
-                <span>{s.name}</span>
-                <em>{fmt(sitePrice(s, d.arrivalDate))} LE</em>
-              </label>
-            ))}
+            {sites.map((s) => {
+              const fromDay = daySites.has(s.id)
+              const checked = fromDay || d.siteIds.includes(s.id)
+              return (
+                <label key={s.id} className={`check${fromDay ? ' locked' : ''}`}>
+                  <input type="checkbox" checked={checked} disabled={fromDay} onChange={() => toggle(s.id)} />
+                  <span>{s.name}{fromDay ? <em className="muted small"> (tour day)</em> : null}</span>
+                  <em>{fmt(sitePrice(s, d.arrivalDate))} LE</em>
+                </label>
+              )
+            })}
           </section>
         )
       })}
@@ -193,6 +240,8 @@ function Transfers({ d, up, ref_ }: StepProps) {
   const ref = ref_!
   const regions = ref.regions.filter((r) => r.kind === 'trip')
   const pax = d.pax || 1
+  const dayTransfers: Record<number, number> = {}
+  for (const day of d.days) for (const [k, v] of Object.entries(day.transferCounts)) dayTransfers[+k] = (dayTransfers[+k] ?? 0) + v
   function setQty(id: number, qty: number) {
     up({ transferCounts: { ...d.transferCounts, [id]: Math.max(0, qty) } })
   }
@@ -206,19 +255,20 @@ function Transfers({ d, up, ref_ }: StepProps) {
             <h4>{reg.name}</h4>
             {list.map((t) => {
               const qty = d.transferCounts[t.id] ?? 0
+              const fromDay = dayTransfers[t.id] ?? 0
               const price = transferPrice(t, d.arrivalDate, pax, ref)
               return t.countable ? (
                 <div key={t.id} className="check counter">
                   <button type="button" onClick={() => setQty(t.id, qty - 1)}>−</button>
                   <b>{qty}</b>
                   <button type="button" onClick={() => setQty(t.id, qty + 1)}>+</button>
-                  <span>{t.name}</span>
+                  <span>{t.name}{fromDay > 0 ? <em className="muted small"> +{fromDay} via tour day</em> : null}</span>
                   <em>{fmt(price)} LE</em>
                 </div>
               ) : (
                 <label key={t.id} className="check">
                   <input type="checkbox" checked={qty > 0} onChange={() => setQty(t.id, qty > 0 ? 0 : 1)} />
-                  <span>{t.name}</span>
+                  <span>{t.name}{fromDay > 0 ? <em className="muted small"> +{fromDay} via tour day</em> : null}</span>
                   <em>{fmt(price)} LE</em>
                 </label>
               )
@@ -233,6 +283,7 @@ function Transfers({ d, up, ref_ }: StepProps) {
 function MealsServices({ d, up, ref_ }: StepProps) {
   const ref = ref_!
   const days = tripDays(d)
+  const dayGuide = d.days.some((x) => x.includeGuide)
   function setMeal(id: number, qty: number) {
     up({ mealCounts: { ...d.mealCounts, [id]: Math.max(0, qty) } })
   }
@@ -257,14 +308,15 @@ function MealsServices({ d, up, ref_ }: StepProps) {
         <h4>Services</h4>
         {ref.serviceRates.map((sr) => {
           const isGuide = sr.name === 'Guide'
-          const on = isGuide ? d.includeGuide : sr.name === 'Rep' ? d.includeRep : false
+          const lockedOn = isGuide && dayGuide
+          const on = (isGuide ? d.includeGuide : sr.name === 'Rep' ? d.includeRep : false) || lockedOn
           const oDays = (isGuide ? d.guideDays : d.repDays) ?? days
           const oRate = (isGuide ? d.guideRate : d.repRate) ?? sr.rate_le_per_day
           return (
             <div key={sr.id} className="check">
-              <input type="checkbox" checked={on}
+              <input type="checkbox" checked={on} disabled={lockedOn}
                 onChange={() => isGuide ? up({ includeGuide: !d.includeGuide }) : up({ includeRep: !d.includeRep })} />
-              <span>{sr.name}</span>
+              <span>{sr.name}{lockedOn ? <em className="muted small"> (tour day)</em> : null}</span>
               {on && <>
                 <input type="number" min={0} value={oDays} style={{ width: 60 }}
                   onChange={(e) => up(isGuide ? { guideDays: +e.target.value } : { repDays: +e.target.value })} />
@@ -287,14 +339,20 @@ function MealsServices({ d, up, ref_ }: StepProps) {
 function Review({ d, ref_ }: { d: QuotationDraft; ref_: RefData }) {
   const ref = ref_
   const pax = d.pax || 1
-  const sites = d.siteIds.map((id) => ref.sites.find((s) => s.id === id)).filter(Boolean)
-  const transfers = Object.entries(d.transferCounts)
+  const eff = effectiveSelections(d)
+  const sites = eff.siteIds.map((id) => ref.sites.find((s) => s.id === id)).filter(Boolean)
+  const transfers = Object.entries(eff.transferCounts)
     .filter(([, q]) => q > 0)
     .map(([id, q]) => ({ t: ref.transfers.find((x) => x.id === +id)!, q }))
     .filter((x) => x.t)
   return (
     <div className="review">
       <p><b>{d.name}</b> · Ref {d.groupRef || '—'} · {pax} pax · {d.arrivalDate} → {d.departureDate}</p>
+      {d.days.length > 0 && (
+        <div className="review-days muted small">
+          Tour days: {d.days.map((day, i) => `${i + 1}. ${day.label}`).join('  ·  ')}
+        </div>
+      )}
       <div className="review-cols">
         <section>
           <h4>Accommodation</h4>
@@ -336,17 +394,18 @@ async function saveQuotation(d: QuotationDraft, ref: RefData) {
   }).select('id').single()
   if (error) throw error
 
+  const eff = effectiveSelections(d)
   const items: any[] = []
   let sort = 0
   for (const a of d.accommodation) {
     if (a.nights > 0 && a.pricePerNight > 0)
       items.push({ quotation_id: q.id, category: 'accommodation', label: `${a.nights} nights ${a.destination}`, quantity: a.nights, unit_price: a.pricePerNight, currency: 'USD', sort: sort++ })
   }
-  for (const id of d.siteIds) {
+  for (const id of eff.siteIds) {
     const s = ref.sites.find((x) => x.id === id)
     if (s) items.push({ quotation_id: q.id, category: 'site', label: s.name, quantity: 1, unit_price: sitePrice(s, d.arrivalDate), currency: 'LE', sort: sort++ })
   }
-  for (const [idStr, qty] of Object.entries(d.transferCounts)) {
+  for (const [idStr, qty] of Object.entries(eff.transferCounts)) {
     if (qty <= 0) continue
     const t = ref.transfers.find((x) => x.id === +idStr)
     if (t) items.push({ quotation_id: q.id, category: 'transfer', label: t.name, quantity: qty, unit_price: transferPrice(t, d.arrivalDate, d.pax || 1, ref), currency: 'LE', sort: sort++ })
@@ -359,7 +418,7 @@ async function saveQuotation(d: QuotationDraft, ref: RefData) {
   const days = tripDays(d)
   for (const sr of ref.serviceRates) {
     const isGuide = sr.name === 'Guide'
-    const on = (isGuide && d.includeGuide) || (sr.name === 'Rep' && d.includeRep)
+    const on = (isGuide && eff.includeGuide) || (sr.name === 'Rep' && d.includeRep)
     if (on) {
       const qDays = (isGuide ? d.guideDays : d.repDays) ?? days
       const qRate = (isGuide ? d.guideRate : d.repRate) ?? sr.rate_le_per_day

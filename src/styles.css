@@ -112,3 +112,26 @@ button { cursor: pointer; }
 .link.danger { color: #b3261e; }
 .pkg-select { display: block; margin-bottom: 14px; font-size: 14px; }
 .pkg-select select { padding: 7px; border: 1px solid #cfd4dc; border-radius: 6px; margin-left: 6px; }
+
+/* --- Tour days (wizard) --- */
+.tour-days { margin-bottom: 16px; }
+.day-presets { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
+.day-chip-add { border: 1px solid var(--border, #ccc); background: #f6f8fa; border-radius: 16px; padding: 4px 12px; cursor: pointer; font-size: 13px; }
+.day-chip-add:hover { background: #e8eef5; }
+.day-cards { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+.day-card { display: flex; align-items: center; gap: 10px; border: 1px solid var(--border, #ddd); border-radius: 8px; padding: 6px 10px; }
+.day-card img { width: 64px; height: 44px; object-fit: cover; border-radius: 6px; }
+.day-card-body { display: flex; flex-direction: column; flex: 1; }
+.check.locked { opacity: 0.85; }
+
+/* --- Day-preset admin editor --- */
+.preset-editors { display: flex; flex-direction: column; gap: 14px; }
+.preset-editor { padding: 12px; }
+.preset-head { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 8px; }
+.preset-name { flex: 1; min-width: 200px; font-weight: 600; }
+.preset-editor textarea { width: 100%; margin-bottom: 8px; }
+.preset-photo-row { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+.preset-thumb { width: 96px; height: 64px; object-fit: cover; border-radius: 6px; }
+.preset-editor details { margin: 6px 0; }
+.preset-editor summary { cursor: pointer; font-weight: 600; padding: 4px 0; }
+.preset-actions { display: flex; gap: 12px; align-items: center; margin-top: 8px; }

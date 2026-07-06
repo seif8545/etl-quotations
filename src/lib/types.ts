@@ -59,6 +59,32 @@ export interface ServiceRate {
   active: boolean
 }
 
+/** Admin-managed "tour day" preset that bulk-fills a quotation. */
+export interface DayPreset {
+  id: number
+  name: string
+  description: string
+  area: string
+  photo: string
+  site_ids: number[]
+  transfer_counts: Record<number, number>
+  include_guide: boolean
+  sort: number
+  active: boolean
+}
+
+/** A tour day added to a quotation (snapshot of a preset at add time). */
+export interface QuotationDay {
+  uid: string
+  presetId: number
+  label: string
+  description: string
+  photo: string
+  siteIds: number[]
+  transferCounts: Record<number, number>
+  includeGuide: boolean
+}
+
 export interface RefData {
   regions: Region[]
   sites: Site[]
@@ -67,6 +93,7 @@ export interface RefData {
   destinations: AccommodationDestination[]
   mealTiers: MealTier[]
   serviceRates: ServiceRate[]
+  dayPresets: DayPreset[]
   settings: Record<string, string>
 }
 
@@ -98,6 +125,7 @@ export interface QuotationDraft {
   guideRate: number | null   // null = auto (DB rate)
   repDays: number | null
   repRate: number | null
+  days: QuotationDay[]        // added tour-day presets (for itinerary/PDF)
 }
 
 export const emptyDraft = (): QuotationDraft => ({
@@ -121,4 +149,5 @@ export const emptyDraft = (): QuotationDraft => ({
   guideRate: null,
   repDays: null,
   repRate: null,
+  days: [],
 })

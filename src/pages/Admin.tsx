@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import type { Region } from '../lib/types'
+import DayPresetsAdmin from './DayPresetsAdmin'
 
 /**
  * Admin panel — generic CRUD over the reference tables.
@@ -26,7 +27,7 @@ interface EntityDef {
   canDelete?: boolean
 }
 
-const TABS = ['Sites', 'Transfers', 'Destinations', 'Meals', 'Services', 'Pax tiers', 'Settings', 'Users'] as const
+const TABS = ['Sites', 'Transfers', 'Destinations', 'Meals', 'Services', 'Pax tiers', 'Tour Days', 'Settings', 'Users'] as const
 type Tab = (typeof TABS)[number]
 
 export default function Admin() {
@@ -40,7 +41,7 @@ export default function Admin() {
   const siteRegions = regions.filter((r) => r.kind === 'site').map((r) => ({ value: r.id as Value, label: r.name }))
   const tripRegions = regions.filter((r) => r.kind === 'trip').map((r) => ({ value: r.id as Value, label: r.name }))
 
-  const defs: Record<Tab, EntityDef> = {
+  const defs: Record<Exclude<Tab, 'Tour Days'>, EntityDef> = {
     Sites: {
       table: 'q_sites', label: 'Sites', orderBy: 'sort', canAdd: true,
       cols: [
@@ -136,7 +137,9 @@ export default function Admin() {
           <button key={t} className={t === tab ? 'active' : ''} onClick={() => setTab(t)}>{t}</button>
         ))}
       </nav>
-      <EntityTable key={tab} def={defs[tab]} />
+      {tab === 'Tour Days'
+        ? <DayPresetsAdmin />
+        : <EntityTable key={tab} def={defs[tab as Exclude<Tab, 'Tour Days'>]} />}
     </div>
   )
 }

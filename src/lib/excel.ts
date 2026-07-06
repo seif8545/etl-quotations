@@ -1,6 +1,6 @@
 import ExcelJS from 'exceljs'
 import type { QuotationDraft, RefData } from './types'
-import { sitePrice, transferPrice, tripDays } from './pricing'
+import { sitePrice, transferPrice, tripDays, effectiveSelections } from './pricing'
 
 /**
  * Fills the "Quotation new" sheet of the base template with the draft's data.
@@ -24,6 +24,7 @@ export async function generateQuotationXlsx(d: QuotationDraft, ref: RefData): Pr
   if (!ws) throw new Error('Template sheet "Quotation new" not found')
 
   const pax = d.pax || 1
+  const eff = effectiveSelections(d)
 
   ws.getCell('D2').value = d.groupRef
   ws.getCell('E3').value = pax
@@ -52,7 +53,7 @@ export async function generateQuotationXlsx(d: QuotationDraft, ref: RefData): Pr
     ws.getCell(`G${rf}`).value = d.flightTicket
     rf++
   }
-  for (const id of d.siteIds) {
+  for (const id of eff.siteIds) {
     if (rf > 38) break
     const site = ref.sites.find((s) => s.id === id)
     if (!site) continue
@@ -64,7 +65,7 @@ export async function generateQuotationXlsx(d: QuotationDraft, ref: RefData): Pr
   // Transfers H/I from row 10, repeated by quantity
   let rh = 10
   outer: for (const t of ref.transfers) {
-    const qty = d.transferCounts[t.id] ?? 0
+    const qty = eff.transferCounts[t.id] ?? 0
     for (let i = 0; i < qty; i++) {
       if (rh > 38) break outer
       ws.getCell(`H${rh}`).value = t.name
@@ -89,7 +90,7 @@ export async function generateQuotationXlsx(d: QuotationDraft, ref: RefData): Pr
   const days = tripDays(d)
   const guideRate = ref.serviceRates.find((s) => s.name === 'Guide')?.rate_le_per_day ?? 0
   const repRate = ref.serviceRates.find((s) => s.name === 'Rep')?.rate_le_per_day ?? 0
-  if (d.includeGuide) {
+  if (eff.includeGuide) {
     ws.getCell('M10').value = (d.guideDays ?? days) * (d.guideRate ?? guideRate)
   } else { ws.getCell('L10').value = null; ws.getCell('M10').value = null }
   if (d.includeRep) {

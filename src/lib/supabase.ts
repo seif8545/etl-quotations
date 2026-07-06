@@ -7,7 +7,7 @@ export const supabase = createClient(
 )
 
 export async function loadRefData(): Promise<RefData> {
-  const [regions, sites, transfers, paxTiers, destinations, mealTiers, serviceRates, settings] =
+  const [regions, sites, transfers, paxTiers, destinations, mealTiers, serviceRates, dayPresets, settings] =
     await Promise.all([
       supabase.from('q_regions').select('*').order('sort'),
       supabase.from('q_sites').select('*').eq('active', true).order('sort'),
@@ -16,11 +16,12 @@ export async function loadRefData(): Promise<RefData> {
       supabase.from('q_accommodation_destinations').select('*').eq('active', true).order('sort'),
       supabase.from('q_meal_tiers').select('*').eq('active', true).order('price_le'),
       supabase.from('q_service_rates').select('*').eq('active', true).order('id'),
+      supabase.from('q_day_presets').select('*').eq('active', true).order('sort'),
       supabase.from('q_settings').select('*'),
     ])
   const err =
     regions.error || sites.error || transfers.error || paxTiers.error ||
-    destinations.error || mealTiers.error || serviceRates.error || settings.error
+    destinations.error || mealTiers.error || serviceRates.error || dayPresets.error || settings.error
   if (err) throw err
   return {
     regions: regions.data ?? [],
@@ -30,6 +31,7 @@ export async function loadRefData(): Promise<RefData> {
     destinations: destinations.data ?? [],
     mealTiers: mealTiers.data ?? [],
     serviceRates: serviceRates.data ?? [],
+    dayPresets: dayPresets.data ?? [],
     settings: Object.fromEntries((settings.data ?? []).map((s: any) => [s.key, s.value])),
   }
 }

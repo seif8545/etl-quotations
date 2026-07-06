@@ -34,6 +34,29 @@ export function transferPrice(t: Transfer, arrival: string, pax: number, ref: Re
   return map[vehicle]
 }
 
+/**
+ * Effective selections = the quotation's manual picks PLUS everything its
+ * added tour days contribute. Tour days are stored separately (d.days) so they
+ * stay reversible; pricing, Excel and the review all read the merged result here.
+ */
+export function effectiveSelections(d: QuotationDraft): {
+  siteIds: number[]
+  transferCounts: Record<number, number>
+  includeGuide: boolean
+} {
+  const siteIds = new Set<number>(d.siteIds)
+  const transferCounts: Record<number, number> = { ...d.transferCounts }
+  let includeGuide = d.includeGuide
+  for (const day of d.days ?? []) {
+    for (const id of day.siteIds) siteIds.add(id)
+    for (const [k, v] of Object.entries(day.transferCounts)) {
+      transferCounts[+k] = (transferCounts[+k] ?? 0) + v
+    }
+    if (day.includeGuide) includeGuide = true
+  }
+  return { siteIds: [...siteIds], transferCounts, includeGuide }
+}
+
 export function tripDays(d: QuotationDraft): number {
   if (!d.arrivalDate || !d.departureDate) return 0
   const ms = new Date(d.departureDate).getTime() - new Date(d.arrivalDate).getTime()
@@ -63,14 +86,16 @@ export function computeTotals(d: QuotationDraft, ref: RefData): Totals {
     (s, a) => s + (a.nights > 0 && a.pricePerNight > 0 ? a.nights * a.pricePerNight : 0), 0)
   const sglSupplementUSD = accommodationUSD * sglFactor
 
+  const eff = effectiveSelections(d)
+
   let sitesLE = d.flightTicket > 0 ? d.flightTicket : 0
-  for (const id of d.siteIds) {
+  for (const id of eff.siteIds) {
     const site = ref.sites.find((s) => s.id === id)
     if (site) sitesLE += sitePrice(site, d.arrivalDate)
   }
 
   let transfersLE = 0
-  for (const [idStr, qty] of Object.entries(d.transferCounts)) {
+  for (const [idStr, qty] of Object.entries(eff.transferCounts)) {
     if (qty <= 0) continue
     const t = ref.transfers.find((x) => x.id === Number(idStr))
     if (t) transfersLE += qty * transferPrice(t, d.arrivalDate, pax, ref)
@@ -86,7 +111,7 @@ export function computeTotals(d: QuotationDraft, ref: RefData): Totals {
   const days = tripDays(d)
   let servicesLE = 0
   for (const sr of ref.serviceRates) {
-    if (sr.name === 'Guide' && d.includeGuide)
+    if (sr.name === 'Guide' && eff.includeGuide)
       servicesLE += (d.guideDays ?? days) * (d.guideRate ?? sr.rate_le_per_day)
     if (sr.name === 'Rep' && d.includeRep)
       servicesLE += (d.repDays ?? days) * (d.repRate ?? sr.rate_le_per_day)
