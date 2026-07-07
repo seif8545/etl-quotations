@@ -42,8 +42,34 @@ export async function generateLetterDocx(d: LetterData): Promise<Blob> {
 
 /** Guarantee letter as a PDF that mirrors the Word document. */
 export async function letterToPdf(d: LetterData) {
-  const blob = await generateLetterDocx(d)
-  await docxBlobToPdf(blob, 'GuaranteeLetter.pdf')
+  // 1. Generate the Word document locally
+  const docxBlob = await generateLetterDocx(d)
+
+  // 2. Prepare it exactly how ConvertAPI wants it
+  const formData = new FormData()
+  formData.append('File', docxBlob, 'GuaranteeLetter.docx')
+
+  // 3. YOUR CONVERTAPI SECRET GOES HERE
+  const SECRET = 'HeSBdWYhIG4Cu7IjLHQp1ced4w7T7osW' 
+
+  // 4. Send directly to ConvertAPI from the browser
+  const response = await fetch(`https://v2.convertapi.com/convert/docx/to/pdf?Secret=${SECRET}`, {
+    method: 'POST',
+    body: formData,
+  })
+
+  if (!response.ok) {
+    throw new Error('ConvertAPI conversion failed.')
+  }
+
+  // 5. Decode the Base64 result ConvertAPI sends back
+  const result = await response.json()
+  const pdfBase64 = result.Files[0].FileData
+  const pdfBytes = Uint8Array.from(atob(pdfBase64), c => c.charCodeAt(0))
+  const pdfBlob = new Blob([pdfBytes], { type: 'application/pdf' })
+
+  // 6. Download the perfect PDF!
+  downloadBlob(pdfBlob, 'GuaranteeLetter.pdf') 
 }
 
 export function printLetter(d: LetterData) {
