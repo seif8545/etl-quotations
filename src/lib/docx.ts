@@ -1,6 +1,6 @@
 import PizZip from 'pizzip'
 import Docxtemplater from 'docxtemplater'
-import { getHtml2Pdf } from './pdf'
+import { getHtml2Pdf, waitForAssets } from './pdf'
 
 /** Fill a docx template (placeholder tags) and return a Blob. */
 export async function renderDocx(templateUrl: string, data: Record<string, unknown>): Promise<Blob> {
@@ -68,13 +68,15 @@ function getDocxPreview(): Promise<any> {
 /** Render a filled .docx blob to a PDF that looks like the Word document, and download it. */
 export async function docxBlobToPdf(blob: Blob, filename: string): Promise<void> {
   const [docx, html2pdf] = await Promise.all([getDocxPreview(), getHtml2Pdf()])
-  // Off-screen absolute WRAPPER with a STATIC, content-sized inner holder.
-  // html2canvas must capture the static holder (not the -99999px wrapper), or
-  // the captured region is offset and the PDF comes out blank.
+  // Off-screen absolute WRAPPER (font-size:0 kills baseline whitespace) with a
+  // STATIC inner holder. html2canvas must capture a static node, not the
+  // -99999px wrapper, or the captured region is offset and comes out blank.
   const wrap = document.createElement('div')
   wrap.style.position = 'absolute'
   wrap.style.left = '-99999px'
   wrap.style.top = '0'
+  wrap.style.fontSize = '0'
+  wrap.style.lineHeight = '0'
   const holder = document.createElement('div')
   holder.style.background = '#ffffff'
   holder.style.display = 'inline-block'
@@ -83,13 +85,24 @@ export async function docxBlobToPdf(blob: Blob, filename: string): Promise<void>
   try {
     await docx.renderAsync(blob, holder, null, {
       className: 'docx', inWrapper: false, ignoreWidth: false, ignoreHeight: false,
-      breakPages: true, experimental: true,
+      breakPages: true, experimental: true, useBase64URL: true,
+      renderHeaders: true, renderFooters: true,
     })
     if (!holder.firstChild || holder.offsetHeight < 10) {
       throw new Error('The Word document did not render for PDF export.')
     }
-    try { await (document as any).fonts?.ready } catch { /* ignore */ }
-    await new Promise((r) => setTimeout(r, 350))
+    // Multi-section templates render a blank final page — drop trailing empties.
+    const pages = Array.from(holder.querySelectorAll('.docx')) as HTMLElement[]
+    for (let i = pages.length - 1; i > 0; i--) {
+      const el = pages[i]
+      const hasContent = (el.textContent || '').trim().length > 0 || !!el.querySelector('img')
+      if (!hasContent) el.remove(); else break
+    }
+    // Wait for embedded images (stamp, letterhead) to decode before capture.
+    await waitForAssets(holder)
+    // Capture the single remaining page element exactly (no extra spill page).
+    const remaining = holder.querySelectorAll('.docx')
+    const target: HTMLElement = remaining.length === 1 ? (remaining[0] as HTMLElement) : holder
     await html2pdf().set({
       margin: 0,
       filename,
@@ -97,7 +110,7 @@ export async function docxBlobToPdf(blob: Blob, filename: string): Promise<void>
       html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false, windowWidth: holder.scrollWidth },
       jsPDF: { unit: 'pt', format: 'a4', orientation: 'portrait' },
       pagebreak: { mode: ['css', 'legacy'] },
-    }).from(holder).save()
+    }).from(target).save()
   } finally {
     document.body.removeChild(wrap)
   }
