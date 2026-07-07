@@ -68,28 +68,37 @@ function getDocxPreview(): Promise<any> {
 /** Render a filled .docx blob to a PDF that looks like the Word document, and download it. */
 export async function docxBlobToPdf(blob: Blob, filename: string): Promise<void> {
   const [docx, html2pdf] = await Promise.all([getDocxPreview(), getHtml2Pdf()])
+  // Off-screen absolute WRAPPER with a STATIC, content-sized inner holder.
+  // html2canvas must capture the static holder (not the -99999px wrapper), or
+  // the captured region is offset and the PDF comes out blank.
+  const wrap = document.createElement('div')
+  wrap.style.position = 'absolute'
+  wrap.style.left = '-99999px'
+  wrap.style.top = '0'
   const holder = document.createElement('div')
-  holder.style.position = 'absolute'
-  holder.style.left = '-99999px'
-  holder.style.top = '0'
   holder.style.background = '#ffffff'
-  document.body.appendChild(holder)
+  holder.style.display = 'inline-block'
+  wrap.appendChild(holder)
+  document.body.appendChild(wrap)
   try {
-    await docx.renderAsync(blob, holder, undefined, {
+    await docx.renderAsync(blob, holder, null, {
       className: 'docx', inWrapper: false, ignoreWidth: false, ignoreHeight: false,
-      breakPages: true, experimental: true, useBase64URL: true,
+      breakPages: true, experimental: true,
     })
+    if (!holder.firstChild || holder.offsetHeight < 10) {
+      throw new Error('The Word document did not render for PDF export.')
+    }
     try { await (document as any).fonts?.ready } catch { /* ignore */ }
-    await new Promise((r) => setTimeout(r, 300))
+    await new Promise((r) => setTimeout(r, 350))
     await html2pdf().set({
       margin: 0,
       filename,
       image: { type: 'jpeg', quality: 0.98 },
-      html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false },
+      html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false, windowWidth: holder.scrollWidth },
       jsPDF: { unit: 'pt', format: 'a4', orientation: 'portrait' },
       pagebreak: { mode: ['css', 'legacy'] },
     }).from(holder).save()
   } finally {
-    document.body.removeChild(holder)
+    document.body.removeChild(wrap)
   }
 }
