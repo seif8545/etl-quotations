@@ -1,5 +1,6 @@
 import PizZip from 'pizzip'
 import Docxtemplater from 'docxtemplater'
+import { getHtml2Pdf } from './pdf'
 
 /** Fill a docx template (placeholder tags) and return a Blob. */
 export async function renderDocx(templateUrl: string, data: Record<string, unknown>): Promise<Blob> {
@@ -38,4 +39,57 @@ export const fmtDate = (d: string) => {
   if (!d) return ''
   const dt = new Date(d + 'T00:00:00')
   return dt.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+}
+
+/* ---- Render a filled .docx to a PDF that mirrors the Word layout ---- */
+function loadScriptOnce(src: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const s = document.createElement('script')
+    s.src = src
+    s.onload = () => resolve()
+    s.onerror = () => reject(new Error('Failed to load ' + src))
+    document.head.appendChild(s)
+  })
+}
+
+let docxPreviewP: Promise<any> | null = null
+function getDocxPreview(): Promise<any> {
+  if (!docxPreviewP) {
+    docxPreviewP = (async () => {
+      const w = window as any
+      if (!w.JSZip) await loadScriptOnce('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js')
+      if (!(w.docx && w.docx.renderAsync)) await loadScriptOnce('https://cdn.jsdelivr.net/npm/docx-preview@0.3.5/dist/docx-preview.min.js')
+      return w.docx
+    })()
+  }
+  return docxPreviewP
+}
+
+/** Render a filled .docx blob to a PDF that looks like the Word document, and download it. */
+export async function docxBlobToPdf(blob: Blob, filename: string): Promise<void> {
+  const [docx, html2pdf] = await Promise.all([getDocxPreview(), getHtml2Pdf()])
+  const holder = document.createElement('div')
+  holder.style.position = 'absolute'
+  holder.style.left = '-99999px'
+  holder.style.top = '0'
+  holder.style.background = '#ffffff'
+  document.body.appendChild(holder)
+  try {
+    await docx.renderAsync(blob, holder, undefined, {
+      className: 'docx', inWrapper: false, ignoreWidth: false, ignoreHeight: false,
+      breakPages: true, experimental: true, useBase64URL: true,
+    })
+    try { await (document as any).fonts?.ready } catch { /* ignore */ }
+    await new Promise((r) => setTimeout(r, 300))
+    await html2pdf().set({
+      margin: 0,
+      filename,
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false },
+      jsPDF: { unit: 'pt', format: 'a4', orientation: 'portrait' },
+      pagebreak: { mode: ['css', 'legacy'] },
+    }).from(holder).save()
+  } finally {
+    document.body.removeChild(holder)
+  }
 }

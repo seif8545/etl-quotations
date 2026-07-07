@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
 import { supabase, loadRefData } from '../lib/supabase'
 import { generateQuotationXlsx, downloadBlob } from '../lib/excel'
-import { generateLetterDocx, printLetter } from './Letter'
+import { generateLetterDocx, letterToPdf } from './Letter'
 import type { LetterData } from './Letter'
-import { generateVoucherDocx, printVoucher } from './Voucher'
+import { generateVoucherDocx, voucherToPdf } from './Voucher'
 import type { VoucherData } from './Voucher'
 import PackageBuilder from './PackageBuilder'
 import type { QuotationDraft } from '../lib/types'
@@ -111,7 +111,7 @@ export default function Documents({ openQuotation }: { openQuotation: (d: Quotat
                     </>}
                     {tab !== 'Quotations' && r.data && <>
                       <button className="link" onClick={() => word(r)}>Word</button>
-                      <button className="link" onClick={() => tab === 'Letters' ? printLetter(r.data) : printVoucher(r.data)}>Print/PDF</button>
+                      <button className="link" onClick={() => (tab === 'Letters' ? letterToPdf(r.data) : voucherToPdf(r.data)).catch((e: any) => setError(e.message ?? String(e)))}>PDF</button>
                     </>}
                     <button className="link danger" onClick={() => del(r)}>Delete</button>
                   </td>

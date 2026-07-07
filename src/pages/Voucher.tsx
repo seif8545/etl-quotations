@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { renderDocx, printHtml, fmtDate } from '../lib/docx'
+import { renderDocx, printHtml, fmtDate, docxBlobToPdf } from '../lib/docx'
 import { downloadBlob } from '../lib/excel'
 
 export interface VoucherData {
@@ -55,6 +55,12 @@ export async function generateVoucherDocx(d: VoucherData): Promise<Blob> {
       room_no: r.no, names: r.guests.filter(Boolean).join('\n'), type: r.type,
     })),
   })
+}
+
+/** Hotel voucher as a PDF that mirrors the Word document. */
+export async function voucherToPdf(d: VoucherData) {
+  const blob = await generateVoucherDocx(d)
+  await docxBlobToPdf(blob, 'HotelVoucher.pdf')
 }
 
 export function printVoucher(d: VoucherData) {
@@ -211,7 +217,7 @@ export default function Voucher({ done, initial }: { done: () => void; initial?:
         <button className="primary" disabled={busy} onClick={() => generate(true)}>
           {busy ? 'Working…' : 'Generate Word + Save'}
         </button>
-        <button disabled={busy} onClick={() => printVoucher(d)}>Print / PDF</button>
+        <button disabled={busy} onClick={async () => { setBusy(true); setError(''); try { await voucherToPdf(d) } catch (e: any) { setError(e.message ?? String(e)) } setBusy(false) }}>Download PDF</button>
         <button className="link" onClick={done}>Cancel</button>
       </div>
     </div>

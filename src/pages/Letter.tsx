@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { renderDocx, printHtml, fmtDate } from '../lib/docx'
+import { renderDocx, printHtml, fmtDate, docxBlobToPdf } from '../lib/docx'
 import { downloadBlob } from '../lib/excel'
 
 export interface Guest {
@@ -38,6 +38,12 @@ export function letterTemplateData(d: LetterData) {
 
 export async function generateLetterDocx(d: LetterData): Promise<Blob> {
   return renderDocx('/templates/guarantee_letter_tpl.docx', letterTemplateData(d))
+}
+
+/** Guarantee letter as a PDF that mirrors the Word document. */
+export async function letterToPdf(d: LetterData) {
+  const blob = await generateLetterDocx(d)
+  await docxBlobToPdf(blob, 'GuaranteeLetter.pdf')
 }
 
 export function printLetter(d: LetterData) {
@@ -144,7 +150,7 @@ export default function Letter({ done, initial }: { done: () => void; initial?: 
         <button className="primary" disabled={busy} onClick={() => generate(true)}>
           {busy ? 'Working…' : 'Generate Word + Save'}
         </button>
-        <button disabled={busy} onClick={() => printLetter(d)}>Print / PDF</button>
+        <button disabled={busy} onClick={async () => { setBusy(true); setError(''); try { await letterToPdf(d) } catch (e: any) { setError(e.message ?? String(e)) } setBusy(false) }}>Download PDF</button>
         <button className="link" onClick={done}>Cancel</button>
       </div>
     </div>
