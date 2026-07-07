@@ -111,25 +111,68 @@ export async function generateQuotationXlsx(d: QuotationDraft, ref: RefData): Pr
 // The template's SUM/total formulas don't reliably recalc on open in every
   // viewer, which left the totals row and P.P showing 0. Write the engine's
   // computed values straight into the summary cells so the file is always right.
+// The template's SUM/total formulas don't reliably recalc on open in every
+  // viewer, which left the totals row and P.P showing 0. Write the engine's
+  // computed values straight into the summary cells so the file is always right.
   const totals = computeTotals(d, ref)
   const r2 = (n: number) => Math.round(n * 100) / 100
-  
-  // These stay populated "normally" (hardcoded fallbacks)
-  ws.getCell('C39').value = r2(totals.accommodationUSD)
-  ws.getCell('D39').value = r2(totals.sglSupplementUSD)
-  ws.getCell('G39').value = r2(totals.sitesUSD)
-  ws.getCell('I39').value = r2(totals.transfersUSD)
-  ws.getCell('K39').value = r2(totals.mealsUSD)
-  ws.getCell('M39').value = r2(totals.servicesUSD)
 
-  // F42 is now completely dynamic. 
-  // It uses the formula for Excel, but keeps the Javascript result as a safe fallback for previewers.
+  // --- ROW 39 DYNAMIC TOTALS ---
+  
+  ws.getCell('C39').value = { 
+    formula: 'IF((COUNTA(B10:B36)=0),0,SUM(C10:C38))', 
+    result: r2(totals.accommodationUSD) 
+  }
+
+  ws.getCell('D39').value = { 
+    formula: 'IF((D10)=0,"  ",SUM(D10:D38))', 
+    result: r2(totals.sglSupplementUSD) 
+  }
+
+  // Note: Replace the "0" result below with whatever JS variable represents column E
+  ws.getCell('E39').value = { 
+    formula: 'IF((E10)=0,"  ",SUM(E10:E38))', 
+    result: 0 
+  }
+
+  // Updated G39 Formula
+  ws.getCell('G39').value = { 
+    formula: 'IF((G10)=0,"  ",SUM(G10:G38)/(M2))', 
+    result: r2(totals.sitesUSD) 
+  }
+
+  ws.getCell('I39').value = { 
+    formula: 'IF((G10)=" ",0,SUM(I10:I38)/$M$2/$E$3)', 
+    result: r2(totals.transfersUSD) 
+  }
+
+  ws.getCell('K39').value = { 
+    formula: 'IF((K10)=0,0,SUM(K10:K38)/(M2))', 
+    result: r2(totals.mealsUSD) 
+  }
+
+  ws.getCell('M39').value = { 
+    formula: 'IF((L10)=0,"  ",SUM(M10:M38)/$M$2/$E$3)', 
+    result: r2(totals.servicesUSD) 
+  }
+
+  // Note: Replace the "0" result below with whatever JS variable represents column N
+  ws.getCell('N39').value = { 
+    formula: 'IF((M10)=" ","  ",SUM(N10:N38)/$E$3)', 
+    result: 0 
+  }
+
+  // --- GRAND TOTALS ---
+  
   ws.getCell('F42').value = { 
     formula: 'C39+G39+I39+K39+M39+N39+M3', 
     result: r2(totals.perPersonDBL) 
   }
   
-  ws.getCell('F43').value = r2(totals.sglSupplementUSD)
+  ws.getCell('F43').value = { 
+    formula: 'D39', 
+    result: r2(totals.sglSupplementUSD) 
+  }
   const out = await wb.xlsx.writeBuffer()
   return new Blob([out], {
     type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
