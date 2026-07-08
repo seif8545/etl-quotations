@@ -6,10 +6,26 @@ import ItineraryDoc from './ItineraryDoc'
 import type { ItineraryData } from './ItineraryDoc'
 import type { QuotationDraft, RefData } from '../lib/types'
 
-interface EditableDay { uid: string; title: string; description: string; photo: string; sites: string[]; guide: boolean }
-interface FixedDay { on: boolean; title: string; description: string; photo: string }
+interface Meals { breakfast: boolean; lunch: boolean; dinner: boolean }
+interface EditableDay { uid: string; title: string; description: string; photo: string; sites: string[]; guide: boolean; meals: Meals }
+interface FixedDay { on: boolean; title: string; description: string; photo: string; meals: Meals }
+const TOUR_MEALS = (): Meals => ({ breakfast: true, lunch: false, dinner: true })
+const mealList = (m: Meals): string[] => [m.breakfast && 'Breakfast', m.lunch && 'Lunch', m.dinner && 'Dinner'].filter(Boolean) as string[]
 
 const CONTACT = { phone: '+20 105 537 6633', email: 'info@egypttoplight.net', website: 'egypttoplight.net', social: '@egypttoplighttravel' }
+
+function MealTicker({ meals, onChange }: { meals: Meals; onChange: (m: Meals) => void }) {
+  const items: [keyof Meals, string][] = [['breakfast', 'Breakfast'], ['lunch', 'Lunch'], ['dinner', 'Dinner']]
+  return (
+    <div className="meal-ticker">
+      <span className="meal-ticker-label">Meals</span>
+      {items.map(([k, label]) => (
+        <button type="button" key={k} className={`meal-toggle${meals[k] ? ' on' : ''}`}
+          onClick={() => onChange({ ...meals, [k]: !meals[k] })}>{label}</button>
+      ))}
+    </div>
+  )
+}
 
 /** Client-facing branded package PDF builder (edit → one-click export). */
 export default function PackageBuilder({ draft, onClose }: { draft: QuotationDraft; onClose: () => void }) {
@@ -22,11 +38,13 @@ export default function PackageBuilder({ draft, onClose }: { draft: QuotationDra
     on: true, title: 'Arrival — Welcome to Egypt',
     description: 'On arrival, our representative will meet and assist you through the airport formalities before a private transfer to your hotel for check-in and overnight.',
     photo: 'arrivedepart/arrival-plane.jpg',
+    meals: { breakfast: false, lunch: false, dinner: true },
   })
   const [departure, setDeparture] = useState<FixedDay>({
     on: true, title: 'Departure',
     description: 'After breakfast, check out of your hotel and enjoy a private transfer to the airport for your onward flight. We wish you a safe journey home.',
     photo: 'arrivedepart/departure-plane.jpg',
+    meals: { breakfast: true, lunch: false, dinner: false },
   })
   const [pp, setPp] = useState(0)
   const [sgl, setSgl] = useState(0)
@@ -50,6 +68,7 @@ export default function PackageBuilder({ draft, onClose }: { draft: QuotationDra
       setDays(dd.map((d) => ({
         uid: d.uid, title: d.label, description: d.description, photo: d.photo,
         sites: (d.siteIds ?? []).map(nameOf).filter(Boolean), guide: !!d.includeGuide,
+        meals: TOUR_MEALS(),
       })))
       if (dd[0]?.photo) setHero(dd[0].photo)
       const t = computeTotals(draft, r)
@@ -115,13 +134,14 @@ export default function PackageBuilder({ draft, onClose }: { draft: QuotationDra
     for (const h of hotels) citySet.add(REGION_CITY[h.destination] ?? h.destination)
 
     const seqDays = [
-      ...(arrival.on ? [{ title: arrival.title, description: arrival.description, photoUrl: arrival.photo ? '/images/tours/' + arrival.photo : '', highlights: ['Meet & assist', 'Hotel check-in', 'Overnight'] }] : []),
+      ...(arrival.on ? [{ title: arrival.title, description: arrival.description, photoUrl: arrival.photo ? '/images/tours/' + arrival.photo : '', highlights: ['Meet & assist', 'Hotel check-in', 'Overnight'], meals: mealList(arrival.meals) }] : []),
       ...days.map((d) => ({
         title: d.title, description: d.description,
         photoUrl: d.photo ? '/images/tours/' + d.photo : '',
         highlights: [...d.sites, ...(d.guide ? ['Private guide'] : [])],
+        meals: mealList(d.meals),
       })),
-      ...(departure.on ? [{ title: departure.title, description: departure.description, photoUrl: departure.photo ? '/images/tours/' + departure.photo : '', highlights: ['Hotel check-out', 'Airport transfer'] }] : []),
+      ...(departure.on ? [{ title: departure.title, description: departure.description, photoUrl: departure.photo ? '/images/tours/' + departure.photo : '', highlights: ['Hotel check-out', 'Airport transfer'], meals: mealList(departure.meals) }] : []),
     ]
 
     return {
@@ -176,6 +196,7 @@ export default function PackageBuilder({ draft, onClose }: { draft: QuotationDra
             </div>
             <div className="b-day-text">
               <textarea rows={3} value={day.description} onChange={(e) => set({ ...day, description: e.target.value })} />
+              <MealTicker meals={day.meals} onChange={(m) => set({ ...day, meals: m })} />
             </div>
           </div>
         )}
@@ -225,6 +246,7 @@ export default function PackageBuilder({ draft, onClose }: { draft: QuotationDra
                 <div className="b-day-text">
                   <textarea rows={3} value={d.description} onChange={(e) => updateDay(d.uid, { description: e.target.value })} />
                   {d.sites.length > 0 && <div className="muted small">Highlights: {d.sites.join(', ')}</div>}
+                  <MealTicker meals={d.meals} onChange={(m) => updateDay(d.uid, { meals: m })} />
                 </div>
               </div>
             </section>

@@ -7,7 +7,7 @@ export interface ItineraryData {
   logoUrl: string
   meta: { ref: string; pax: number; arrival: string; departure: string }
   overview: { days: number; nights: number; cities: number; pax: number }
-  days: { title: string; description: string; photoUrl: string; highlights: string[] }[]
+  days: { title: string; description: string; photoUrl: string; highlights: string[]; meals: string[] }[]
   hotels: { nights: number; destination: string }[]
   included: string[]
   excluded: string[]
@@ -56,6 +56,9 @@ const CSS = `
 .day-title { font-size: 23px; font-weight: 600; color: #0e2a47; margin: 10px 0 8px; }
 .day-desc { font-size: 13.5px; color: #45566b; line-height: 1.55; }
 .day-chips { margin-top: 14px; display: flex; flex-wrap: wrap; gap: 7px; }
+.day-meals { margin-top: 9px; display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.meals-label { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: #9a8862; margin-right: 2px; }
+.meal-pill { font-size: 11px; color: #0e2a47; background: #eef3f8; border: 1px solid #d4e0ec; border-radius: 999px; padding: 3px 10px; }
 .chip { font-size: 11px; color: #806000; border: 1px solid #e6cf8f; background: #fdf6e3; border-radius: 999px; padding: 3px 11px; }
 
 /* Accommodation */
@@ -157,6 +160,9 @@ const ItineraryDoc = forwardRef<HTMLDivElement, { data: ItineraryData }>(({ data
                 {day.description ? <div className="day-desc">{day.description}</div> : null}
                 {day.highlights.length > 0 && (
                   <div className="day-chips">{day.highlights.map((h, j) => <span className="chip" key={j}>{h}</span>)}</div>
+                )}
+                {day.meals.length > 0 && (
+                  <div className="day-meals"><span className="meals-label">Meals</span>{day.meals.map((m, j) => <span className="meal-pill" key={j}>{m}</span>)}</div>
                 )}
               </div>
             </div>
