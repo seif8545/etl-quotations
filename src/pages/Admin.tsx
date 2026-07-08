@@ -50,6 +50,7 @@ export default function Admin() {
         { key: 'price', label: 'Price (LE)', type: 'number' },
         { key: 'new_price', label: 'New price (LE)', type: 'number' },
         { key: 'effective_date', label: 'New price from', type: 'date' },
+        { key: 'popular', label: 'Popular', type: 'bool' },
         { key: 'active', label: 'Active', type: 'bool' },
       ],
     },

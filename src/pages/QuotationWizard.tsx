@@ -213,25 +213,33 @@ function Sites({ d, up, ref_ }: StepProps) {
   function toggle(id: number) {
     up({ siteIds: d.siteIds.includes(id) ? d.siteIds.filter((x) => x !== id) : [...d.siteIds, id] })
   }
+  const renderSite = (s: RefData['sites'][number]) => {
+    const fromDay = daySites.has(s.id)
+    const checked = fromDay || d.siteIds.includes(s.id)
+    return (
+      <label key={s.id} className={`check${fromDay ? ' locked' : ''}`}>
+        <input type="checkbox" checked={checked} disabled={fromDay} onChange={() => toggle(s.id)} />
+        <span>{s.name}{fromDay ? <em className="muted small"> (tour day)</em> : null}</span>
+        <em>{fmt(sitePrice(s, d.arrivalDate))} LE</em>
+      </label>
+    )
+  }
+  const popular = ref.sites.filter((s) => s.popular)
   return (
     <div className="pick-columns">
+      {popular.length > 0 && (
+        <section className="popular-sites">
+          <h4>★ Most requested</h4>
+          {popular.map(renderSite)}
+        </section>
+      )}
       {regions.map((reg) => {
         const sites = ref.sites.filter((s) => s.region_id === reg.id)
         if (!sites.length) return null
         return (
           <section key={reg.id}>
             <h4>{reg.name}</h4>
-            {sites.map((s) => {
-              const fromDay = daySites.has(s.id)
-              const checked = fromDay || d.siteIds.includes(s.id)
-              return (
-                <label key={s.id} className={`check${fromDay ? ' locked' : ''}`}>
-                  <input type="checkbox" checked={checked} disabled={fromDay} onChange={() => toggle(s.id)} />
-                  <span>{s.name}{fromDay ? <em className="muted small"> (tour day)</em> : null}</span>
-                  <em>{fmt(sitePrice(s, d.arrivalDate))} LE</em>
-                </label>
-              )
-            })}
+            {sites.map(renderSite)}
           </section>
         )
       })}

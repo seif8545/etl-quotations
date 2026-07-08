@@ -374,3 +374,7 @@ input[type=checkbox] { width: 17px; height: 17px; accent-color: var(--gold); cur
 .b-ptable { margin-top: 10px; display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
 .b-ptable .grid-table { width: 100%; max-width: none; }
 .b-ptable .grid-table input { width: 100%; }
+
+/* ---------- Most-requested sites (wizard) ---------- */
+.popular-sites { border: 1px solid var(--gold); background: #fffdf5; border-radius: 10px; padding: 12px 14px; }
+.popular-sites h4 { color: var(--gold-ink); border-bottom-color: var(--gold); }

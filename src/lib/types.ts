@@ -14,6 +14,7 @@ export interface Site {
   effective_date: string | null
   active: boolean
   sort: number
+  popular: boolean
 }
 
 export interface Transfer {
