@@ -369,3 +369,8 @@ input[type=checkbox] { width: 17px; height: 17px; accent-color: var(--gold); cur
   .picker-thumbs img { width: calc(50% - 4px); height: 78px; }
   .steps button { padding: 6px 10px; }
 }
+
+/* ---------- Pricing table editor (builder) ---------- */
+.b-ptable { margin-top: 10px; display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
+.b-ptable .grid-table { width: 100%; max-width: none; }
+.b-ptable .grid-table input { width: 100%; }

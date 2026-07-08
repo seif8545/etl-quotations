@@ -12,6 +12,14 @@ interface FixedDay { on: boolean; title: string; description: string; photo: str
 const TOUR_MEALS = (): Meals => ({ breakfast: true, lunch: false, dinner: true })
 const mealList = (m: Meals): string[] => [m.breakfast && 'Breakfast', m.lunch && 'Lunch', m.dinner && 'Dinner'].filter(Boolean) as string[]
 
+interface PriceRow { category: string; dbl: number; single: number; hotels: string }
+const DEFAULT_PRICE_ROWS = (): PriceRow[] => [
+  { category: '3 Star', dbl: 0, single: 0, hotels: '' },
+  { category: '4 Star', dbl: 0, single: 0, hotels: '' },
+  { category: '4 Star Deluxe', dbl: 0, single: 0, hotels: '' },
+  { category: '5 Star', dbl: 0, single: 0, hotels: '' },
+]
+
 const CONTACT = { phone: '+20 105 537 6633', email: 'info@egypttoplight.net', website: 'egypttoplight.net', social: '@egypttoplighttravel' }
 
 function MealTicker({ meals, onChange }: { meals: Meals; onChange: (m: Meals) => void }) {
@@ -49,6 +57,8 @@ export default function PackageBuilder({ draft, onClose }: { draft: QuotationDra
   const [pp, setPp] = useState(0)
   const [sgl, setSgl] = useState(0)
   const [showPrice, setShowPrice] = useState(true)
+  const [priceTableOn, setPriceTableOn] = useState(false)
+  const [priceRows, setPriceRows] = useState<PriceRow[]>(DEFAULT_PRICE_ROWS())
   const [included, setIncluded] = useState('')
   const [excluded, setExcluded] = useState('')
   const [manifest, setManifest] = useState<Record<string, string[]>>({})
@@ -104,6 +114,7 @@ export default function PackageBuilder({ draft, onClose }: { draft: QuotationDra
   const updateDay = (uid: string, patch: Partial<EditableDay>) =>
     setDays((ds) => ds.map((d) => (d.uid === uid ? { ...d, ...patch } : d)))
   const removeDay = (uid: string) => setDays((ds) => ds.filter((d) => d.uid !== uid))
+  const updateRow = (i: number, patch: Partial<PriceRow>) => setPriceRows((rs) => rs.map((r, j) => (j === i ? { ...r, ...patch } : r)))
 
   function pickPhoto(photo: string) {
     if (!picker) return
@@ -155,9 +166,10 @@ export default function PackageBuilder({ draft, onClose }: { draft: QuotationDra
       included: included.split('\n').map((s) => s.trim()).filter(Boolean),
       excluded: excluded.split('\n').map((s) => s.trim()).filter(Boolean),
       price: { pp, sgl, show: showPrice },
+      pricing: { show: priceTableOn, refPp: pp, refSgl: sgl, rows: priceRows },
       contact: CONTACT,
     }
-  }, [title, intro, hero, days, arrival, departure, pp, sgl, showPrice, included, excluded, draft, hotels, totalNights, ref])
+  }, [title, intro, hero, days, arrival, departure, pp, sgl, showPrice, priceTableOn, priceRows, included, excluded, draft, hotels, totalNights, ref])
 
   async function exportPdf() {
     setBusy(true); setError('')
@@ -173,7 +185,7 @@ export default function PackageBuilder({ draft, onClose }: { draft: QuotationDra
         image: { type: 'jpeg', quality: 0.95 },
         html2canvas: { scale: 2, useCORS: true, backgroundColor: '#fffefa', logging: false },
         jsPDF: { unit: 'px', format: [794, 1123], orientation: 'portrait', hotfixes: ['px_scaling'] },
-        pagebreak: { mode: ['css', 'legacy'], avoid: ['.day', '.inc-col', '.price-box', '.hotel-card', '.itin-strip', '.itin-why', '.intro-card'] },
+        pagebreak: { mode: ['css', 'legacy'], avoid: ['.day', '.inc-col', '.price-box', '.price-table', '.hotel-card', '.itin-strip', '.itin-why', '.intro-card'] },
       }).from(node).save()
     } catch (e: any) {
       setError(e.message ?? String(e))
@@ -279,6 +291,32 @@ export default function PackageBuilder({ draft, onClose }: { draft: QuotationDra
               <label>Per person (DBL) $<input type="number" value={pp} onChange={(e) => setPp(+e.target.value)} /></label>
               <label>Single supplement $<input type="number" value={sgl} onChange={(e) => setSgl(+e.target.value)} /></label>
             </div>}
+          </section>
+
+          <section className="b-sec">
+            <label className="check"><input type="checkbox" checked={priceTableOn} onChange={(e) => setPriceTableOn(e.target.checked)} /> Add pricing table (hotel categories)</label>
+            {priceTableOn && (
+              <div className="b-ptable">
+                <div className="muted small">Quote reference: ${pp.toLocaleString()} per person (double){sgl > 0 ? ` · $${sgl.toLocaleString()} single supplement` : ''}</div>
+                <div className="table-scroll">
+                  <table className="grid-table wide">
+                    <thead><tr><th>Category</th><th>Per person (DBL) USD</th><th>Single supp. USD</th><th>Offered hotels</th><th /></tr></thead>
+                    <tbody>
+                      {priceRows.map((r, i) => (
+                        <tr key={i}>
+                          <td><input value={r.category} onChange={(e) => updateRow(i, { category: e.target.value })} /></td>
+                          <td><input type="number" min={0} value={r.dbl} onChange={(e) => updateRow(i, { dbl: +e.target.value })} /></td>
+                          <td><input type="number" min={0} value={r.single} onChange={(e) => updateRow(i, { single: +e.target.value })} /></td>
+                          <td><input value={r.hotels} onChange={(e) => updateRow(i, { hotels: e.target.value })} placeholder="e.g. Falcon Hills or equal" /></td>
+                          <td>{priceRows.length > 1 && <button className="link danger" onClick={() => setPriceRows((rs) => rs.filter((_, j) => j !== i))}>×</button>}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <button onClick={() => setPriceRows((rs) => [...rs, { category: '', dbl: 0, single: 0, hotels: '' }])}>+ Add row</button>
+              </div>
+            )}
           </section>
         </div>
       </div>

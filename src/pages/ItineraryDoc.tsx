@@ -12,6 +12,7 @@ export interface ItineraryData {
   included: string[]
   excluded: string[]
   price: { pp: number; sgl: number; show: boolean }
+  pricing: { show: boolean; refPp: number; refSgl: number; rows: { category: string; dbl: number; single: number; hotels: string }[] }
   contact: { phone: string; email: string; website: string; social: string }
 }
 
@@ -84,6 +85,15 @@ const CSS = `
 .price-big { font-size: 46px; font-weight: 700; color: #e8b015; margin: 8px 0 2px; }
 .price-unit { font-size: 14px; color: rgba(255,255,255,0.85); }
 .price-sgl { margin-top: 14px; font-size: 13px; color: rgba(255,255,255,0.8); border-top: 1px solid rgba(255,255,255,0.16); padding-top: 12px; }
+.price-ref { font-size: 12.5px; color: #6a7789; margin-bottom: 14px; }
+.price-ref b { color: #0e2a47; }
+.price-table { width: 100%; border-collapse: collapse; font-size: 12.5px; page-break-inside: avoid; }
+.price-table th { background: #0e2a47; color: #fff; font-family: 'Fraunces', Georgia, serif; font-weight: 600; text-align: left; padding: 10px 12px; font-size: 12px; }
+.price-table td { border: 1px solid #e3d9c0; padding: 9px 12px; vertical-align: top; }
+.price-table tbody tr:nth-child(even) { background: #faf5e9; }
+.pt-cat { font-weight: 700; color: #0e2a47; white-space: nowrap; }
+.pt-price { color: #806000; font-weight: 600; white-space: nowrap; }
+.pt-hotels { color: #45566b; }
 
 /* Why us */
 .itin-closing { page-break-before: always; background: linear-gradient(180deg,#0e2a47,#081a30); color: #fff; min-height: 1115px; padding: 46px 56px 56px; display: flex; flex-direction: column; }
@@ -214,6 +224,32 @@ const ItineraryDoc = forwardRef<HTMLDivElement, { data: ItineraryData }>(({ data
             <div className="price-unit">per person · sharing double room</div>
             {d.price.sgl > 0 && <div className="price-sgl">Single room supplement: ${d.price.sgl.toLocaleString()} per person</div>}
           </div>
+        </div>
+      )}
+
+      {/* Pricing table (hotel categories) */}
+      {d.pricing.show && d.pricing.rows.length > 0 && (
+        <div className="itin-sec">
+          <h2 className="fr sec-h">Package Pricing</h2>
+          <div className="rule" />
+          {d.pricing.refPp > 0 && (
+            <div className="price-ref">Based on the quoted rate of <b>${d.pricing.refPp.toLocaleString()}</b> per person in double occupancy{d.pricing.refSgl > 0 ? <> · single supplement <b>${d.pricing.refSgl.toLocaleString()}</b></> : null}.</div>
+          )}
+          <table className="price-table">
+            <thead>
+              <tr><th>Category</th><th>Per Person in Double</th><th>Single Occupancy Supplement</th><th>Offered Hotels</th></tr>
+            </thead>
+            <tbody>
+              {d.pricing.rows.map((r, i) => (
+                <tr key={i}>
+                  <td className="pt-cat">{r.category}</td>
+                  <td className="pt-price">{r.dbl > 0 ? `${r.dbl.toLocaleString()} USD` : '—'}</td>
+                  <td className="pt-price">{r.single > 0 ? `${r.single.toLocaleString()} USD` : '—'}</td>
+                  <td className="pt-hotels">{r.hotels}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
 
