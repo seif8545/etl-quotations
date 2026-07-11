@@ -7,8 +7,8 @@ import type { ItineraryData } from './ItineraryDoc'
 import type { QuotationDraft, RefData } from '../lib/types'
 
 interface Meals { breakfast: boolean; lunch: boolean; dinner: boolean }
-interface EditableDay { uid: string; title: string; description: string; photo: string; sites: string[]; guide: boolean; meals: Meals }
-interface FixedDay { on: boolean; title: string; description: string; photo: string; meals: Meals }
+interface EditableDay { uid: string; title: string; description: string; photo: string; sites: string[]; guide: boolean; meals: Meals; hotel: string }
+interface FixedDay { on: boolean; title: string; description: string; photo: string; meals: Meals; hotel: string }
 interface PriceRow { category: string; dbl: number; single: number; hotels: string }
 interface FlightInsert { id: number; label: string; text: string; targetUid: string; position: 'start' | 'end' }
 
@@ -39,12 +39,12 @@ const DEFAULT_PRICE_ROWS = (): PriceRow[] => [
 const DEFAULT_ARRIVAL = (): FixedDay => ({
   on: true, title: 'Arrival — Welcome to Egypt',
   description: 'Arrival at Cairo International Airport.\nMeet & assist by our representative through passport and customs formalities.\nPrivate air-conditioned transfer to your hotel.\nCheck-in, overnight and time to relax after your journey.',
-  photo: 'arrivedepart/arrival-plane.jpg', meals: { breakfast: false, lunch: false, dinner: true },
+  photo: 'arrivedepart/arrival-plane.jpg', meals: { breakfast: false, lunch: false, dinner: true }, hotel: '',
 })
 const DEFAULT_DEPARTURE = (): FixedDay => ({
   on: true, title: 'Departure',
   description: 'Breakfast at your hotel (subject to flight timing).\nCheck-out and assistance with your luggage.\nPrivate air-conditioned transfer to the airport.\nFinal meet & assist through departure formalities — we wish you a safe journey home!',
-  photo: 'arrivedepart/departure-plane.jpg', meals: { breakfast: true, lunch: false, dinner: false },
+  photo: 'arrivedepart/departure-plane.jpg', meals: { breakfast: true, lunch: false, dinner: false }, hotel: '',
 })
 
 /** Best-effort default photo for a standalone site turned into its own day. */
@@ -115,7 +115,7 @@ export default function PackageBuilder({ draft, saved, onClose }: { draft?: Quot
       const presetById = new Map(r.dayPresets.map((p) => [p.id, p]))
       const presetDays: EditableDay[] = dd.map((d) => ({
         uid: d.uid, title: d.label, description: presetById.get(d.presetId)?.description ?? d.description, photo: d.photo,
-        sites: (d.siteIds ?? []).map(nameOf).filter(Boolean), guide: !!d.includeGuide, meals: TOUR_MEALS(),
+        sites: (d.siteIds ?? []).map(nameOf).filter(Boolean), guide: !!d.includeGuide, meals: TOUR_MEALS(), hotel: '',
       }))
       // Sites picked directly (not via a preset day) each become their own day.
       const covered = new Set<number>()
@@ -124,7 +124,7 @@ export default function PackageBuilder({ draft, saved, onClose }: { draft?: Quot
         .filter((id) => !covered.has(id))
         .map((id) => {
           const nm = nameOf(id)
-          return { uid: newUid(), title: nm, description: nm ? `Visit ${nm} with time to explore its highlights.` : '', photo: photoForSite(nm), sites: nm ? [nm] : [], guide: draft.includeGuide, meals: TOUR_MEALS() }
+          return { uid: newUid(), title: nm, description: nm ? `Visit ${nm} with time to explore its highlights.` : '', photo: photoForSite(nm), sites: nm ? [nm] : [], guide: draft.includeGuide, meals: TOUR_MEALS(), hotel: '' }
         })
       setDays([...presetDays, ...manualDays])
       if (dd[0]?.photo) setHero(dd[0].photo)
@@ -213,15 +213,16 @@ export default function PackageBuilder({ draft, saved, onClose }: { draft?: Quot
       overview = { days: oDays, nights: oNights, cities: citySet.size || 1, pax: meta.pax }
     }
 
-    const seq: { uid: string; title: string; description: string; photoUrl: string; highlights: string[]; meals: string[] }[] = [
-      ...(arrival.on ? [{ uid: '__arrival', title: arrival.title, description: arrival.description, photoUrl: arrival.photo ? '/images/tours/' + arrival.photo : '', highlights: ['Meet & assist', 'Hotel check-in', 'Overnight'], meals: mealList(arrival.meals) }] : []),
+    const seq: { uid: string; title: string; description: string; photoUrl: string; highlights: string[]; meals: string[]; hotel: string }[] = [
+      ...(arrival.on ? [{ uid: '__arrival', title: arrival.title, description: arrival.description, photoUrl: arrival.photo ? '/images/tours/' + arrival.photo : '', highlights: ['Meet & assist', 'Hotel check-in', 'Overnight'], meals: mealList(arrival.meals), hotel: arrival.hotel }] : []),
       ...days.map((d) => ({
         uid: d.uid, title: d.title, description: d.description,
         photoUrl: d.photo ? '/images/tours/' + d.photo : '',
         highlights: [...d.sites, ...(d.guide ? ['Private guide'] : [])],
         meals: mealList(d.meals),
+        hotel: d.hotel,
       })),
-      ...(departure.on ? [{ uid: '__departure', title: departure.title, description: departure.description, photoUrl: departure.photo ? '/images/tours/' + departure.photo : '', highlights: ['Hotel check-out', 'Airport transfer'], meals: mealList(departure.meals) }] : []),
+      ...(departure.on ? [{ uid: '__departure', title: departure.title, description: departure.description, photoUrl: departure.photo ? '/images/tours/' + departure.photo : '', highlights: ['Hotel check-out', 'Airport transfer'], meals: mealList(departure.meals), hotel: departure.hotel }] : []),
     ]
     for (const f of flights) {
       if (!f.targetUid) continue
@@ -310,6 +311,7 @@ export default function PackageBuilder({ draft, saved, onClose }: { draft?: Quot
             <div className="b-day-text">
               <textarea rows={3} value={day.description} onChange={(e) => set({ ...day, description: e.target.value })} />
               <MealTicker meals={day.meals} onChange={(m) => set({ ...day, meals: m })} />
+              <input className="b-hotel" placeholder="Accommodation (hotel / cruise)" value={day.hotel} onChange={(e) => set({ ...day, hotel: e.target.value })} />
             </div>
           </div>
         )}
@@ -368,6 +370,7 @@ export default function PackageBuilder({ draft, saved, onClose }: { draft?: Quot
                   <textarea rows={3} value={d.description} onChange={(e) => updateDay(d.uid, { description: e.target.value })} />
                   {d.sites.length > 0 && <div className="muted small">Highlights: {d.sites.join(', ')}</div>}
                   <MealTicker meals={d.meals} onChange={(m) => updateDay(d.uid, { meals: m })} />
+                  <input className="b-hotel" placeholder="Accommodation (hotel / cruise)" value={d.hotel} onChange={(e) => updateDay(d.uid, { hotel: e.target.value })} />
                 </div>
               </div>
             </section>

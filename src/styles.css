@@ -383,3 +383,6 @@ input[type=checkbox] { width: 17px; height: 17px; accent-color: var(--gold); cur
 .flight-row { display: flex; align-items: center; gap: 12px; margin-top: 8px; flex-wrap: wrap; }
 .flight-row b { min-width: 150px; color: var(--navy); }
 .flight-row select { flex: 1; min-width: 220px; }
+
+/* per-day accommodation input (builder) */
+.b-hotel { width: 100%; }

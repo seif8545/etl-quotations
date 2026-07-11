@@ -7,7 +7,7 @@ export interface ItineraryData {
   logoUrl: string
   meta: { ref: string; pax: number; arrival: string; departure: string }
   overview: { days: number; nights: number; cities: number; pax: number }
-  days: { title: string; description: string; photoUrl: string; highlights: string[]; meals: string[] }[]
+  days: { title: string; description: string; photoUrl: string; highlights: string[]; meals: string[]; hotel: string }[]
   hotels: { nights: number; destination: string }[]
   included: string[]
   excluded: string[]
@@ -60,6 +60,7 @@ const CSS = `
 .day-desc li::before { content: '•'; position: absolute; left: 2px; top: -1px; color: #c8960a; font-weight: 700; font-size: 13px; }
 .day-chips { margin-top: 14px; display: flex; flex-wrap: wrap; gap: 7px; }
 .day-meals { margin-top: 9px; display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.day-accom { margin-top: 6px; font-size: 12px; color: #33465c; }
 .meals-label { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: #9a8862; margin-right: 2px; }
 .meal-pill { font-size: 11px; color: #0e2a47; background: #eef3f8; border: 1px solid #d4e0ec; border-radius: 999px; padding: 3px 10px; }
 .chip { font-size: 11px; color: #806000; border: 1px solid #e6cf8f; background: #fdf6e3; border-radius: 999px; padding: 3px 11px; }
@@ -178,6 +179,9 @@ const ItineraryDoc = forwardRef<HTMLDivElement, { data: ItineraryData }>(({ data
                 {day.meals.length > 0 && (
                   <div className="day-meals"><span className="meals-label">Meals</span>{day.meals.map((m, j) => <span className="meal-pill" key={j}>{m}</span>)}</div>
                 )}
+                {day.hotel ? (
+                  <div className="day-accom"><span className="meals-label">Accommodation</span> {day.hotel}</div>
+                ) : null}
               </div>
             </div>
           ))}
