@@ -66,8 +66,7 @@ const CSS = `
 .spread-page { height: 1123px; overflow: hidden; box-sizing: border-box; padding: 54px 56px; display: flex; flex-direction: column; justify-content: center; gap: 32px; background: #fffefa; }
 .spread { display: flex; align-items: stretch; gap: 30px; min-height: 260px; }
 .spread.alt { flex-direction: row-reverse; }
-.spread-photo { width: 296px; flex-shrink: 0; align-self: stretch; border-radius: 8px; overflow: hidden; box-shadow: 0 10px 26px rgba(14,42,71,0.12); }
-.spread-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.spread-photo { width: 296px; flex-shrink: 0; align-self: stretch; border-radius: 8px; background-size: cover; background-position: center; box-shadow: 0 10px 26px rgba(14,42,71,0.12); }
 .spread-body { flex: 1; display: flex; flex-direction: column; justify-content: center; }
 .spread-eyebrow { color: #b08a1e; font-weight: 700; font-size: 11px; letter-spacing: 3px; text-transform: uppercase; }
 .spread-title { font-size: 28px; font-weight: 600; color: #0e2a47; margin: 7px 0 0; line-height: 1.1; }
@@ -216,7 +215,7 @@ const ItineraryDoc = forwardRef<HTMLDivElement, { data: ItineraryData }>(({ data
 
   const spread = (m: M) => (
     <div className={`spread${m.i % 2 === 1 ? ' alt' : ''}`} key={`s${m.i}`}>
-      {m.day.photoUrl ? <div className="spread-photo"><img src={m.day.photoUrl} crossOrigin="anonymous" alt="" /></div> : null}
+      {m.day.photoUrl ? <div className="spread-photo" style={{ backgroundImage: `url("${m.day.photoUrl}")` }} /> : null}
       <div className="spread-body">
         <div className="spread-eyebrow">Day {m.i + 1}</div>
         <h3 className="spread-title fr">{m.day.title}</h3>

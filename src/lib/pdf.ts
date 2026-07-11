@@ -40,5 +40,23 @@ export async function waitForAssets(node: HTMLElement): Promise<void> {
           img.addEventListener('error', () => res(), { once: true })
         })
   ))
+  const bgPromises: Promise<void>[] = []
+  node.querySelectorAll('[style*="background-image"]').forEach((el) => {
+    const raw = (el as HTMLElement).style.backgroundImage
+    if (!raw) return
+    const s2 = raw.indexOf('(')
+    const e2 = raw.lastIndexOf(')')
+    if (s2 < 0 || e2 <= s2) return
+    let url = raw.slice(s2 + 1, e2).trim()
+    if (url.charAt(0) === '"' || url.charAt(0) === "'") url = url.slice(1, -1)
+    if (!url) return
+    bgPromises.push(new Promise<void>((res) => {
+      const im = new Image()
+      im.onload = () => res()
+      im.onerror = () => res()
+      im.src = url
+    }))
+  })
+  await Promise.all(bgPromises)
   await new Promise((r) => setTimeout(r, 200))
 }
