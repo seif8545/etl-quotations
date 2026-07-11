@@ -286,7 +286,8 @@ export default function PackageBuilder({ draft, saved, onClose }: { draft?: Quot
         image: { type: 'jpeg', quality: 0.95 },
         html2canvas: { scale: 2, useCORS: true, backgroundColor: '#fffefa', logging: false },
         jsPDF: { unit: 'px', format: [794, 1123], orientation: 'portrait', hotfixes: ['px_scaling'] },
-        pagebreak: { mode: ['css'], avoid: ['.day', '.hotel-card'] },
+        // Added .accommodation-section to prevent the heading from separating from the cards
+        pagebreak: { mode: ['css'], avoid: ['.day', '.hotel-card', '.b-inc', '.included-section', '.pricing-table', 'table', '.accommodation-section'] },
       }).from(node).save()
       await savePackage()
     } catch (e: any) {
@@ -402,14 +403,24 @@ export default function PackageBuilder({ draft, saved, onClose }: { draft?: Quot
 
           <FixedDayEditor label="Departure day" day={departure} set={setDeparture} target="departure" />
 
-          <section className="b-sec b-inc">
-            <div>
-              <h4>Included <span className="muted small">(one per line)</span></h4>
-              <textarea rows={7} value={included} onChange={(e) => setIncluded(e.target.value)} />
+          <section className="b-sec b-inc" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.5rem', width: '100%' }}>
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <h4 style={{ margin: '0 0 0.5rem 0' }}>Included <span className="muted small">(one per line)</span></h4>
+              <textarea 
+                style={{ width: '100%', boxSizing: 'border-box', resize: 'vertical', padding: '0.5rem', fontFamily: 'inherit' }} 
+                rows={8} 
+                value={included} 
+                onChange={(e) => setIncluded(e.target.value)} 
+              />
             </div>
-            <div>
-              <h4>Not included <span className="muted small">(one per line)</span></h4>
-              <textarea rows={7} value={excluded} onChange={(e) => setExcluded(e.target.value)} />
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <h4 style={{ margin: '0 0 0.5rem 0' }}>Not included <span className="muted small">(one per line)</span></h4>
+              <textarea 
+                style={{ width: '100%', boxSizing: 'border-box', resize: 'vertical', padding: '0.5rem', fontFamily: 'inherit' }} 
+                rows={8} 
+                value={excluded} 
+                onChange={(e) => setExcluded(e.target.value)} 
+              />
             </div>
           </section>
 

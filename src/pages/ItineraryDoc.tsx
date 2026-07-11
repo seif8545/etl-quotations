@@ -66,6 +66,8 @@ const CSS = `
 .chip { font-size: 11px; color: #806000; border: 1px solid #e6cf8f; background: #fdf6e3; border-radius: 999px; padding: 3px 11px; }
 
 /* Accommodation */
+.accommodation-section { page-break-inside: avoid; }
+.hotel-card { display: flex; align-items: center; gap: 16px; background: #f7f1e6; border-radius: 10px; padding: 14px 20px; margin-bottom: 10px; page-break-inside: avoid; }
 .hotel-card { display: flex; align-items: center; gap: 16px; background: #f7f1e6; border-radius: 10px; padding: 14px 20px; margin-bottom: 10px; page-break-inside: avoid; }
 .hotel-badge { width: 52px; height: 52px; flex-shrink: 0; border-radius: 50%; background: linear-gradient(135deg,#0e2a47,#163d6b); color: #e8b015; display: flex; flex-direction: column; align-items: center; justify-content: center; }
 .hotel-badge b { font-size: 20px; font-weight: 700; line-height: 1; }
@@ -197,7 +199,7 @@ const ItineraryDoc = forwardRef<HTMLDivElement, { data: ItineraryData }>(({ data
 
       {/* Accommodation */}
       {d.hotels.length > 0 && (
-        <div className="itin-sec">
+        <div className="itin-sec accommodation-section">
           <h2 className="fr sec-h">Accommodation</h2>
           <div className="rule" />
           {d.hotels.map((h, i) => (
