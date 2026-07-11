@@ -76,6 +76,7 @@ const CSS = `
 
 /* Included / excluded */
 .inc-grid { display: flex; gap: 22px; }
+.included-section { page-break-inside: avoid; }
 .inc-col { flex: 1; background: #fff; border: 1px solid #ece0c4; border-radius: 12px; padding: 20px 22px; page-break-inside: avoid; }
 .inc-col h4 { font-size: 16px; font-weight: 700; margin: 0 0 14px; color: #0e2a47; }
 .inc-item { display: flex; align-items: flex-start; gap: 9px; font-size: 13px; color: #3a495c; margin-bottom: 9px; line-height: 1.4; }
@@ -213,9 +214,9 @@ const ItineraryDoc = forwardRef<HTMLDivElement, { data: ItineraryData }>(({ data
         </div>
       )}
 
-      {/* Included / excluded */}
+     {/* Included / excluded */}
       {(d.included.length > 0 || d.excluded.length > 0) && (
-        <div className="itin-sec">
+        <div className="itin-sec included-section">
           <h2 className="fr sec-h">What's Included</h2>
           <div className="rule" />
           <div className="inc-grid">
