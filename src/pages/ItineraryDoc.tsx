@@ -46,7 +46,7 @@ const CSS = `
 
 /* Cover */
 
-.itin-cover { position: relative; height: 1123px; overflow: hidden; display: flex; flex-direction: column; justify-content: space-between; page-break-after: always; }
+.itin-cover { position: relative; height: 1123px; overflow: hidden; display: flex; flex-direction: column; justify-content: space-between; }
 
 .cover-hero { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 
@@ -74,7 +74,7 @@ const CSS = `
 
 /* Overview strip */
 
-.itin-strip { display: flex; background: #0e2a47; color: #fff; padding: 26px 40px; border-radius: 14px; margin-bottom: 22px; page-break-inside: avoid; }
+.itin-strip { display: flex; background: #0e2a47; color: #fff; padding: 26px 40px; border-radius: 14px; margin-bottom: 22px; }
 
 .stat { flex: 1; text-align: center; border-right: 1px solid rgba(255,255,255,0.14); }
 
@@ -90,11 +90,11 @@ const CSS = `
 
 .itin-sec { padding: 22px 48px; }
 
-.day-page { min-height: 1123px; box-sizing: border-box; padding: 48px 52px; page-break-after: always; }
+.day-page { height: 1123px; overflow: hidden; box-sizing: border-box; padding: 48px 52px; }
 
 .day-page .intro-card { margin-bottom: 20px; }
 
-.summary-page { min-height: 1123px; box-sizing: border-box; padding: 24px 4px; page-break-after: always; }
+.summary-page { height: 1123px; overflow: hidden; box-sizing: border-box; padding: 24px 4px; }
 
 .sec-h { font-size: 27px; font-weight: 600; color: #0e2a47; margin: 0 0 6px; }
 
@@ -106,7 +106,7 @@ const CSS = `
 
 /* Day cards */
 
-.day { display: flex; background: #fff; border: 1px solid #ecdcb6; border-radius: 14px; overflow: hidden; margin-bottom: 24px; box-shadow: 0 6px 20px rgba(14,42,71,0.06); page-break-inside: avoid; }
+.day { display: flex; background: #fff; border: 1px solid #ecdcb6; border-radius: 14px; overflow: hidden; margin-bottom: 24px; box-shadow: 0 6px 20px rgba(14,42,71,0.06); }
 
 .day.alt { flex-direction: row-reverse; }
 
@@ -140,7 +140,7 @@ const CSS = `
 
 /* Accommodation */
 
-.hotel-card { display: flex; align-items: center; gap: 16px; background: #f7f1e6; border-radius: 10px; padding: 14px 20px; margin-bottom: 10px; page-break-inside: avoid; }
+.hotel-card { display: flex; align-items: center; gap: 16px; background: #f7f1e6; border-radius: 10px; padding: 14px 20px; margin-bottom: 10px; }
 
 .hotel-badge { width: 52px; height: 52px; flex-shrink: 0; border-radius: 50%; background: linear-gradient(135deg,#0e2a47,#163d6b); color: #e8b015; display: flex; flex-direction: column; align-items: center; justify-content: center; }
 
@@ -158,7 +158,7 @@ const CSS = `
 
 .inc-grid { display: flex; gap: 22px; }
 
-.inc-col { flex: 1; background: #fff; border: 1px solid #ece0c4; border-radius: 12px; padding: 20px 22px; page-break-inside: avoid; }
+.inc-col { flex: 1; background: #fff; border: 1px solid #ece0c4; border-radius: 12px; padding: 20px 22px; }
 
 .inc-col h4 { font-size: 16px; font-weight: 700; margin: 0 0 14px; color: #0e2a47; }
 
@@ -174,7 +174,7 @@ const CSS = `
 
 /* Price */
 
-.price-box { background: linear-gradient(135deg,#0e2a47,#163d6b); color: #fff; border-radius: 16px; padding: 30px; text-align: center; page-break-inside: avoid; }
+.price-box { background: linear-gradient(135deg,#0e2a47,#163d6b); color: #fff; border-radius: 16px; padding: 30px; text-align: center; }
 
 .price-eyebrow { color: #f0c53a; font-size: 13px; letter-spacing: 2px; text-transform: uppercase; font-weight: 600; }
 
@@ -188,7 +188,7 @@ const CSS = `
 
 .price-ref b { color: #0e2a47; }
 
-.price-table { width: 100%; border-collapse: collapse; font-size: 12.5px; page-break-inside: avoid; }
+.price-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
 
 .price-table th { background: #0e2a47; color: #fff; font-family: 'Fraunces', Georgia, serif; font-weight: 600; text-align: left; padding: 10px 12px; font-size: 12px; }
 
@@ -206,7 +206,7 @@ const CSS = `
 
 /* Why us */
 
-.itin-closing { background: linear-gradient(180deg,#0e2a47,#081a30); color: #fff; min-height: 1123px; padding: 46px 56px 56px; display: flex; flex-direction: column; }
+.itin-closing { background: linear-gradient(180deg,#0e2a47,#081a30); color: #fff; height: 1123px; overflow: hidden; padding: 46px 56px 56px; display: flex; flex-direction: column; }
 
 .itin-why { padding: 0 0 30px; }
 
@@ -260,17 +260,16 @@ const ItineraryDoc = forwardRef<HTMLDivElement, { data: ItineraryData }>(({ data
   const dayGroups: { day: DDay; i: number }[][] = (() => {
     const est = (day: DDay) => {
       const b = day.description ? day.description.split('\n').map((l) => l.trim()).filter(Boolean).length : 0
-      let h = 150 + b * 40
-      if (day.highlights && day.highlights.length) h += 34
-      if (day.hotel) h += 22
-      return Math.max(h, 232)
+      let h = 150 + b * 34
+      if (day.highlights && day.highlights.length) h += 32
+      return Math.max(h, 240)
     }
     const groups: { day: DDay; i: number }[][] = []
     let cur: { day: DDay; i: number }[] = []
     let curH = 0
     d.days.forEach((day, i) => {
-      const cap = groups.length === 0 ? 1000 - 430 : 1000
-      const h = est(day) + 24
+      const cap = groups.length === 0 ? 820 : 1000
+      const h = est(day) + 18
       if (cur.length && curH + h > cap) { groups.push(cur); cur = []; curH = 0 }
       cur.push({ day, i })
       curH += h

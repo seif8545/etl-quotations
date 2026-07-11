@@ -598,7 +598,7 @@ export default function PackageBuilder({ draft, saved, onClose }: { draft?: Quot
 
         jsPDF: { unit: 'px', format: [794, 1123], orientation: 'portrait', hotfixes: ['px_scaling'] },
 
-        pagebreak: { mode: ['css'], avoid: ['.day', '.hotel-card', '.inc-col', '.price-box', '.price-table'] },
+        pagebreak: { mode: ['css'] },
 
       }).from(node).save()
 
