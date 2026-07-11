@@ -90,7 +90,11 @@ const CSS = `
 
 .itin-sec { padding: 22px 48px; }
 
-.day-page { height: 1123px; overflow: hidden; box-sizing: border-box; padding: 48px 52px; }
+.day-page { height: 1123px; overflow: hidden; box-sizing: border-box; padding: 48px 52px; display: flex; flex-direction: column; justify-content: center; gap: 26px; }
+
+.day-page.first { justify-content: flex-start; }
+
+.day-head-block { flex-shrink: 0; }
 
 .day-page .intro-card { margin-bottom: 20px; }
 
@@ -106,13 +110,15 @@ const CSS = `
 
 /* Day cards */
 
-.day { display: flex; background: #fff; border: 1px solid #ecdcb6; border-radius: 14px; overflow: hidden; margin-bottom: 24px; box-shadow: 0 6px 20px rgba(14,42,71,0.06); }
+.day { display: flex; align-items: stretch; min-height: 214px; background: #fff; border: 1px solid #ecdcb6; border-radius: 14px; overflow: hidden; box-shadow: 0 6px 20px rgba(14,42,71,0.06); }
 
 .day.alt { flex-direction: row-reverse; }
 
-.day-photo { width: 260px; height: 200px; flex-shrink: 0; object-fit: cover; }
+.day-photo { width: 262px; align-self: stretch; flex-shrink: 0; overflow: hidden; }
 
-.day-body { padding: 22px 26px; flex: 1; }
+.day-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+.day-body { padding: 20px 28px; flex: 1; display: flex; flex-direction: column; justify-content: center; }
 
 .day-tag { display: inline-block; background: linear-gradient(135deg,#c8960a,#e8b015); color: #3a2a00; font-weight: 700; font-size: 11px; letter-spacing: 1.2px; padding: 4px 13px; border-radius: 999px; }
 
@@ -268,7 +274,7 @@ const ItineraryDoc = forwardRef<HTMLDivElement, { data: ItineraryData }>(({ data
     let cur: { day: DDay; i: number }[] = []
     let curH = 0
     d.days.forEach((day, i) => {
-      const cap = groups.length === 0 ? 820 : 1000
+      const cap = groups.length === 0 ? 850 : 1050
       const h = est(day) + 18
       if (cur.length && curH + h > cap) { groups.push(cur); cur = []; curH = 0 }
       cur.push({ day, i })
@@ -344,11 +350,11 @@ const ItineraryDoc = forwardRef<HTMLDivElement, { data: ItineraryData }>(({ data
 
       {dayGroups.map((grp, gi) => (
 
-        <div className="day-page" key={gi}>
+        <div className={`day-page${gi === 0 ? ' first' : ''}`} key={gi}>
 
           {gi === 0 && (
 
-            <>
+            <div className="day-head-block">
 
               <div className="itin-strip">
 
@@ -368,7 +374,7 @@ const ItineraryDoc = forwardRef<HTMLDivElement, { data: ItineraryData }>(({ data
 
               <div className="rule" />
 
-            </>
+            </div>
 
           )}
 
@@ -376,7 +382,7 @@ const ItineraryDoc = forwardRef<HTMLDivElement, { data: ItineraryData }>(({ data
 
             <div className={`day${i % 2 === 1 ? ' alt' : ''}`} key={i}>
 
-              {day.photoUrl ? <img className="day-photo" src={day.photoUrl} crossOrigin="anonymous" alt="" /> : null}
+              {day.photoUrl ? <div className="day-photo"><img src={day.photoUrl} crossOrigin="anonymous" alt="" /></div> : null}
 
               <div className="day-body">
 
