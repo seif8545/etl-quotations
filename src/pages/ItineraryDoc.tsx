@@ -23,7 +23,8 @@ const CSS = `
 .itin .fr { font-family: 'Fraunces', Georgia, serif; }
 
 /* Cover */
-.itin-cover { position: relative; height: 1123px; overflow: hidden; display: flex; flex-direction: column; justify-content: space-between; }
+/* Cover */
+.itin-cover { position: relative; height: 1120px; overflow: hidden; display: flex; flex-direction: column; justify-content: space-between; page-break-after: always; }
 .cover-hero { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .cover-ov { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(14,42,71,0.15) 0%, rgba(14,42,71,0.30) 45%, rgba(8,26,48,0.90) 100%); }
 .cover-top { position: relative; z-index: 2; padding: 46px; display: flex; justify-content: center; }
@@ -102,7 +103,8 @@ const CSS = `
 .pt-hotels { color: #45566b; }
 
 /* Why us */
-.itin-closing { page-break-before: always; background: linear-gradient(180deg,#0e2a47,#081a30); color: #fff; min-height: 1115px; padding: 46px 56px 56px; display: flex; flex-direction: column; }
+/* Why us */
+.itin-closing { page-break-before: always; background: linear-gradient(180deg,#0e2a47,#081a30); color: #fff; height: 1120px; overflow: hidden; padding: 46px 56px 56px; display: flex; flex-direction: column; }
 .itin-why { padding: 0 0 30px; }
 .itin-why .sec-h { color: #fff; }
 .why-grid { display: flex; flex-wrap: wrap; gap: 20px 34px; margin-top: 6px; }
