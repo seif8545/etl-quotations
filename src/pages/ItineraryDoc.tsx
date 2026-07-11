@@ -23,17 +23,16 @@ const CSS = `
 .itin .fr { font-family: 'Fraunces', Georgia, serif; }
 
 /* Cover */
-/* Cover */
 .itin-cover { position: relative; height: 1120px; overflow: hidden; display: flex; flex-direction: column; justify-content: space-between; page-break-after: always; }
 .cover-hero { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .cover-ov { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(14,42,71,0.15) 0%, rgba(14,42,71,0.30) 45%, rgba(8,26,48,0.90) 100%); }
 .cover-top { position: relative; z-index: 2; padding: 46px; display: flex; justify-content: center; }
 .cover-logo { background: #ffffff; border-radius: 999px; padding: 14px 26px; box-shadow: 0 6px 24px rgba(0,0,0,0.25); }
 .cover-logo img { height: 48px; display: block; }
-.cover-bottom { position: relative; z-index: 2; padding: 0 60px 76px; color: #fff; }
+.cover-bottom { position: relative; z-index: 2; padding: 0 60px 76px; color: #fff; display: flex; flex-direction: column; align-items: center; text-align: center; }
 .cover-eyebrow { color: #f0c53a; font-weight: 600; font-size: 13px; letter-spacing: 3px; text-transform: uppercase; margin-bottom: 12px; }
 .cover-title { font-size: 52px; font-weight: 600; line-height: 1.03; margin: 0 0 18px; color: #fff; text-shadow: 0 2px 18px rgba(0,0,0,0.35); }
-.cover-divider { width: 96px; height: 4px; background: linear-gradient(135deg,#c8960a,#e8b015); border-radius: 4px; margin-bottom: 18px; }
+.cover-divider { width: 96px; height: 4px; background: linear-gradient(135deg,#c8960a,#e8b015); border-radius: 4px; margin: 0 auto 18px auto; }
 .cover-meta { font-size: 16px; color: rgba(255,255,255,0.92); }
 .cover-meta span { color: #f0c53a; margin: 0 8px; }
 

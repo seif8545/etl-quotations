@@ -281,12 +281,19 @@ export default function PackageBuilder({ draft, saved, onClose }: { draft?: Quot
       await waitForAssets(node)
       const safe = (title || 'package').replace(/[^\w\-]+/g, '_')
       await html2pdf().set({
-        margin: 0, // <--- Change this back to 0!
+        // Let the PDF engine handle the page margins for you
+        margin: [40, 0, 40, 0], 
         filename: safe + '.pdf',
-        image: { type: 'jpeg', quality: 0.95 },
-        html2canvas: { scale: 2, useCORS: true, backgroundColor: '#fffefa', logging: false },
-        jsPDF: { unit: 'px', format: [794, 1123], orientation: 'portrait', hotfixes: ['px_scaling'] },
-        pagebreak: { mode: ['css'], avoid: ['.day', '.hotel-card', '.b-inc', '.included-section', '.pricing-table', 'table', '.accommodation-section'] },
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { 
+          scale: 2, 
+          useCORS: true, 
+          backgroundColor: '#fffefa', 
+          logging: false 
+        },
+        jsPDF: { unit: 'px', format: [794, 1123], orientation: 'portrait' },
+        // Use standard CSS page breaks to avoid splitting content
+        pagebreak: { mode: ['css', 'legacy'] } 
       }).from(node).save()
       await savePackage()
     } catch (e: any) {
@@ -466,8 +473,8 @@ export default function PackageBuilder({ draft, saved, onClose }: { draft?: Quot
         </div>
       </div>
 
-      {/* Off-screen branded document captured for the PDF */}
-      <div style={{ position: 'absolute', left: -99999, top: 0, width: '794px' }}>
+     {/* Off-screen branded document */}
+      <div style={{ position: 'absolute', left: '-9999px', top: 0, width: '794px' }}>
         <ItineraryDoc ref={docRef} data={data} />
       </div>
 
