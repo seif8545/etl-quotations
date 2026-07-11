@@ -160,6 +160,30 @@ function MealTicker({ meals, onChange }: { meals: Meals; onChange: (m: Meals) =>
 
 /** Client-facing branded package PDF builder. Opens from a quotation (draft) or a saved package. */
 
+function FixedDayEditor({ label, day, set, onPickPhoto }: { label: string; day: FixedDay; set: (d: FixedDay) => void; onPickPhoto: () => void }) {
+  return (
+    <section className={`b-day b-fixed${day.on ? '' : ' off'}`}>
+      <div className="b-day-head">
+        <label className="check pill-check"><input type="checkbox" checked={day.on} onChange={(e) => set({ ...day, on: e.target.checked })} /> {label}</label>
+        <input value={day.title} disabled={!day.on} onChange={(e) => set({ ...day, title: e.target.value })} />
+      </div>
+      {day.on && (
+        <div className="b-day-body">
+          <div className="b-photo">
+            {day.photo ? <img src={`/images/tours/${day.photo}`} alt="" /> : <div className="b-nophoto">No photo</div>}
+            <button className="link" onClick={onPickPhoto}>Change photo</button>
+          </div>
+          <div className="b-day-text">
+            <textarea rows={3} value={day.description} onChange={(e) => set({ ...day, description: e.target.value })} />
+            <MealTicker meals={day.meals} onChange={(m) => set({ ...day, meals: m })} />
+            <input className="b-hotel" placeholder="Accommodation (hotel / cruise)" value={day.hotel} onChange={(e) => set({ ...day, hotel: e.target.value })} />
+          </div>
+        </div>
+      )}
+    </section>
+  )
+}
+
 export default function PackageBuilder({ draft, saved, onClose }: { draft?: QuotationDraft; saved?: PackageState; onClose: () => void }) {
 
   const [ref, setRef] = useState<RefData | null>(null)
@@ -574,7 +598,7 @@ export default function PackageBuilder({ draft, saved, onClose }: { draft?: Quot
 
         jsPDF: { unit: 'px', format: [794, 1123], orientation: 'portrait', hotfixes: ['px_scaling'] },
 
-        pagebreak: { mode: ['css'], avoid: ['.day', '.hotel-card'] },
+        pagebreak: { mode: ['css'], avoid: ['.day', '.hotel-card', '.inc-col', '.price-box', '.price-table'] },
 
       }).from(node).save()
 
@@ -592,51 +616,6 @@ export default function PackageBuilder({ draft, saved, onClose }: { draft?: Quot
 
 
 
-  function FixedDayEditor({ label, day, set, target }: { label: string; day: FixedDay; set: (d: FixedDay) => void; target: string }) {
-
-    return (
-
-      <section className={`b-day b-fixed${day.on ? '' : ' off'}`}>
-
-        <div className="b-day-head">
-
-          <label className="check pill-check"><input type="checkbox" checked={day.on} onChange={(e) => set({ ...day, on: e.target.checked })} /> {label}</label>
-
-          <input value={day.title} disabled={!day.on} onChange={(e) => set({ ...day, title: e.target.value })} />
-
-        </div>
-
-        {day.on && (
-
-          <div className="b-day-body">
-
-            <div className="b-photo">
-
-              {day.photo ? <img src={`/images/tours/${day.photo}`} alt="" /> : <div className="b-nophoto">No photo</div>}
-
-              <button className="link" onClick={() => setPicker({ target })}>Change photo</button>
-
-            </div>
-
-            <div className="b-day-text">
-
-              <textarea rows={3} value={day.description} onChange={(e) => set({ ...day, description: e.target.value })} />
-
-              <MealTicker meals={day.meals} onChange={(m) => set({ ...day, meals: m })} />
-
-              <input className="b-hotel" placeholder="Accommodation (hotel / cruise)" value={day.hotel} onChange={(e) => set({ ...day, hotel: e.target.value })} />
-
-            </div>
-
-          </div>
-
-        )}
-
-      </section>
-
-    )
-
-  }
 
 
 
@@ -702,7 +681,7 @@ export default function PackageBuilder({ draft, saved, onClose }: { draft?: Quot
 
 
 
-          <FixedDayEditor label="Arrival day" day={arrival} set={setArrival} target="arrival" />
+          <FixedDayEditor label="Arrival day" day={arrival} set={setArrival} onPickPhoto={() => setPicker({ target: 'arrival' })} />
 
 
 
@@ -802,7 +781,7 @@ export default function PackageBuilder({ draft, saved, onClose }: { draft?: Quot
 
 
 
-          <FixedDayEditor label="Departure day" day={departure} set={setDeparture} target="departure" />
+          <FixedDayEditor label="Departure day" day={departure} set={setDeparture} onPickPhoto={() => setPicker({ target: 'departure' })} />
 
 
 

@@ -46,7 +46,7 @@ const CSS = `
 
 /* Cover */
 
-.itin-cover { position: relative; height: 1123px; overflow: hidden; display: flex; flex-direction: column; justify-content: space-between; }
+.itin-cover { position: relative; height: 1123px; overflow: hidden; display: flex; flex-direction: column; justify-content: space-between; page-break-after: always; }
 
 .cover-hero { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 
@@ -74,7 +74,7 @@ const CSS = `
 
 /* Overview strip */
 
-.itin-strip { display: flex; background: #0e2a47; color: #fff; padding: 26px 40px; page-break-inside: avoid; }
+.itin-strip { display: flex; background: #0e2a47; color: #fff; padding: 26px 40px; border-radius: 14px; margin-bottom: 22px; page-break-inside: avoid; }
 
 .stat { flex: 1; text-align: center; border-right: 1px solid rgba(255,255,255,0.14); }
 
@@ -90,6 +90,12 @@ const CSS = `
 
 .itin-sec { padding: 22px 48px; }
 
+.day-page { min-height: 1123px; box-sizing: border-box; padding: 48px 52px; page-break-after: always; }
+
+.day-page .intro-card { margin-bottom: 20px; }
+
+.summary-page { min-height: 1123px; box-sizing: border-box; padding: 24px 4px; page-break-after: always; }
+
 .sec-h { font-size: 27px; font-weight: 600; color: #0e2a47; margin: 0 0 6px; }
 
 .rule { width: 62px; height: 3px; background: linear-gradient(135deg,#c8960a,#e8b015); border-radius: 3px; margin-bottom: 20px; }
@@ -100,7 +106,7 @@ const CSS = `
 
 /* Day cards */
 
-.day { display: flex; background: #fff; border: 1px solid #ecdcb6; border-radius: 14px; overflow: hidden; margin-bottom: 14px; box-shadow: 0 6px 20px rgba(14,42,71,0.06); page-break-inside: avoid; }
+.day { display: flex; background: #fff; border: 1px solid #ecdcb6; border-radius: 14px; overflow: hidden; margin-bottom: 24px; box-shadow: 0 6px 20px rgba(14,42,71,0.06); page-break-inside: avoid; }
 
 .day.alt { flex-direction: row-reverse; }
 
@@ -200,7 +206,7 @@ const CSS = `
 
 /* Why us */
 
-.itin-closing { page-break-before: always; background: linear-gradient(180deg,#0e2a47,#081a30); color: #fff; min-height: 1115px; padding: 46px 56px 56px; display: flex; flex-direction: column; }
+.itin-closing { background: linear-gradient(180deg,#0e2a47,#081a30); color: #fff; min-height: 1123px; padding: 46px 56px 56px; display: flex; flex-direction: column; }
 
 .itin-why { padding: 0 0 30px; }
 
@@ -250,19 +256,46 @@ const ItineraryDoc = forwardRef<HTMLDivElement, { data: ItineraryData }>(({ data
 
   const d = data
 
+  type DDay = ItineraryData['days'][number]
+  const dayGroups: { day: DDay; i: number }[][] = (() => {
+    const est = (day: DDay) => {
+      const b = day.description ? day.description.split('\n').map((l) => l.trim()).filter(Boolean).length : 0
+      let h = 150 + b * 40
+      if (day.highlights && day.highlights.length) h += 34
+      if (day.hotel) h += 22
+      return Math.max(h, 232)
+    }
+    const groups: { day: DDay; i: number }[][] = []
+    let cur: { day: DDay; i: number }[] = []
+    let curH = 0
+    d.days.forEach((day, i) => {
+      const cap = groups.length === 0 ? 1000 - 430 : 1000
+      const h = est(day) + 24
+      if (cur.length && curH + h > cap) { groups.push(cur); cur = []; curH = 0 }
+      cur.push({ day, i })
+      curH += h
+    })
+    if (cur.length) groups.push(cur)
+    return groups
+  })()
+
   useEffect(() => {
 
-    if (typeof document !== 'undefined' && !document.getElementById('itin-doc-css')) {
+    if (typeof document === 'undefined') return
 
-      const el = document.createElement('style')
+    let el = document.getElementById('itin-doc-css') as HTMLStyleElement | null
+
+    if (!el) {
+
+      el = document.createElement('style')
 
       el.id = 'itin-doc-css'
-
-      el.textContent = CSS
 
       document.head.appendChild(el)
 
     }
+
+    el.textContent = CSS
 
   }, [])
 
@@ -308,43 +341,39 @@ const ItineraryDoc = forwardRef<HTMLDivElement, { data: ItineraryData }>(({ data
 
 
 
-      {/* Overview strip */}
+      {/* Days packed into full pages (each with 4-side margins) */}
 
-      <div className="itin-strip">
+      {dayGroups.map((grp, gi) => (
 
-        <div className="stat"><b>{d.overview.days}</b><span>{d.overview.days === 1 ? 'Day' : 'Days'}</span></div>
+        <div className="day-page" key={gi}>
 
-        <div className="stat"><b>{d.overview.nights}</b><span>{d.overview.nights === 1 ? 'Night' : 'Nights'}</span></div>
+          {gi === 0 && (
 
-        <div className="stat"><b>{d.overview.cities}</b><span>{d.overview.cities === 1 ? 'City' : 'Cities'}</span></div>
+            <>
 
-        <div className="stat"><b>{d.overview.pax}</b><span>{d.overview.pax === 1 ? 'Guest' : 'Guests'}</span></div>
+              <div className="itin-strip">
 
-      </div>
+                <div className="stat"><b>{d.overview.days}</b><span>{d.overview.days === 1 ? 'Day' : 'Days'}</span></div>
 
+                <div className="stat"><b>{d.overview.nights}</b><span>{d.overview.nights === 1 ? 'Night' : 'Nights'}</span></div>
 
+                <div className="stat"><b>{d.overview.cities}</b><span>{d.overview.cities === 1 ? 'City' : 'Cities'}</span></div>
 
-      {/* Intro */}
+                <div className="stat"><b>{d.overview.pax}</b><span>{d.overview.pax === 1 ? 'Guest' : 'Guests'}</span></div>
 
-      {d.intro ? (
+              </div>
 
-        <div className="itin-sec"><div className="intro-card fr">{d.intro}</div></div>
+              {d.intro ? <div className="intro-card fr">{d.intro}</div> : null}
 
-      ) : null}
+              <h2 className="fr sec-h">Your Day-by-Day Journey</h2>
 
+              <div className="rule" />
 
+            </>
 
-      {/* Days */}
+          )}
 
-      {d.days.length > 0 && (
-
-        <div className="itin-sec" style={{ paddingTop: 8 }}>
-
-          <h2 className="fr sec-h">Your Day-by-Day Journey</h2>
-
-          <div className="rule" />
-
-          {d.days.map((day, i) => (
+          {grp.map(({ day, i }) => (
 
             <div className={`day${i % 2 === 1 ? ' alt' : ''}`} key={i}>
 
@@ -388,9 +417,13 @@ const ItineraryDoc = forwardRef<HTMLDivElement, { data: ItineraryData }>(({ data
 
         </div>
 
-      )}
+      ))}
 
+      {/* Summary page: accommodation + inclusions + price */}
 
+      {(d.hotels.length > 0 || d.included.length > 0 || d.excluded.length > 0 || d.price.show) && (
+
+      <div className="summary-page">
 
       {/* Accommodation */}
 
@@ -486,11 +519,15 @@ const ItineraryDoc = forwardRef<HTMLDivElement, { data: ItineraryData }>(({ data
 
 
 
+      </div>
+
+      )}
+
       {/* Pricing table (hotel categories) */}
 
       {d.pricing.show && d.pricing.rows.length > 0 && (
 
-        <div className="itin-sec">
+        <div className="summary-page">
 
           <h2 className="fr sec-h">Package Pricing</h2>
 
