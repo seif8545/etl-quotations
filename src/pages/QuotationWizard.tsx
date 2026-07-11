@@ -183,9 +183,16 @@ function TourDays({ d, up, ref_ }: StepProps) {
       <h4>Quick tour days</h4>
       <p className="muted small">Add a ready-made day — its sites, transfer and guide are included automatically, and counted in the totals. Remove any time.</p>
       <div className="day-presets">
-        {presets.map((p) => (
-          <button key={p.id} type="button" className="day-chip-add" onClick={() => addDay(p)}>+ {p.name}</button>
-        ))}
+        {(() => {
+          const total: Record<string, number> = {}
+          presets.forEach((p) => { total[p.name] = (total[p.name] ?? 0) + 1 })
+          const seen: Record<string, number> = {}
+          return presets.map((p) => {
+            seen[p.name] = (seen[p.name] ?? 0) + 1
+            const label = total[p.name] > 1 ? `${p.name} #${seen[p.name]}` : p.name
+            return <button key={p.id} type="button" className="day-chip-add" onClick={() => addDay(p)}>+ {label}</button>
+          })
+        })()}
       </div>
       {d.days.length > 0 && (
         <div className="day-cards">

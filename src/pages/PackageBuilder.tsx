@@ -149,14 +149,18 @@ export default function PackageBuilder({ draft, saved, onClose }: { draft?: Quot
         'Personal expenses and optional excursions', 'Anything not listed under "Included"',
       ].join('\n'))
 
-      const flightRegion = r.regions.find((rg) => rg.name === 'Domestic Flights')
-      if (flightRegion) {
+      const xferRegionIds = new Set(r.regions.filter((rg) => rg.name === 'Domestic Flights' || rg.name === 'Road Transfers').map((rg) => rg.id))
+      if (xferRegionIds.size) {
         const eff = effectiveSelections(draft)
         setFlights(r.transfers
-          .filter((t) => t.region_id === flightRegion.id && (eff.transferCounts[t.id] ?? 0) > 0)
+          .filter((t) => xferRegionIds.has(t.region_id) && (eff.transferCounts[t.id] ?? 0) > 0)
           .map((t) => {
-            const route = t.name.replace(/^Flight\s*[—-]\s*/, '')
-            return { id: t.id, label: route, text: `Domestic flight from ${route}, followed by a private transfer to your hotel.`, targetUid: '', position: 'end' as const }
+            const isCar = /^Car/.test(t.name)
+            const route = t.name.replace(/^(?:Flight|Car)\s*[—-]\s*/, '')
+            const text = isCar
+              ? `Private air-conditioned road transfer from ${route}.`
+              : `Domestic flight from ${route}, followed by a private transfer to your hotel.`
+            return { id: t.id, label: `${route} (${isCar ? 'car' : 'flight'})`, text, targetUid: '', position: 'end' as const }
           }))
       }
     }).catch((e) => setError(e.message ?? String(e)))
@@ -372,8 +376,8 @@ export default function PackageBuilder({ draft, saved, onClose }: { draft?: Quot
 
           {flights.length > 0 && (
             <section className="b-sec">
-              <h4>Inter-city flights</h4>
-              <p className="muted small">Slot each domestic flight into a day — it appears as a bullet at the start or end of that day.</p>
+              <h4>Inter-city transfers</h4>
+              <p className="muted small">Slot each inter-city flight or road transfer into a day — it appears as a bullet at the start or end of that day.</p>
               {flights.map((f) => (
                 <div key={f.id} className="flight-row">
                   <b>{f.label}</b>
