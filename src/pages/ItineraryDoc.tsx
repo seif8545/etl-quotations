@@ -101,27 +101,26 @@ const CSS = `
 .pt-cat { font-weight: 700; color: #0e2a47; white-space: nowrap; }
 .pt-price { color: #806000; font-weight: 600; white-space: nowrap; }
 .pt-hotels { color: #45566b; }
-
 /* Why us */
-.itin-closing { page-break-before: always; page-break-inside: avoid; background: linear-gradient(180deg,#0e2a47,#081a30); color: #fff; height: 1100px; overflow: hidden; padding: 46px 56px; display: flex; flex-direction: column; }
-.itin-why { padding: 0 0 20px; }
+.itin-closing { position: relative; page-break-before: always; background: linear-gradient(180deg,#0e2a47,#081a30); color: #fff; height: 1120px; overflow: hidden; display: block; margin: 0; padding: 0; }
+.itin-why { padding: 60px 56px; }
 .itin-why .sec-h { color: #fff; }
-.why-grid { display: flex; flex-wrap: wrap; gap: 20px 34px; margin-top: 6px; }
+.why-grid { display: flex; flex-wrap: wrap; gap: 20px 34px; margin-top: 16px; }
 .why-item { width: 45%; }
 .why-item b { display: block; font-family: 'Fraunces', Georgia, serif; font-size: 16px; color: #e8b015; margin-bottom: 4px; }
 .why-item span { font-size: 12.5px; color: rgba(255,255,255,0.82); line-height: 1.5; }
 
-/* Contact */
-.itin-contact { text-align: center; margin-top: 80px; }
-.contact-logo { background: #ffffff; border-radius: 999px; padding: 14px 28px; display: inline-block; margin-bottom: 30px; }
+/* Contact - Absolutely Positioned! */
+.itin-contact { position: absolute; bottom: 80px; left: 0; width: 100%; text-align: center; margin: 0; padding: 0; }
+.contact-logo { background: #ffffff; border-radius: 999px; padding: 14px 28px; display: inline-block; margin-bottom: 24px; }
 .contact-logo img { height: 50px; display: block; }
 .contact-thanks { font-size: 40px; font-weight: 600; margin: 0 0 10px; color: #fff; }
-.contact-tag { font-size: 15px; color: rgba(255,255,255,0.82); margin-bottom: 34px; }
+.contact-tag { font-size: 15px; color: rgba(255,255,255,0.82); margin-bottom: 30px; }
 .contact-rows { display: inline-block; text-align: left; }
 .contact-row { display: flex; gap: 12px; margin-bottom: 14px; font-size: 15px; align-items: baseline; }
 .contact-row b { color: #e8b015; width: 96px; flex-shrink: 0; font-weight: 600; }
 .contact-row span { color: #fff; }
-.contact-brand { margin-bottom: 30px; }
+.contact-brand { margin-bottom: 24px; }
 .contact-brand-name { display: block; font-size: 38px; font-weight: 600; color: #e8b015; letter-spacing: 2px; }
 .contact-brand-sub { display: block; font-size: 15px; letter-spacing: 10px; color: #c8960a; margin-top: 2px; }
 `
