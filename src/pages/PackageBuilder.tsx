@@ -10,6 +10,7 @@ interface Meals { breakfast: boolean; lunch: boolean; dinner: boolean }
 interface EditableDay { uid: string; title: string; description: string; photo: string; sites: string[]; guide: boolean; meals: Meals }
 interface FixedDay { on: boolean; title: string; description: string; photo: string; meals: Meals }
 interface PriceRow { category: string; dbl: number; single: number; hotels: string }
+interface FlightInsert { id: number; label: string; text: string; targetUid: string; position: 'start' | 'end' }
 
 /** Full serializable state of a built package — stored in q_package_docs so packages can be re-opened. */
 export interface PackageState {
@@ -22,6 +23,7 @@ export interface PackageState {
   pp: number; sgl: number; showPrice: boolean
   included: string; excluded: string
   priceTableOn: boolean; priceRows: PriceRow[]
+  flights: FlightInsert[]
 }
 
 const TOUR_MEALS = (): Meals => ({ breakfast: true, lunch: false, dinner: true })
@@ -92,6 +94,7 @@ export default function PackageBuilder({ draft, saved, onClose }: { draft?: Quot
   const [priceRows, setPriceRows] = useState<PriceRow[]>(saved?.priceRows ?? DEFAULT_PRICE_ROWS())
   const [included, setIncluded] = useState(saved?.included ?? '')
   const [excluded, setExcluded] = useState(saved?.excluded ?? '')
+  const [flights, setFlights] = useState<FlightInsert[]>(saved?.flights ?? [])
   const [manifest, setManifest] = useState<Record<string, string[]>>({})
   const [picker, setPicker] = useState<{ target: string } | null>(null)
   const [busy, setBusy] = useState(false)
@@ -145,6 +148,17 @@ export default function PackageBuilder({ draft, saved, onClose }: { draft?: Quot
         'Tipping and gratuities', 'Drinks during meals',
         'Personal expenses and optional excursions', 'Anything not listed under "Included"',
       ].join('\n'))
+
+      const flightRegion = r.regions.find((rg) => rg.name === 'Domestic Flights')
+      if (flightRegion) {
+        const eff = effectiveSelections(draft)
+        setFlights(r.transfers
+          .filter((t) => t.region_id === flightRegion.id && (eff.transferCounts[t.id] ?? 0) > 0)
+          .map((t) => {
+            const route = t.name.replace(/^Flight\s*[—-]\s*/, '')
+            return { id: t.id, label: route, text: `Domestic flight from ${route}, followed by a private transfer to your hotel.`, targetUid: '', position: 'end' as const }
+          }))
+      }
     }).catch((e) => setError(e.message ?? String(e)))
     fetch('/images/tours/manifest.json').then((r) => r.json()).then(setManifest).catch(() => {})
   }, [])
@@ -159,6 +173,7 @@ export default function PackageBuilder({ draft, saved, onClose }: { draft?: Quot
     setDays((ds) => ds.map((d) => (d.uid === uid ? { ...d, ...patch } : d)))
   const removeDay = (uid: string) => setDays((ds) => ds.filter((d) => d.uid !== uid))
   const updateRow = (i: number, patch: Partial<PriceRow>) => setPriceRows((rs) => rs.map((r, j) => (j === i ? { ...r, ...patch } : r)))
+  const setFlightTarget = (id: number, targetUid: string, position: 'start' | 'end') => setFlights((fs) => fs.map((f) => (f.id === id ? { ...f, targetUid, position } : f)))
 
   function pickPhoto(photo: string) {
     if (!picker) return
@@ -194,16 +209,25 @@ export default function PackageBuilder({ draft, saved, onClose }: { draft?: Quot
       overview = { days: oDays, nights: oNights, cities: citySet.size || 1, pax: meta.pax }
     }
 
-    const seqDays = [
-      ...(arrival.on ? [{ title: arrival.title, description: arrival.description, photoUrl: arrival.photo ? '/images/tours/' + arrival.photo : '', highlights: ['Meet & assist', 'Hotel check-in', 'Overnight'], meals: mealList(arrival.meals) }] : []),
+    const seq: { uid: string; title: string; description: string; photoUrl: string; highlights: string[]; meals: string[] }[] = [
+      ...(arrival.on ? [{ uid: '__arrival', title: arrival.title, description: arrival.description, photoUrl: arrival.photo ? '/images/tours/' + arrival.photo : '', highlights: ['Meet & assist', 'Hotel check-in', 'Overnight'], meals: mealList(arrival.meals) }] : []),
       ...days.map((d) => ({
-        title: d.title, description: d.description,
+        uid: d.uid, title: d.title, description: d.description,
         photoUrl: d.photo ? '/images/tours/' + d.photo : '',
         highlights: [...d.sites, ...(d.guide ? ['Private guide'] : [])],
         meals: mealList(d.meals),
       })),
-      ...(departure.on ? [{ title: departure.title, description: departure.description, photoUrl: departure.photo ? '/images/tours/' + departure.photo : '', highlights: ['Hotel check-out', 'Airport transfer'], meals: mealList(departure.meals) }] : []),
+      ...(departure.on ? [{ uid: '__departure', title: departure.title, description: departure.description, photoUrl: departure.photo ? '/images/tours/' + departure.photo : '', highlights: ['Hotel check-out', 'Airport transfer'], meals: mealList(departure.meals) }] : []),
     ]
+    for (const f of flights) {
+      if (!f.targetUid) continue
+      const it = seq.find((x) => x.uid === f.targetUid)
+      if (!it) continue
+      it.description = f.position === 'start'
+        ? (f.text + (it.description ? '\n' + it.description : ''))
+        : ((it.description ? it.description + '\n' : '') + f.text)
+    }
+    const seqDays = seq.map(({ uid: _uid, ...rest }) => rest)
 
     return {
       title, intro,
@@ -219,14 +243,14 @@ export default function PackageBuilder({ draft, saved, onClose }: { draft?: Quot
       pricing: { show: priceTableOn, refPp: pp, refSgl: sgl, rows: priceRows },
       contact: CONTACT,
     }
-  }, [title, intro, hero, days, arrival, departure, pp, sgl, showPrice, priceTableOn, priceRows, included, excluded, draft, saved, hotels, totalNights, ref, meta])
+  }, [title, intro, hero, days, arrival, departure, pp, sgl, showPrice, priceTableOn, priceRows, included, excluded, draft, saved, hotels, totalNights, ref, meta, flights])
 
   function buildState(): PackageState {
     return {
       title, intro, hero, meta,
       overview: { days: data.overview.days, nights: data.overview.nights, cities: data.overview.cities },
       hotels, days, arrival, departure,
-      pp, sgl, showPrice, included, excluded, priceTableOn, priceRows,
+      pp, sgl, showPrice, included, excluded, priceTableOn, priceRows, flights,
     }
   }
 
@@ -289,6 +313,12 @@ export default function PackageBuilder({ draft, saved, onClose }: { draft?: Quot
     )
   }
 
+  const daySlots = [
+    ...(arrival.on ? [{ uid: '__arrival', title: arrival.title }] : []),
+    ...days.map((d) => ({ uid: d.uid, title: d.title })),
+    ...(departure.on ? [{ uid: '__departure', title: departure.title }] : []),
+  ]
+
   if (!ref) return (
     <div className="builder-overlay"><div className="card">{error ? `Error: ${error}` : 'Loading…'} <button onClick={onClose}>Close</button></div></div>
   )
@@ -339,6 +369,29 @@ export default function PackageBuilder({ draft, saved, onClose }: { draft?: Quot
             </section>
           ))}
           {days.length === 0 && <p className="muted">No day-by-day items yet. Add tour-day presets or select sites in the quotation and they'll appear here as days.</p>}
+
+          {flights.length > 0 && (
+            <section className="b-sec">
+              <h4>Inter-city flights</h4>
+              <p className="muted small">Slot each domestic flight into a day — it appears as a bullet at the start or end of that day.</p>
+              {flights.map((f) => (
+                <div key={f.id} className="flight-row">
+                  <b>{f.label}</b>
+                  <select value={f.targetUid ? `${f.targetUid}|${f.position}` : ''} onChange={(e) => {
+                    const v = e.target.value
+                    if (!v) setFlightTarget(f.id, '', 'end')
+                    else { const [uid, pos] = v.split('|'); setFlightTarget(f.id, uid, pos as 'start' | 'end') }
+                  }}>
+                    <option value="">— not shown —</option>
+                    {daySlots.flatMap((slot, si) => [
+                      <option key={slot.uid + '|start'} value={`${slot.uid}|start`}>Start of Day {si + 1} — {slot.title}</option>,
+                      <option key={slot.uid + '|end'} value={`${slot.uid}|end`}>End of Day {si + 1} — {slot.title}</option>,
+                    ])}
+                  </select>
+                </div>
+              ))}
+            </section>
+          )}
 
           <FixedDayEditor label="Departure day" day={departure} set={setDeparture} target="departure" />
 
