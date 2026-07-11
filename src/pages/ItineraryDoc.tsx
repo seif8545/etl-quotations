@@ -1,643 +1,352 @@
 import { forwardRef, useEffect } from 'react'
 
-
-
 export interface ItineraryData {
-
   title: string
-
   intro: string
-
   heroUrl: string
-
   logoUrl: string
-
   meta: { ref: string; pax: number; arrival: string; departure: string }
-
   overview: { days: number; nights: number; cities: number; pax: number }
-
   days: { title: string; description: string; photoUrl: string; highlights: string[]; meals: string[]; hotel: string }[]
-
   hotels: { nights: number; destination: string }[]
-
   included: string[]
-
   excluded: string[]
-
   price: { pp: number; sgl: number; show: boolean }
-
   pricing: { show: boolean; refPp: number; refSgl: number; rows: { category: string; dbl: number; single: number; hotels: string }[] }
-
   contact: { phone: string; email: string; website: string; social: string }
-
 }
 
-
-
 const CSS = `
-
 .itin { width: 794px; background: #fffefa; color: #0e2a47; font-family: 'Inter', system-ui, sans-serif; font-size: 14px; line-height: 1.5; }
-
 .itin * { box-sizing: border-box; }
-
 .itin .fr { font-family: 'Fraunces', Georgia, serif; }
 
-
-
 /* Cover */
-
 .itin-cover { position: relative; height: 1123px; overflow: hidden; display: flex; flex-direction: column; justify-content: space-between; }
-
 .cover-hero { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
-
-.cover-ov { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(14,42,71,0.15) 0%, rgba(14,42,71,0.30) 45%, rgba(8,26,48,0.90) 100%); }
-
-.cover-top { position: relative; z-index: 2; padding: 46px; display: flex; justify-content: center; }
-
-.cover-logo { background: #ffffff; border-radius: 999px; padding: 14px 26px; box-shadow: 0 6px 24px rgba(0,0,0,0.25); }
-
-.cover-logo img { height: 48px; display: block; }
-
-.cover-bottom { position: relative; z-index: 2; padding: 0 60px 76px; color: #fff; }
-
-.cover-eyebrow { color: #f0c53a; font-weight: 600; font-size: 13px; letter-spacing: 3px; text-transform: uppercase; margin-bottom: 12px; }
-
-.cover-title { font-size: 52px; font-weight: 600; line-height: 1.03; margin: 0 0 18px; color: #fff; text-shadow: 0 2px 18px rgba(0,0,0,0.35); }
-
-.cover-divider { width: 96px; height: 4px; background: linear-gradient(135deg,#c8960a,#e8b015); border-radius: 4px; margin-bottom: 18px; }
-
-.cover-meta { font-size: 16px; color: rgba(255,255,255,0.92); }
-
-.cover-meta span { color: #f0c53a; margin: 0 8px; }
-
-
-
-/* Overview strip */
-
-.itin-strip { display: flex; background: #0e2a47; color: #fff; padding: 26px 40px; border-radius: 14px; margin-bottom: 22px; }
-
-.stat { flex: 1; text-align: center; border-right: 1px solid rgba(255,255,255,0.14); }
-
-.stat:last-child { border-right: none; }
-
-.stat b { display: block; font-size: 32px; font-weight: 600; color: #e8b015; }
-
-.stat span { font-size: 12px; letter-spacing: 1.5px; text-transform: uppercase; color: rgba(255,255,255,0.75); }
-
-
-
-/* Sections */
-
-.itin-sec { padding: 22px 48px; }
-
-.day-page { height: 1123px; overflow: hidden; box-sizing: border-box; padding: 48px 52px; display: flex; flex-direction: column; justify-content: center; gap: 26px; }
-
-.day-page.first { justify-content: flex-start; }
-
-.day-head-block { flex-shrink: 0; }
-
-.day-page .intro-card { margin-bottom: 20px; }
-
-.summary-page { height: 1123px; overflow: hidden; box-sizing: border-box; padding: 24px 4px; }
-
-.sec-h { font-size: 27px; font-weight: 600; color: #0e2a47; margin: 0 0 6px; }
-
-.rule { width: 62px; height: 3px; background: linear-gradient(135deg,#c8960a,#e8b015); border-radius: 3px; margin-bottom: 20px; }
-
-.intro-card { background: #f7f1e6; border-left: 4px solid #c8960a; border-radius: 8px; padding: 20px 24px; font-size: 15px; color: #33465c; line-height: 1.6; }
-
-
-
-/* Day cards */
-
-.day { display: flex; align-items: stretch; min-height: 214px; background: #fff; border: 1px solid #ecdcb6; border-radius: 14px; overflow: hidden; box-shadow: 0 6px 20px rgba(14,42,71,0.06); }
-
-.day.alt { flex-direction: row-reverse; }
-
-.day-photo { width: 262px; align-self: stretch; flex-shrink: 0; overflow: hidden; }
-
-.day-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
-
-.day-body { padding: 20px 28px; flex: 1; display: flex; flex-direction: column; justify-content: center; }
-
-.day-tag { display: inline-block; background: linear-gradient(135deg,#c8960a,#e8b015); color: #3a2a00; font-weight: 700; font-size: 11px; letter-spacing: 1.2px; padding: 4px 13px; border-radius: 999px; }
-
-.day-title { font-size: 23px; font-weight: 600; color: #0e2a47; margin: 10px 0 8px; }
-
-.day-desc { list-style: none; margin: 8px 0 0; padding: 0; }
-
-.day-desc li { position: relative; padding-left: 15px; margin-bottom: 5px; font-size: 12.5px; color: #45566b; line-height: 1.5; }
-
-.day-desc li::before { content: '•'; position: absolute; left: 2px; top: -1px; color: #c8960a; font-weight: 700; font-size: 13px; }
-
-.day-chips { margin-top: 14px; display: flex; flex-wrap: wrap; gap: 7px; }
-
-.day-meals { margin-top: 9px; display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
-
-.day-accom { margin-top: 6px; font-size: 12px; color: #33465c; }
-
-.meals-label { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: #9a8862; margin-right: 2px; }
-
-.meal-pill { font-size: 11px; color: #0e2a47; background: #eef3f8; border: 1px solid #d4e0ec; border-radius: 999px; padding: 3px 10px; }
-
-.chip { font-size: 11px; color: #806000; border: 1px solid #e6cf8f; background: #fdf6e3; border-radius: 999px; padding: 3px 11px; }
-
-
-
-/* Accommodation */
-
-.hotel-card { display: flex; align-items: center; gap: 16px; background: #f7f1e6; border-radius: 10px; padding: 14px 20px; margin-bottom: 10px; }
-
-.hotel-badge { width: 52px; height: 52px; flex-shrink: 0; border-radius: 50%; background: linear-gradient(135deg,#0e2a47,#163d6b); color: #e8b015; display: flex; flex-direction: column; align-items: center; justify-content: center; }
-
-.hotel-badge b { font-size: 20px; font-weight: 700; line-height: 1; }
-
-.hotel-badge span { font-size: 9px; letter-spacing: 1px; text-transform: uppercase; }
-
-.hotel-name { font-size: 17px; font-weight: 600; color: #0e2a47; }
-
-.hotel-sub { font-size: 12.5px; color: #6a7789; }
-
-
-
-/* Included / excluded */
-
-.inc-grid { display: flex; gap: 22px; }
-
-.inc-col { flex: 1; background: #fff; border: 1px solid #ece0c4; border-radius: 12px; padding: 20px 22px; }
-
-.inc-col h4 { font-size: 16px; font-weight: 700; margin: 0 0 14px; color: #0e2a47; }
-
-.inc-item { display: flex; align-items: flex-start; gap: 9px; font-size: 13px; color: #3a495c; margin-bottom: 9px; line-height: 1.4; }
-
-.mark { width: 18px; height: 18px; flex-shrink: 0; border-radius: 50%; color: #fff; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; margin-top: 1px; }
-
-.mark.yes { background: #1a6e2e; }
-
-.mark.no { background: #b98a8a; }
-
-
-
-/* Price */
-
-.price-box { background: linear-gradient(135deg,#0e2a47,#163d6b); color: #fff; border-radius: 16px; padding: 30px; text-align: center; }
-
-.price-eyebrow { color: #f0c53a; font-size: 13px; letter-spacing: 2px; text-transform: uppercase; font-weight: 600; }
-
-.price-big { font-size: 46px; font-weight: 700; color: #e8b015; margin: 8px 0 2px; }
-
-.price-unit { font-size: 14px; color: rgba(255,255,255,0.85); }
-
-.price-sgl { margin-top: 14px; font-size: 13px; color: rgba(255,255,255,0.8); border-top: 1px solid rgba(255,255,255,0.16); padding-top: 12px; }
-
-.price-ref { font-size: 12.5px; color: #6a7789; margin-bottom: 14px; }
-
-.price-ref b { color: #0e2a47; }
-
+.cover-ov { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(14,42,71,0.18) 0%, rgba(14,42,71,0.30) 45%, rgba(8,26,48,0.92) 100%); }
+.cover-top { position: relative; z-index: 2; padding: 48px; display: flex; justify-content: center; }
+.cover-logo { background: #ffffff; border-radius: 999px; padding: 13px 26px; box-shadow: 0 6px 24px rgba(0,0,0,0.25); }
+.cover-logo img { height: 46px; display: block; }
+.cover-bottom { position: relative; z-index: 2; padding: 0 64px 84px; color: #fff; }
+.cover-eyebrow { color: #f0c53a; font-weight: 600; font-size: 13px; letter-spacing: 4px; text-transform: uppercase; margin-bottom: 14px; }
+.cover-title { font-size: 56px; font-weight: 600; line-height: 1.02; margin: 0 0 20px; color: #fff; text-shadow: 0 2px 20px rgba(0,0,0,0.35); }
+.cover-divider { width: 92px; height: 3px; background: linear-gradient(135deg,#c8960a,#e8b015); border-radius: 3px; margin-bottom: 20px; }
+.cover-meta { font-size: 15px; letter-spacing: 0.3px; color: rgba(255,255,255,0.9); }
+.cover-meta span { color: #f0c53a; margin: 0 9px; }
+
+/* Opening — at a glance */
+.opening { height: 1123px; overflow: hidden; box-sizing: border-box; padding: 96px 74px; display: flex; flex-direction: column; justify-content: center; background: #fffefa; }
+.op-eyebrow { color: #b08a1e; font-weight: 600; font-size: 13px; letter-spacing: 4px; text-transform: uppercase; }
+.op-title { font-size: 48px; font-weight: 600; color: #0e2a47; margin: 12px 0 0; }
+.op-rule { width: 78px; height: 3px; background: linear-gradient(135deg,#c8960a,#e8b015); border-radius: 3px; margin: 22px 0 42px; }
+.op-stats { display: flex; margin-bottom: 46px; }
+.op-stats > div { flex: 1; text-align: center; border-left: 1px solid #e7dcc2; }
+.op-stats > div:first-child { border-left: none; }
+.op-stats b { display: block; font-size: 54px; font-weight: 600; color: #c8960a; line-height: 1; }
+.op-stats span { display: block; margin-top: 8px; font-size: 12px; letter-spacing: 2px; text-transform: uppercase; color: #8a7a5c; }
+.op-intro { font-size: 18px; line-height: 1.9; color: #3a495c; max-width: 640px; margin: 0; }
+
+/* Hero day (full page) */
+.hero-day { height: 1123px; overflow: hidden; position: relative; display: flex; flex-direction: column; background: #fffefa; }
+.hero-photo { position: relative; height: 636px; overflow: hidden; flex-shrink: 0; }
+.hero-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.hero-grad { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(8,26,48,0) 44%, rgba(8,26,48,0.88) 100%); }
+.hero-num { position: absolute; top: 30px; right: 54px; font-size: 150px; font-weight: 600; line-height: 0.8; color: rgba(255,255,255,0.20); }
+.hero-cap { position: absolute; left: 60px; right: 60px; bottom: 46px; z-index: 2; color: #fff; }
+.hero-eyebrow { color: #f0c53a; font-weight: 600; font-size: 12px; letter-spacing: 3px; text-transform: uppercase; margin-bottom: 10px; }
+.hero-title { font-size: 46px; font-weight: 600; line-height: 1.04; margin: 0; color: #fff; text-shadow: 0 2px 16px rgba(0,0,0,0.4); }
+.hero-body { flex: 1; padding: 38px 60px 46px; display: flex; flex-direction: column; }
+.hero-desc { list-style: none; margin: 0 0 16px; padding: 0; }
+.hero-desc li { position: relative; padding-left: 18px; margin-bottom: 8px; font-size: 13.5px; color: #45566b; line-height: 1.6; }
+.hero-desc li::before { content: '\\2022'; position: absolute; left: 2px; top: 0; color: #c8960a; font-weight: 700; }
+.hero-body .d-foot { margin-top: auto; border-top: 1px solid #ece0c4; padding-top: 16px; }
+
+/* Spread day (2-3 per page) */
+.spread-page { height: 1123px; overflow: hidden; box-sizing: border-box; padding: 54px 56px; display: flex; flex-direction: column; justify-content: center; gap: 32px; background: #fffefa; }
+.spread { display: flex; align-items: stretch; gap: 30px; min-height: 260px; }
+.spread.alt { flex-direction: row-reverse; }
+.spread-photo { width: 296px; flex-shrink: 0; align-self: stretch; border-radius: 8px; overflow: hidden; box-shadow: 0 10px 26px rgba(14,42,71,0.12); }
+.spread-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.spread-body { flex: 1; display: flex; flex-direction: column; justify-content: center; }
+.spread-eyebrow { color: #b08a1e; font-weight: 700; font-size: 11px; letter-spacing: 3px; text-transform: uppercase; }
+.spread-title { font-size: 28px; font-weight: 600; color: #0e2a47; margin: 7px 0 0; line-height: 1.1; }
+.spread-tick { width: 46px; height: 2px; background: linear-gradient(135deg,#c8960a,#e8b015); margin: 14px 0 16px; }
+.spread-desc { list-style: none; margin: 0; padding: 0; }
+.spread-desc li { position: relative; padding-left: 16px; margin-bottom: 5px; font-size: 12.5px; color: #45566b; line-height: 1.5; }
+.spread-desc li::before { content: '\\2022'; position: absolute; left: 2px; top: 0; color: #c8960a; font-weight: 700; }
+.spread .d-foot { border-top: 1px solid #efe6d2; padding-top: 12px; margin-top: 14px; }
+
+/* Day details (shared) */
+.d-tags { font-size: 11px; letter-spacing: 0.4px; color: #9a8862; margin-bottom: 9px; }
+.d-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 16px; }
+.d-meals { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.d-lbl { font-size: 10px; text-transform: uppercase; letter-spacing: 1.5px; color: #9a8862; margin-right: 5px; }
+.d-pill { font-size: 11px; color: #0e2a47; background: #f4f7fa; border: 1px solid #dde7f0; border-radius: 999px; padding: 3px 10px; }
+.d-accom { font-size: 12px; color: #33465c; }
+.d-accom .d-lbl { color: #b08a1e; }
+
+/* Summary */
+.summary-page { height: 1123px; overflow: hidden; box-sizing: border-box; padding: 70px 64px; background: #fffefa; }
+.sum-block { margin-bottom: 34px; }
+.sec-eyebrow { color: #b08a1e; font-weight: 600; font-size: 12px; letter-spacing: 3px; text-transform: uppercase; }
+.sec-title { font-size: 32px; font-weight: 600; color: #0e2a47; margin: 8px 0 0; }
+.sec-rule { width: 64px; height: 3px; background: linear-gradient(135deg,#c8960a,#e8b015); border-radius: 3px; margin: 15px 0 24px; }
+.hotel-card { display: flex; align-items: center; gap: 18px; background: #faf5e9; border: 1px solid #efe4cb; border-radius: 12px; padding: 15px 22px; margin-bottom: 12px; }
+.hotel-badge { width: 54px; height: 54px; border-radius: 50%; background: #0e2a47; color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; flex-shrink: 0; }
+.hotel-badge b { font-size: 20px; line-height: 1; color: #e8b015; }
+.hotel-badge span { font-size: 8px; text-transform: uppercase; letter-spacing: 1px; margin-top: 2px; }
+.hotel-name { font-size: 18px; color: #0e2a47; }
+.hotel-sub { font-size: 12px; color: #8a7a5c; margin-top: 3px; }
+.inc-grid { display: flex; gap: 28px; }
+.inc-col { flex: 1; }
+.inc-col h4 { font-size: 16px; color: #0e2a47; margin: 0 0 12px; font-family: 'Fraunces', Georgia, serif; }
+.inc-item { display: flex; align-items: flex-start; gap: 9px; font-size: 12.5px; color: #3a495c; margin-bottom: 8px; line-height: 1.45; }
+.mark { flex-shrink: 0; font-weight: 700; }
+.mark.yes { color: #1a6e2e; }
+.mark.no { color: #a83828; }
+.price-box { background: linear-gradient(135deg,#0e2a47,#163d6b); color: #fff; border-radius: 16px; padding: 26px 30px; text-align: center; margin-top: 26px; }
+.price-eyebrow { color: #f0c53a; font-size: 12px; letter-spacing: 3px; text-transform: uppercase; }
+.price-big { font-size: 46px; font-weight: 600; margin: 6px 0 2px; }
+.price-unit { font-size: 12.5px; color: rgba(255,255,255,0.82); }
+.price-sgl { font-size: 12px; color: #f0c53a; margin-top: 8px; }
+.price-ref { font-size: 13px; color: #45566b; margin-bottom: 18px; }
 .price-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
-
-.price-table th { background: #0e2a47; color: #fff; font-family: 'Fraunces', Georgia, serif; font-weight: 600; text-align: left; padding: 10px 12px; font-size: 12px; }
-
-.price-table td { border: 1px solid #e3d9c0; padding: 9px 12px; vertical-align: top; }
-
-.price-table tbody tr:nth-child(even) { background: #faf5e9; }
-
-.pt-cat { font-weight: 700; color: #0e2a47; white-space: nowrap; }
-
+.price-table th { text-align: left; background: #0e2a47; color: #fff; font-weight: 600; padding: 11px 14px; font-size: 10.5px; letter-spacing: 0.5px; text-transform: uppercase; }
+.price-table td { padding: 11px 14px; border-bottom: 1px solid #eee2c8; vertical-align: top; }
+.pt-cat { color: #0e2a47; font-weight: 600; white-space: nowrap; }
 .pt-price { color: #806000; font-weight: 600; white-space: nowrap; }
+.pt-hotels { color: #6a7789; font-size: 11.5px; }
 
-.pt-hotels { color: #45566b; }
-
-
-
-/* Why us */
-
-.itin-closing { background: linear-gradient(180deg,#0e2a47,#081a30); color: #fff; height: 1123px; overflow: hidden; padding: 46px 56px 56px; display: flex; flex-direction: column; }
-
+/* Closing */
+.sec-h { font-size: 30px; font-weight: 600; color: #0e2a47; margin: 0 0 6px; }
+.rule { width: 64px; height: 3px; background: linear-gradient(135deg,#c8960a,#e8b015); border-radius: 3px; margin-bottom: 22px; }
+.itin-closing { background: linear-gradient(180deg,#0e2a47,#081a30); color: #fff; height: 1123px; overflow: hidden; padding: 84px 64px 64px; display: flex; flex-direction: column; }
 .itin-why { padding: 0 0 30px; }
-
 .itin-why .sec-h { color: #fff; }
-
-.why-grid { display: flex; flex-wrap: wrap; gap: 20px 34px; margin-top: 6px; }
-
+.why-grid { display: flex; flex-wrap: wrap; gap: 22px 36px; margin-top: 8px; }
 .why-item { width: 45%; }
-
-.why-item b { display: block; font-family: 'Fraunces', Georgia, serif; font-size: 16px; color: #e8b015; margin-bottom: 4px; }
-
-.why-item span { font-size: 12.5px; color: rgba(255,255,255,0.82); line-height: 1.5; }
-
-
-
-/* Contact */
-
+.why-item b { display: block; font-family: 'Fraunces', Georgia, serif; font-size: 17px; color: #e8b015; margin-bottom: 5px; }
+.why-item span { font-size: 12.5px; color: rgba(255,255,255,0.82); line-height: 1.55; }
 .itin-contact { text-align: center; margin-top: auto; }
-
-.contact-logo { background: #ffffff; border-radius: 999px; padding: 14px 28px; display: inline-block; margin-bottom: 30px; }
-
-.contact-logo img { height: 50px; display: block; }
-
-.contact-thanks { font-size: 40px; font-weight: 600; margin: 0 0 10px; color: #fff; }
-
+.contact-thanks { font-size: 42px; font-weight: 600; margin: 0 0 10px; color: #fff; }
 .contact-tag { font-size: 15px; color: rgba(255,255,255,0.82); margin-bottom: 34px; }
-
 .contact-rows { display: inline-block; text-align: left; }
-
 .contact-row { display: flex; gap: 12px; margin-bottom: 14px; font-size: 15px; align-items: baseline; }
-
 .contact-row b { color: #e8b015; width: 96px; flex-shrink: 0; font-weight: 600; }
-
 .contact-row span { color: #fff; }
-
 .contact-brand { margin-bottom: 30px; }
-
 .contact-brand-name { display: block; font-size: 38px; font-weight: 600; color: #e8b015; letter-spacing: 2px; }
-
 .contact-brand-sub { display: block; font-size: 15px; letter-spacing: 10px; color: #c8960a; margin-top: 2px; }
-
 `
 
-
+const bulletsOf = (s: string): string[] => (s ? s.split('\n').map((l) => l.trim()).filter(Boolean) : [])
 
 const ItineraryDoc = forwardRef<HTMLDivElement, { data: ItineraryData }>(({ data }, ref) => {
-
   const d = data
-
-  type DDay = ItineraryData['days'][number]
-  const dayGroups: { day: DDay; i: number }[][] = (() => {
-    const est = (day: DDay) => {
-      const b = day.description ? day.description.split('\n').map((l) => l.trim()).filter(Boolean).length : 0
-      let h = 150 + b * 34
-      if (day.highlights && day.highlights.length) h += 32
-      return Math.max(h, 240)
-    }
-    const groups: { day: DDay; i: number }[][] = []
-    let cur: { day: DDay; i: number }[] = []
-    let curH = 0
-    d.days.forEach((day, i) => {
-      const cap = groups.length === 0 ? 850 : 1050
-      const h = est(day) + 18
-      if (cur.length && curH + h > cap) { groups.push(cur); cur = []; curH = 0 }
-      cur.push({ day, i })
-      curH += h
-    })
-    if (cur.length) groups.push(cur)
-    return groups
-  })()
-
   useEffect(() => {
-
     if (typeof document === 'undefined') return
-
     let el = document.getElementById('itin-doc-css') as HTMLStyleElement | null
-
-    if (!el) {
-
-      el = document.createElement('style')
-
-      el.id = 'itin-doc-css'
-
-      document.head.appendChild(el)
-
-    }
-
+    if (!el) { el = document.createElement('style'); el.id = 'itin-doc-css'; document.head.appendChild(el) }
     el.textContent = CSS
-
   }, [])
 
-  return (
+  type DDay = ItineraryData['days'][number]
+  type M = { day: DDay; i: number; bl: string[] }
+  const meta: M[] = d.days.map((day, i) => ({ day, i, bl: bulletsOf(day.description) }))
 
-    <div className="itin" ref={ref}>
+  // Promote content-rich days to full-page hero layouts on a rhythm (~1 every 4 days)
+  const heroes = new Set<number>()
+  let since = 99
+  meta.forEach(({ i, day, bl }) => {
+    const canHero = !!day.photoUrl && bl.length >= 3
+    if (canHero && (i === 0 || since >= 3)) { heroes.add(i); since = 0 } else { since += 1 }
+  })
 
+  type Block = { hero: true; item: M } | { hero: false; items: M[] }
+  const blocks: Block[] = []
+  let cur: M[] = []
+  let curH = 0
+  const est = (m: M) => Math.max(110 + m.bl.length * 28, 260) + 24
+  const flush = () => { if (cur.length) { blocks.push({ hero: false, items: cur }); cur = []; curH = 0 } }
+  meta.forEach((m) => {
+    if (heroes.has(m.i)) { flush(); blocks.push({ hero: true, item: m }); return }
+    const h = est(m)
+    if (cur.length && curH + h > 1000) flush()
+    cur.push(m); curH += h
+  })
+  flush()
 
+  // Avoid a lonely single-spread page: rebalance a trailing 1 against a preceding full page (3+1 -> 2+2)
+  for (let i = 1; i < blocks.length; i++) {
+    const a = blocks[i - 1]
+    const b = blocks[i]
+    if (!a.hero && !b.hero && b.items.length === 1 && a.items.length >= 3) {
+      b.items.unshift(a.items.pop() as M)
+    }
+  }
 
-      {/* Cover */}
-
-      <div className="itin-cover">
-
-        <img className="cover-hero" src={d.heroUrl} crossOrigin="anonymous" alt="" />
-
-        <div className="cover-ov" />
-
-        <div className="cover-top">
-
-          <div className="cover-logo"><img src={d.logoUrl} crossOrigin="anonymous" alt="Egypt Top Light" /></div>
-
-        </div>
-
-        <div className="cover-bottom">
-
-          <div className="cover-eyebrow">Tailor-Made Egypt Itinerary</div>
-
-          <h1 className="fr cover-title">{d.title}</h1>
-
-          <div className="cover-divider" />
-
-          <div className="cover-meta">
-
-            {d.meta.ref ? <>Ref {d.meta.ref}<span>·</span></> : null}
-
-            {d.meta.pax} {d.meta.pax === 1 ? 'guest' : 'guests'}<span>·</span>{d.meta.arrival}{d.meta.departure ? <> <span>→</span> {d.meta.departure}</> : null}
-
-          </div>
-
-        </div>
-
+  const details = (day: DDay) => (
+    <div className="d-foot">
+      {day.highlights.length > 0 ? <div className="d-tags">{day.highlights.join('   ·   ')}</div> : null}
+      <div className="d-meta">
+        {day.meals.length > 0 ? <span className="d-meals"><span className="d-lbl">Meals</span>{day.meals.map((m, j) => <span className="d-pill" key={j}>{m}</span>)}</span> : null}
+        {day.hotel ? <span className="d-accom"><span className="d-lbl">Stay</span> {day.hotel}</span> : null}
       </div>
-
-
-
-      {/* Days packed into full pages (each with 4-side margins) */}
-
-      {dayGroups.map((grp, gi) => (
-
-        <div className={`day-page${gi === 0 ? ' first' : ''}`} key={gi}>
-
-          {gi === 0 && (
-
-            <div className="day-head-block">
-
-              <div className="itin-strip">
-
-                <div className="stat"><b>{d.overview.days}</b><span>{d.overview.days === 1 ? 'Day' : 'Days'}</span></div>
-
-                <div className="stat"><b>{d.overview.nights}</b><span>{d.overview.nights === 1 ? 'Night' : 'Nights'}</span></div>
-
-                <div className="stat"><b>{d.overview.cities}</b><span>{d.overview.cities === 1 ? 'City' : 'Cities'}</span></div>
-
-                <div className="stat"><b>{d.overview.pax}</b><span>{d.overview.pax === 1 ? 'Guest' : 'Guests'}</span></div>
-
-              </div>
-
-              {d.intro ? <div className="intro-card fr">{d.intro}</div> : null}
-
-              <h2 className="fr sec-h">Your Day-by-Day Journey</h2>
-
-              <div className="rule" />
-
-            </div>
-
-          )}
-
-          {grp.map(({ day, i }) => (
-
-            <div className={`day${i % 2 === 1 ? ' alt' : ''}`} key={i}>
-
-              {day.photoUrl ? <div className="day-photo"><img src={day.photoUrl} crossOrigin="anonymous" alt="" /></div> : null}
-
-              <div className="day-body">
-
-                <span className="day-tag">DAY {i + 1}</span>
-
-                <div className="fr day-title">{day.title}</div>
-
-                {day.description ? (
-
-                  <ul className="day-desc">{day.description.split('\n').map((l) => l.trim()).filter(Boolean).map((l, k) => <li key={k}>{l}</li>)}</ul>
-
-                ) : null}
-
-                {day.highlights.length > 0 && (
-
-                  <div className="day-chips">{day.highlights.map((h, j) => <span className="chip" key={j}>{h}</span>)}</div>
-
-                )}
-
-                {day.meals.length > 0 && (
-
-                  <div className="day-meals"><span className="meals-label">Meals</span>{day.meals.map((m, j) => <span className="meal-pill" key={j}>{m}</span>)}</div>
-
-                )}
-
-                {day.hotel ? (
-
-                  <div className="day-accom"><span className="meals-label">Accommodation</span> {day.hotel}</div>
-
-                ) : null}
-
-              </div>
-
-            </div>
-
-          ))}
-
-        </div>
-
-      ))}
-
-      {/* Summary page: accommodation + inclusions + price */}
-
-      {(d.hotels.length > 0 || d.included.length > 0 || d.excluded.length > 0 || d.price.show) && (
-
-      <div className="summary-page">
-
-      {/* Accommodation */}
-
-      {d.hotels.length > 0 && (
-
-        <div className="itin-sec">
-
-          <h2 className="fr sec-h">Accommodation</h2>
-
-          <div className="rule" />
-
-          {d.hotels.map((h, i) => (
-
-            <div className="hotel-card" key={i}>
-
-              <div className="hotel-badge"><b>{h.nights}</b><span>{h.nights > 1 ? 'nights' : 'night'}</span></div>
-
-              <div>
-
-                <div className="hotel-name">{h.destination}</div>
-
-                <div className="hotel-sub">{h.nights} night{h.nights > 1 ? 's' : ''} · double room basis</div>
-
-              </div>
-
-            </div>
-
-          ))}
-
-        </div>
-
-      )}
-
-
-
-      {/* Included / excluded */}
-
-      {(d.included.length > 0 || d.excluded.length > 0) && (
-
-        <div className="itin-sec">
-
-          <h2 className="fr sec-h">What's Included</h2>
-
-          <div className="rule" />
-
-          <div className="inc-grid">
-
-            <div className="inc-col">
-
-              <h4>Included</h4>
-
-              {d.included.map((t, i) => <div className="inc-item" key={i}><span className="mark yes">✓</span>{t}</div>)}
-
-            </div>
-
-            <div className="inc-col">
-
-              <h4>Not included</h4>
-
-              {d.excluded.map((t, i) => <div className="inc-item" key={i}><span className="mark no">✕</span>{t}</div>)}
-
-            </div>
-
-          </div>
-
-        </div>
-
-      )}
-
-
-
-      {/* Price */}
-
-      {d.price.show && (
-
-        <div className="itin-sec">
-
-          <div className="price-box">
-
-            <div className="price-eyebrow">Package Price</div>
-
-            <div className="fr price-big">${d.price.pp.toLocaleString()}</div>
-
-            <div className="price-unit">per person · sharing double room</div>
-
-            {d.price.sgl > 0 && <div className="price-sgl">Single room supplement: ${d.price.sgl.toLocaleString()} per person</div>}
-
-          </div>
-
-        </div>
-
-      )}
-
-
-
-      </div>
-
-      )}
-
-      {/* Pricing table (hotel categories) */}
-
-      {d.pricing.show && d.pricing.rows.length > 0 && (
-
-        <div className="summary-page">
-
-          <h2 className="fr sec-h">Package Pricing</h2>
-
-          <div className="rule" />
-
-          {d.pricing.refPp > 0 && (
-
-            <div className="price-ref">Based on the quoted rate of <b>${d.pricing.refPp.toLocaleString()}</b> per person in double occupancy{d.pricing.refSgl > 0 ? <> · single supplement <b>${d.pricing.refSgl.toLocaleString()}</b></> : null}.</div>
-
-          )}
-
-          <table className="price-table">
-
-            <thead>
-
-              <tr><th>Category</th><th>Per Person in Double</th><th>Single Occupancy Supplement</th><th>Offered Hotels</th></tr>
-
-            </thead>
-
-            <tbody>
-
-              {d.pricing.rows.map((r, i) => (
-
-                <tr key={i}>
-
-                  <td className="pt-cat">{r.category}</td>
-
-                  <td className="pt-price">{r.dbl > 0 ? `${r.dbl.toLocaleString()} USD` : '—'}</td>
-
-                  <td className="pt-price">{r.single > 0 ? `${r.single.toLocaleString()} USD` : '—'}</td>
-
-                  <td className="pt-hotels">{r.hotels}</td>
-
-                </tr>
-
-              ))}
-
-            </tbody>
-
-          </table>
-
-        </div>
-
-      )}
-
-
-
-      {/* Closing: why-us + contact on one navy page */}
-
-      <div className="itin-closing">
-
-      <div className="itin-why">
-
-        <h2 className="fr sec-h">Why Egypt Top Light</h2>
-
-        <div className="rule" />
-
-        <div className="why-grid">
-
-          <div className="why-item"><b>Licensed & Trusted</b><span>A fully licensed Egyptian tour operator with an excellent TripAdvisor reputation.</span></div>
-
-          <div className="why-item"><b>Expert Egyptologists</b><span>Private, professionally licensed guides who bring every site to life.</span></div>
-
-          <div className="why-item"><b>Tailor-Made</b><span>Every journey is built around you — pace, interests and comfort.</span></div>
-
-          <div className="why-item"><b>24/7 Support</b><span>A dedicated team on hand throughout your stay in Egypt.</span></div>
-
-        </div>
-
-      </div>
-
-
-
-      {/* Contact */}
-
-      <div className="itin-contact">
-
-        <div className="contact-brand"><span className="fr contact-brand-name">EGYPT TOP LIGHT</span><span className="contact-brand-sub">T R A V E L</span></div>
-
-        <h2 className="fr contact-thanks">Thank You</h2>
-
-        <div className="contact-tag">We look forward to welcoming you to Egypt.</div>
-
-        <div className="contact-rows">
-
-          <div className="contact-row"><b>WhatsApp</b><span>{d.contact.phone}</span></div>
-
-          <div className="contact-row"><b>Email</b><span>{d.contact.email}</span></div>
-
-          <div className="contact-row"><b>Website</b><span>{d.contact.website}</span></div>
-
-          <div className="contact-row"><b>Social</b><span>{d.contact.social}</span></div>
-
-        </div>
-
-      </div>
-
-      </div>
-
     </div>
-
   )
 
+  const heroDay = (m: M) => (
+    <div className="hero-day" key={`h${m.i}`}>
+      <div className="hero-photo">
+        {m.day.photoUrl ? <img src={m.day.photoUrl} crossOrigin="anonymous" alt="" /> : null}
+        <div className="hero-grad" />
+        <div className="hero-num fr">{String(m.i + 1).padStart(2, '0')}</div>
+        <div className="hero-cap">
+          <div className="hero-eyebrow">Day {m.i + 1}</div>
+          <h2 className="hero-title fr">{m.day.title}</h2>
+        </div>
+      </div>
+      <div className="hero-body">
+        {m.bl.length > 0 ? <ul className="hero-desc">{m.bl.map((l, k) => <li key={k}>{l}</li>)}</ul> : null}
+        {details(m.day)}
+      </div>
+    </div>
+  )
+
+  const spread = (m: M) => (
+    <div className={`spread${m.i % 2 === 1 ? ' alt' : ''}`} key={`s${m.i}`}>
+      {m.day.photoUrl ? <div className="spread-photo"><img src={m.day.photoUrl} crossOrigin="anonymous" alt="" /></div> : null}
+      <div className="spread-body">
+        <div className="spread-eyebrow">Day {m.i + 1}</div>
+        <h3 className="spread-title fr">{m.day.title}</h3>
+        <div className="spread-tick" />
+        {m.bl.length > 0 ? <ul className="spread-desc">{m.bl.map((l, k) => <li key={k}>{l}</li>)}</ul> : null}
+        {details(m.day)}
+      </div>
+    </div>
+  )
+
+  return (
+    <div className="itin" ref={ref}>
+      {/* Cover */}
+      <div className="itin-cover">
+        <img className="cover-hero" src={d.heroUrl} crossOrigin="anonymous" alt="" />
+        <div className="cover-ov" />
+        <div className="cover-top"><div className="cover-logo"><img src={d.logoUrl} crossOrigin="anonymous" alt="Egypt Top Light" /></div></div>
+        <div className="cover-bottom">
+          <div className="cover-eyebrow">Tailor-Made Egypt Itinerary</div>
+          <h1 className="fr cover-title">{d.title}</h1>
+          <div className="cover-divider" />
+          <div className="cover-meta">
+            {d.meta.ref ? <>Ref {d.meta.ref}<span>·</span></> : null}
+            {d.meta.pax} {d.meta.pax === 1 ? 'guest' : 'guests'}<span>·</span>{d.meta.arrival}{d.meta.departure ? <> <span>→</span> {d.meta.departure}</> : null}
+          </div>
+        </div>
+      </div>
+
+      {/* Opening — at a glance */}
+      <div className="opening">
+        <div className="op-eyebrow">Your Journey</div>
+        <h2 className="fr op-title">At a Glance</h2>
+        <div className="op-rule" />
+        <div className="op-stats">
+          <div><b className="fr">{d.overview.days}</b><span>Days</span></div>
+          <div><b className="fr">{d.overview.nights}</b><span>Nights</span></div>
+          <div><b className="fr">{d.overview.cities}</b><span>Cities</span></div>
+          <div><b className="fr">{d.overview.pax}</b><span>{d.overview.pax === 1 ? 'Guest' : 'Guests'}</span></div>
+        </div>
+        {d.intro ? <p className="fr op-intro">{d.intro}</p> : null}
+      </div>
+
+      {/* Day layouts (varied) */}
+      {blocks.map((b, bi) => b.hero
+        ? heroDay(b.item)
+        : <div className="spread-page" key={`p${bi}`}>{b.items.map(spread)}</div>
+      )}
+
+      {/* Accommodation + inclusions + price */}
+      {(d.hotels.length > 0 || d.included.length > 0 || d.excluded.length > 0 || d.price.show) && (
+        <div className="summary-page">
+          {d.hotels.length > 0 && (
+            <div className="sum-block">
+              <div className="sec-eyebrow">Where You Stay</div>
+              <h2 className="fr sec-title">Accommodation</h2>
+              <div className="sec-rule" />
+              {d.hotels.map((h, i) => (
+                <div className="hotel-card" key={i}>
+                  <div className="hotel-badge"><b>{h.nights}</b><span>{h.nights > 1 ? 'nights' : 'night'}</span></div>
+                  <div><div className="hotel-name fr">{h.destination}</div><div className="hotel-sub">{h.nights} night{h.nights > 1 ? 's' : ''} · double room basis</div></div>
+                </div>
+              ))}
+            </div>
+          )}
+          {(d.included.length > 0 || d.excluded.length > 0) && (
+            <div className="sum-block">
+              <div className="sec-eyebrow">The Details</div>
+              <h2 className="fr sec-title">What's Included</h2>
+              <div className="sec-rule" />
+              <div className="inc-grid">
+                <div className="inc-col"><h4>Included</h4>{d.included.map((t, i) => <div className="inc-item" key={i}><span className="mark yes">✓</span>{t}</div>)}</div>
+                <div className="inc-col"><h4>Not included</h4>{d.excluded.map((t, i) => <div className="inc-item" key={i}><span className="mark no">✕</span>{t}</div>)}</div>
+              </div>
+            </div>
+          )}
+          {d.price.show && (
+            <div className="price-box">
+              <div className="price-eyebrow">Package Price</div>
+              <div className="fr price-big">${d.price.pp.toLocaleString()}</div>
+              <div className="price-unit">per person · sharing double room</div>
+              {d.price.sgl > 0 && <div className="price-sgl">Single room supplement: ${d.price.sgl.toLocaleString()} per person</div>}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Pricing table */}
+      {d.pricing.show && d.pricing.rows.length > 0 && (
+        <div className="summary-page">
+          <div className="sec-eyebrow">Investment</div>
+          <h2 className="fr sec-title">Package Pricing</h2>
+          <div className="sec-rule" />
+          {d.pricing.refPp > 0 && <div className="price-ref">Based on the quoted rate of <b>${d.pricing.refPp.toLocaleString()}</b> per person in double occupancy{d.pricing.refSgl > 0 ? <> · single supplement <b>${d.pricing.refSgl.toLocaleString()}</b></> : null}.</div>}
+          <table className="price-table">
+            <thead><tr><th>Category</th><th>Per Person in Double</th><th>Single Supplement</th><th>Offered Hotels</th></tr></thead>
+            <tbody>
+              {d.pricing.rows.map((r, i) => (
+                <tr key={i}><td className="pt-cat">{r.category}</td><td className="pt-price">{r.dbl > 0 ? `${r.dbl.toLocaleString()} USD` : '—'}</td><td className="pt-price">{r.single > 0 ? `${r.single.toLocaleString()} USD` : '—'}</td><td className="pt-hotels">{r.hotels}</td></tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Closing */}
+      <div className="itin-closing">
+        <div className="itin-why">
+          <h2 className="fr sec-h">Why Egypt Top Light</h2>
+          <div className="rule" />
+          <div className="why-grid">
+            <div className="why-item"><b>Licensed & Trusted</b><span>A fully licensed Egyptian tour operator with an excellent TripAdvisor reputation.</span></div>
+            <div className="why-item"><b>Expert Egyptologists</b><span>Private, professionally licensed guides who bring every site to life.</span></div>
+            <div className="why-item"><b>Tailor-Made</b><span>Every journey is built around you — pace, interests and comfort.</span></div>
+            <div className="why-item"><b>24/7 Support</b><span>A dedicated team on hand throughout your stay in Egypt.</span></div>
+          </div>
+        </div>
+        <div className="itin-contact">
+          <div className="contact-brand"><span className="fr contact-brand-name">EGYPT TOP LIGHT</span><span className="contact-brand-sub">T R A V E L</span></div>
+          <h2 className="fr contact-thanks">Thank You</h2>
+          <div className="contact-tag">We look forward to welcoming you to Egypt.</div>
+          <div className="contact-rows">
+            <div className="contact-row"><b>WhatsApp</b><span>{d.contact.phone}</span></div>
+            <div className="contact-row"><b>Email</b><span>{d.contact.email}</span></div>
+            <div className="contact-row"><b>Website</b><span>{d.contact.website}</span></div>
+            <div className="contact-row"><b>Social</b><span>{d.contact.social}</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
 })
-
-
 
 export default ItineraryDoc
