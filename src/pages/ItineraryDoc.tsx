@@ -68,7 +68,6 @@ const CSS = `
 /* Accommodation */
 .accommodation-section { page-break-inside: avoid; }
 .hotel-card { display: flex; align-items: center; gap: 16px; background: #f7f1e6; border-radius: 10px; padding: 14px 20px; margin-bottom: 10px; page-break-inside: avoid; }
-.hotel-card { display: flex; align-items: center; gap: 16px; background: #f7f1e6; border-radius: 10px; padding: 14px 20px; margin-bottom: 10px; page-break-inside: avoid; }
 .hotel-badge { width: 52px; height: 52px; flex-shrink: 0; border-radius: 50%; background: linear-gradient(135deg,#0e2a47,#163d6b); color: #e8b015; display: flex; flex-direction: column; align-items: center; justify-content: center; }
 .hotel-badge b { font-size: 20px; font-weight: 700; line-height: 1; }
 .hotel-badge span { font-size: 9px; letter-spacing: 1px; text-transform: uppercase; }
