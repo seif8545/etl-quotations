@@ -6,9 +6,10 @@ import type { LetterData } from './Letter'
 import { generateVoucherDocx, voucherToPdf } from './Voucher'
 import type { VoucherData } from './Voucher'
 import PackageBuilder from './PackageBuilder'
+import type { PackageState } from './PackageBuilder'
 import type { QuotationDraft } from '../lib/types'
 
-const TABS = ['Quotations', 'Letters', 'Vouchers'] as const
+const TABS = ['Quotations', 'Packages', 'Letters', 'Vouchers'] as const
 type Tab = (typeof TABS)[number]
 
 export default function Documents({ openQuotation }: { openQuotation: (d: QuotationDraft) => void }) {
@@ -18,8 +19,9 @@ export default function Documents({ openQuotation }: { openQuotation: (d: Quotat
   const [error, setError] = useState('')
   const [busyId, setBusyId] = useState<number | null>(null)
   const [pdfDraft, setPdfDraft] = useState<QuotationDraft | null>(null)
+  const [savedPkg, setSavedPkg] = useState<PackageState | null>(null)
 
-  const table = tab === 'Quotations' ? 'q_quotations' : tab === 'Letters' ? 'q_letters' : 'q_vouchers'
+  const table = tab === 'Quotations' ? 'q_quotations' : tab === 'Packages' ? 'q_package_docs' : tab === 'Letters' ? 'q_letters' : 'q_vouchers'
 
   async function load() {
     const { data, error } = await supabase.from(table).select('*').order('created_at', { ascending: false })
@@ -90,6 +92,7 @@ export default function Documents({ openQuotation }: { openQuotation: (d: Quotat
             <thead>
               <tr>
                 {tab === 'Quotations' && <><th>Name</th><th>Ref</th><th>Pax</th><th>Arrival</th><th>Departure</th></>}
+                {tab === 'Packages' && <><th>Name</th><th>Ref</th><th>Pax</th><th>Arrival</th><th>Departure</th></>}
                 {tab === 'Letters' && <><th>To</th><th>Arrival</th><th>Departure</th><th>Pax</th></>}
                 {tab === 'Vouchers' && <><th>Hotel</th><th>Group</th><th>From</th><th>To</th><th>Rooms</th></>}
                 <th>Created</th><th>Actions</th>
@@ -99,6 +102,7 @@ export default function Documents({ openQuotation }: { openQuotation: (d: Quotat
               {visible.map((r) => (
                 <tr key={r.id} className={busyId === r.id ? 'saving' : ''}>
                   {tab === 'Quotations' && <><td>{r.name}</td><td>{r.group_ref}</td><td>{r.pax}</td><td>{r.arrival_date}</td><td>{r.departure_date}</td></>}
+                  {tab === 'Packages' && <><td>{r.name}</td><td>{r.group_ref}</td><td>{r.pax}</td><td>{r.arrival_date}</td><td>{r.departure_date}</td></>}
                   {tab === 'Letters' && <><td>{r.consignee}</td><td>{r.arrival_date}</td><td>{r.departure_date}</td><td>{r.pax}</td></>}
                   {tab === 'Vouchers' && <><td>{r.hotel_name}</td><td>{r.guest_or_group_name}</td><td>{r.from_date}</td><td>{r.to_date}</td><td>{r.singles + r.doubles + r.twins + r.triples}</td></>}
                   <td>{new Date(r.created_at).toLocaleDateString('en-GB')}</td>
@@ -109,7 +113,10 @@ export default function Documents({ openQuotation }: { openQuotation: (d: Quotat
                       {r.draft && <button className="link" onClick={() => openQuotation(r.draft)}>Open / Duplicate</button>}
                       {r.draft && <button className="link" onClick={() => saveAsPackage(r)}>Save as package</button>}
                     </>}
-                    {tab !== 'Quotations' && r.data && <>
+                    {tab === 'Packages' && r.data && (
+                      <button className="link" onClick={() => setSavedPkg(r.data as PackageState)}>Open / Export</button>
+                    )}
+                    {(tab === 'Letters' || tab === 'Vouchers') && r.data && <>
                       <button className="link" onClick={() => word(r)}>Word</button>
                       <button className="link" onClick={() => (tab === 'Letters' ? letterToPdf(r.data) : voucherToPdf(r.data)).catch((e: any) => setError(e.message ?? String(e)))}>PDF</button>
                     </>}
@@ -121,7 +128,8 @@ export default function Documents({ openQuotation }: { openQuotation: (d: Quotat
           </table>
         </div>
       </div>
-      {pdfDraft && <PackageBuilder draft={pdfDraft} onClose={() => setPdfDraft(null)} />}
+      {pdfDraft && <PackageBuilder draft={pdfDraft} onClose={() => { setPdfDraft(null); load() }} />}
+      {savedPkg && <PackageBuilder saved={savedPkg} onClose={() => { setSavedPkg(null); load() }} />}
     </div>
   )
 }

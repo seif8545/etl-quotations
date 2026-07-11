@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { loadRefData } from '../lib/supabase'
+import { loadRefData, supabase } from '../lib/supabase'
 import { computeTotals, tripDays, effectiveSelections } from '../lib/pricing'
 import { getHtml2Pdf, waitForAssets } from '../lib/pdf'
 import ItineraryDoc from './ItineraryDoc'
@@ -9,16 +9,57 @@ import type { QuotationDraft, RefData } from '../lib/types'
 interface Meals { breakfast: boolean; lunch: boolean; dinner: boolean }
 interface EditableDay { uid: string; title: string; description: string; photo: string; sites: string[]; guide: boolean; meals: Meals }
 interface FixedDay { on: boolean; title: string; description: string; photo: string; meals: Meals }
+interface PriceRow { category: string; dbl: number; single: number; hotels: string }
+
+/** Full serializable state of a built package — stored in q_package_docs so packages can be re-opened. */
+export interface PackageState {
+  title: string; intro: string; hero: string
+  meta: { ref: string; pax: number; arrival: string; departure: string }
+  overview: { days: number; nights: number; cities: number }
+  hotels: { nights: number; destination: string }[]
+  days: EditableDay[]
+  arrival: FixedDay; departure: FixedDay
+  pp: number; sgl: number; showPrice: boolean
+  included: string; excluded: string
+  priceTableOn: boolean; priceRows: PriceRow[]
+}
+
 const TOUR_MEALS = (): Meals => ({ breakfast: true, lunch: false, dinner: true })
 const mealList = (m: Meals): string[] => [m.breakfast && 'Breakfast', m.lunch && 'Lunch', m.dinner && 'Dinner'].filter(Boolean) as string[]
 
-interface PriceRow { category: string; dbl: number; single: number; hotels: string }
 const DEFAULT_PRICE_ROWS = (): PriceRow[] => [
   { category: '3 Star', dbl: 0, single: 0, hotels: '' },
   { category: '4 Star', dbl: 0, single: 0, hotels: '' },
   { category: '4 Star Deluxe', dbl: 0, single: 0, hotels: '' },
   { category: '5 Star', dbl: 0, single: 0, hotels: '' },
 ]
+
+const DEFAULT_ARRIVAL = (): FixedDay => ({
+  on: true, title: 'Arrival — Welcome to Egypt',
+  description: 'On arrival, our representative will meet and assist you through the airport formalities before a private transfer to your hotel for check-in and overnight.',
+  photo: 'arrivedepart/arrival-plane.jpg', meals: { breakfast: false, lunch: false, dinner: true },
+})
+const DEFAULT_DEPARTURE = (): FixedDay => ({
+  on: true, title: 'Departure',
+  description: 'After breakfast, check out of your hotel and enjoy a private transfer to the airport for your onward flight. We wish you a safe journey home.',
+  photo: 'arrivedepart/departure-plane.jpg', meals: { breakfast: true, lunch: false, dinner: false },
+})
+
+/** Best-effort default photo for a standalone site turned into its own day. */
+const SITE_PHOTO: Record<string, string> = {
+  'pyramids': 'cairo-giza/entrance-pyramids.jpeg', 'khufu pyramid': 'cairo-giza/gem-pyramids.jpeg',
+  'grand egyptian museum': 'cairo-giza/gem-pyramids.jpeg', 'egyptian museum': 'cairo-giza/civilization-museum.jpg',
+  'egyptian museum (guide)': 'cairo-giza/civilization-museum.jpg', 'civilization museum': 'cairo-giza/civilization-museum.jpg',
+  'citadel': 'cairo-giza/citadel-view.jpeg', 'moez street': 'cairo-giza/al-moez.jpeg',
+  'sakkara': 'memphis-sakkara-dahshur/sakkara-1.jpeg', 'all sakkara': 'memphis-sakkara-dahshur/sakkara-1.jpeg',
+  'memphis': 'memphis-sakkara-dahshur/memphis-1.jpeg', 'karnak': 'luxor-aswan/hypostyle.jpeg',
+  'luxor temple': 'luxor-aswan/luxorpath.jpeg', 'valley of kings': 'luxor-aswan/colossi.jpeg',
+  'hatshepsut': 'luxor-aswan/colossi.jpeg', 'abu simbel': 'luxor-aswan/abusimbel.jpeg',
+  'philae': 'luxor-aswan/aswan-temple.jpeg', 'kom ombo': 'luxor-aswan/kom-ombo.jpeg',
+  'edfu': 'luxor-aswan/kom-ombo.jpeg', 'qaitbay': 'alexandria/qaitbay-2.jpeg',
+}
+const photoForSite = (name: string) => SITE_PHOTO[name.trim().toLowerCase()] ?? ''
+const newUid = () => (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random())
 
 const CONTACT = { phone: '+20 105 537 6633', email: 'info@egypttoplight.net', website: 'egypttoplight.net', social: '@egypttoplighttravel' }
 
@@ -35,51 +76,53 @@ function MealTicker({ meals, onChange }: { meals: Meals; onChange: (m: Meals) =>
   )
 }
 
-/** Client-facing branded package PDF builder (edit → one-click export). */
-export default function PackageBuilder({ draft, onClose }: { draft: QuotationDraft; onClose: () => void }) {
+/** Client-facing branded package PDF builder. Opens from a quotation (draft) or a saved package. */
+export default function PackageBuilder({ draft, saved, onClose }: { draft?: QuotationDraft; saved?: PackageState; onClose: () => void }) {
   const [ref, setRef] = useState<RefData | null>(null)
-  const [title, setTitle] = useState(draft.name || 'Egypt Travel Package')
-  const [intro, setIntro] = useState('We are delighted to present the following tailor-made programme for your journey through Egypt — thoughtfully arranged to blend iconic landmarks with authentic experiences.')
-  const [hero, setHero] = useState('cairo-giza/gem-pyramids.jpeg')
-  const [days, setDays] = useState<EditableDay[]>([])
-  const [arrival, setArrival] = useState<FixedDay>({
-    on: true, title: 'Arrival — Welcome to Egypt',
-    description: 'On arrival, our representative will meet and assist you through the airport formalities before a private transfer to your hotel for check-in and overnight.',
-    photo: 'arrivedepart/arrival-plane.jpg',
-    meals: { breakfast: false, lunch: false, dinner: true },
-  })
-  const [departure, setDeparture] = useState<FixedDay>({
-    on: true, title: 'Departure',
-    description: 'After breakfast, check out of your hotel and enjoy a private transfer to the airport for your onward flight. We wish you a safe journey home.',
-    photo: 'arrivedepart/departure-plane.jpg',
-    meals: { breakfast: true, lunch: false, dinner: false },
-  })
-  const [pp, setPp] = useState(0)
-  const [sgl, setSgl] = useState(0)
-  const [showPrice, setShowPrice] = useState(true)
-  const [priceTableOn, setPriceTableOn] = useState(false)
-  const [priceRows, setPriceRows] = useState<PriceRow[]>(DEFAULT_PRICE_ROWS())
-  const [included, setIncluded] = useState('')
-  const [excluded, setExcluded] = useState('')
+  const [title, setTitle] = useState(saved?.title ?? (draft?.name || 'Egypt Travel Package'))
+  const [intro, setIntro] = useState(saved?.intro ?? 'We are delighted to present the following tailor-made programme for your journey through Egypt — thoughtfully arranged to blend iconic landmarks with authentic experiences.')
+  const [hero, setHero] = useState(saved?.hero ?? 'cairo-giza/gem-pyramids.jpeg')
+  const [days, setDays] = useState<EditableDay[]>(saved?.days ?? [])
+  const [arrival, setArrival] = useState<FixedDay>(saved?.arrival ?? DEFAULT_ARRIVAL())
+  const [departure, setDeparture] = useState<FixedDay>(saved?.departure ?? DEFAULT_DEPARTURE())
+  const [pp, setPp] = useState(saved?.pp ?? 0)
+  const [sgl, setSgl] = useState(saved?.sgl ?? 0)
+  const [showPrice, setShowPrice] = useState(saved?.showPrice ?? true)
+  const [priceTableOn, setPriceTableOn] = useState(saved?.priceTableOn ?? false)
+  const [priceRows, setPriceRows] = useState<PriceRow[]>(saved?.priceRows ?? DEFAULT_PRICE_ROWS())
+  const [included, setIncluded] = useState(saved?.included ?? '')
+  const [excluded, setExcluded] = useState(saved?.excluded ?? '')
   const [manifest, setManifest] = useState<Record<string, string[]>>({})
   const [picker, setPicker] = useState<{ target: string } | null>(null)
   const [busy, setBusy] = useState(false)
+  const [savedMsg, setSavedMsg] = useState('')
   const [error, setError] = useState('')
   const docRef = useRef<HTMLDivElement>(null)
 
-  const hotels = (draft.accommodation ?? []).filter((a) => a.nights > 0)
+  const hotels = saved?.hotels ?? (draft?.accommodation ?? []).filter((a) => a.nights > 0)
   const totalNights = hotels.reduce((s, h) => s + h.nights, 0)
+  const meta = saved?.meta ?? { ref: draft?.groupRef ?? '', pax: draft?.pax ?? 0, arrival: draft?.arrivalDate ?? '', departure: draft?.departureDate ?? '' }
 
   useEffect(() => {
     loadRefData().then((r) => {
       setRef(r)
+      if (saved || !draft) return // saved packages are already initialised from stored state
       const nameOf = (id: number) => r.sites.find((s) => s.id === id)?.name ?? ''
       const dd = draft.days ?? []
-      setDays(dd.map((d) => ({
+      const presetDays: EditableDay[] = dd.map((d) => ({
         uid: d.uid, title: d.label, description: d.description, photo: d.photo,
-        sites: (d.siteIds ?? []).map(nameOf).filter(Boolean), guide: !!d.includeGuide,
-        meals: TOUR_MEALS(),
-      })))
+        sites: (d.siteIds ?? []).map(nameOf).filter(Boolean), guide: !!d.includeGuide, meals: TOUR_MEALS(),
+      }))
+      // Sites picked directly (not via a preset day) each become their own day.
+      const covered = new Set<number>()
+      for (const d of dd) for (const id of (d.siteIds ?? [])) covered.add(id)
+      const manualDays: EditableDay[] = (draft.siteIds ?? [])
+        .filter((id) => !covered.has(id))
+        .map((id) => {
+          const nm = nameOf(id)
+          return { uid: newUid(), title: nm, description: '', photo: photoForSite(nm), sites: nm ? [nm] : [], guide: draft.includeGuide, meals: TOUR_MEALS() }
+        })
+      setDays([...presetDays, ...manualDays])
       if (dd[0]?.photo) setHero(dd[0].photo)
       const t = computeTotals(draft, r)
       setPp(Math.round(t.perPersonDBL))
@@ -126,23 +169,29 @@ export default function PackageBuilder({ draft, onClose }: { draft: QuotationDra
   }
 
   const data: ItineraryData = useMemo(() => {
-    const diff = tripDays(draft)
-    const oNights = diff > 0 ? diff : totalNights
-    const oDays = diff > 0 ? diff + 1 : (totalNights > 0 ? totalNights + 1 : days.length)
-    const REGION_CITY: Record<string, string> = {
-      'Pyramids': 'Cairo', 'Sakkara': 'Cairo', 'Cairo/Giza': 'Cairo', 'More Sites': 'Cairo',
-      'Alexandria/Behera': 'Alexandria', 'Luxor': 'Luxor', 'Aswan': 'Aswan',
-      'Sharm el Sheikh': 'Sharm El Sheikh', 'Kafr el Sheikh/Sharkia/Minya/Sohag/Qena': 'Nile Valley',
-    }
-    const citySet = new Set<string>()
-    if (ref) {
-      for (const id of effectiveSelections(draft).siteIds) {
-        const st = ref.sites.find((x) => x.id === id); if (!st) continue
-        const reg = ref.regions.find((r) => r.id === st.region_id)?.name
-        if (reg) citySet.add(REGION_CITY[reg] ?? reg)
+    let overview: { days: number; nights: number; cities: number; pax: number }
+    if (saved) {
+      overview = { ...saved.overview, pax: meta.pax }
+    } else {
+      const diff = draft ? tripDays(draft) : 0
+      const oNights = diff > 0 ? diff : totalNights
+      const oDays = diff > 0 ? diff + 1 : (totalNights > 0 ? totalNights + 1 : days.length)
+      const REGION_CITY: Record<string, string> = {
+        'Pyramids': 'Cairo', 'Sakkara': 'Cairo', 'Cairo/Giza': 'Cairo', 'More Sites': 'Cairo',
+        'Alexandria/Behera': 'Alexandria', 'Luxor': 'Luxor', 'Aswan': 'Aswan',
+        'Sharm el Sheikh': 'Sharm El Sheikh', 'Kafr el Sheikh/Sharkia/Minya/Sohag/Qena': 'Nile Valley',
       }
+      const citySet = new Set<string>()
+      if (ref && draft) {
+        for (const id of effectiveSelections(draft).siteIds) {
+          const st = ref.sites.find((x) => x.id === id); if (!st) continue
+          const reg = ref.regions.find((r) => r.id === st.region_id)?.name
+          if (reg) citySet.add(REGION_CITY[reg] ?? reg)
+        }
+      }
+      for (const h of hotels) citySet.add(REGION_CITY[h.destination] ?? h.destination)
+      overview = { days: oDays, nights: oNights, cities: citySet.size || 1, pax: meta.pax }
     }
-    for (const h of hotels) citySet.add(REGION_CITY[h.destination] ?? h.destination)
 
     const seqDays = [
       ...(arrival.on ? [{ title: arrival.title, description: arrival.description, photoUrl: arrival.photo ? '/images/tours/' + arrival.photo : '', highlights: ['Meet & assist', 'Hotel check-in', 'Overnight'], meals: mealList(arrival.meals) }] : []),
@@ -159,8 +208,8 @@ export default function PackageBuilder({ draft, onClose }: { draft: QuotationDra
       title, intro,
       heroUrl: '/images/tours/' + hero,
       logoUrl: '/images/logo.png',
-      meta: { ref: draft.groupRef, pax: draft.pax, arrival: draft.arrivalDate, departure: draft.departureDate },
-      overview: { days: oDays, nights: oNights, cities: citySet.size || 1, pax: draft.pax },
+      meta,
+      overview,
       days: seqDays,
       hotels,
       included: included.split('\n').map((s) => s.trim()).filter(Boolean),
@@ -169,7 +218,29 @@ export default function PackageBuilder({ draft, onClose }: { draft: QuotationDra
       pricing: { show: priceTableOn, refPp: pp, refSgl: sgl, rows: priceRows },
       contact: CONTACT,
     }
-  }, [title, intro, hero, days, arrival, departure, pp, sgl, showPrice, priceTableOn, priceRows, included, excluded, draft, hotels, totalNights, ref])
+  }, [title, intro, hero, days, arrival, departure, pp, sgl, showPrice, priceTableOn, priceRows, included, excluded, draft, saved, hotels, totalNights, ref, meta])
+
+  function buildState(): PackageState {
+    return {
+      title, intro, hero, meta,
+      overview: { days: data.overview.days, nights: data.overview.nights, cities: data.overview.cities },
+      hotels, days, arrival, departure,
+      pp, sgl, showPrice, included, excluded, priceTableOn, priceRows,
+    }
+  }
+
+  async function savePackage() {
+    try {
+      const st = buildState()
+      const { data: u } = await supabase.auth.getUser()
+      const { error: e } = await supabase.from('q_package_docs').insert({
+        name: st.title, group_ref: st.meta.ref, pax: st.meta.pax,
+        arrival_date: st.meta.arrival || null, departure_date: st.meta.departure || null,
+        data: st, created_by: u.user?.id,
+      })
+      if (!e) { setSavedMsg('Saved to Packages'); setTimeout(() => setSavedMsg(''), 2500) }
+    } catch { /* don't block export on save errors */ }
+  }
 
   async function exportPdf() {
     setBusy(true); setError('')
@@ -187,6 +258,7 @@ export default function PackageBuilder({ draft, onClose }: { draft: QuotationDra
         jsPDF: { unit: 'px', format: [794, 1123], orientation: 'portrait', hotfixes: ['px_scaling'] },
         pagebreak: { mode: ['css', 'legacy'], avoid: ['.day', '.inc-col', '.price-box', '.price-table', '.hotel-card', '.itin-strip', '.itin-why', '.intro-card'] },
       }).from(node).save()
+      await savePackage()
     } catch (e: any) {
       setError(e.message ?? String(e))
     }
@@ -226,6 +298,8 @@ export default function PackageBuilder({ draft, onClose }: { draft: QuotationDra
         <div className="builder-bar">
           <h3>Package PDF builder</h3>
           <span className="spacer" />
+          {savedMsg && <span className="small" style={{ color: '#bfe6c0' }}>{savedMsg}</span>}
+          <button onClick={savePackage}>Save</button>
           <button onClick={onClose}>Close</button>
           <button className="primary" disabled={busy} onClick={exportPdf}>{busy ? 'Building…' : 'Export PDF'}</button>
         </div>
@@ -235,7 +309,7 @@ export default function PackageBuilder({ draft, onClose }: { draft: QuotationDra
             <img className="b-hero" src={`/images/tours/${hero}`} alt="" />
             <button className="link" onClick={() => setPicker({ target: 'hero' })}>Change cover photo</button>
             <input className="b-title" value={title} onChange={(e) => setTitle(e.target.value)} />
-            <div className="muted small">{draft.groupRef ? `Ref ${draft.groupRef} · ` : ''}{draft.pax} pax · {draft.arrivalDate} → {draft.departureDate}</div>
+            <div className="muted small">{meta.ref ? `Ref ${meta.ref} · ` : ''}{meta.pax} pax · {meta.arrival} → {meta.departure}</div>
             <textarea rows={2} value={intro} onChange={(e) => setIntro(e.target.value)} />
           </section>
 
@@ -263,7 +337,7 @@ export default function PackageBuilder({ draft, onClose }: { draft: QuotationDra
               </div>
             </section>
           ))}
-          {days.length === 0 && <p className="muted">No tour days added to this quotation — the arrival and departure days above will still be included. Add tour-day presets when building the quotation for a full day-by-day itinerary.</p>}
+          {days.length === 0 && <p className="muted">No day-by-day items yet. Add tour-day presets or select sites in the quotation and they'll appear here as days.</p>}
 
           <FixedDayEditor label="Departure day" day={departure} set={setDeparture} target="departure" />
 
