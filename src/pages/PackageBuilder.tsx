@@ -281,10 +281,10 @@ export default function PackageBuilder({ draft, saved, onClose }: { draft?: Quot
       await waitForAssets(node)
       const safe = (title || 'package').replace(/[^\w\-]+/g, '_')
       await html2pdf().set({
-        margin: 0,
+        // [Top, Right, Bottom, Left] — This adds a 48px buffer to the top and bottom of EVERY page!
+        margin: [48, 0, 48, 0], 
         filename: safe + '.pdf',
         image: { type: 'jpeg', quality: 0.95 },
-        // Add windowWidth and width to lock the capture perfectly to the container
         html2canvas: { scale: 2, useCORS: true, backgroundColor: '#fffefa', logging: false },
         jsPDF: { unit: 'px', format: [794, 1123], orientation: 'portrait', hotfixes: ['px_scaling'] },
         pagebreak: { mode: ['css'], avoid: ['.day', '.hotel-card', '.b-inc', '.included-section', '.pricing-table', 'table', '.accommodation-section'] },
