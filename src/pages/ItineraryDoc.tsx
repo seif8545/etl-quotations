@@ -1,4 +1,4 @@
-import { forwardRef } from 'react'
+import { forwardRef, useEffect } from 'react'
 
 export interface ItineraryData {
   title: string
@@ -124,9 +124,16 @@ const CSS = `
 
 const ItineraryDoc = forwardRef<HTMLDivElement, { data: ItineraryData }>(({ data }, ref) => {
   const d = data
+  useEffect(() => {
+    if (typeof document !== 'undefined' && !document.getElementById('itin-doc-css')) {
+      const el = document.createElement('style')
+      el.id = 'itin-doc-css'
+      el.textContent = CSS
+      document.head.appendChild(el)
+    }
+  }, [])
   return (
     <div className="itin" ref={ref}>
-      <style>{CSS}</style>
 
       {/* Cover */}
       <div className="itin-cover">
@@ -141,7 +148,7 @@ const ItineraryDoc = forwardRef<HTMLDivElement, { data: ItineraryData }>(({ data
           <div className="cover-divider" />
           <div className="cover-meta">
             {d.meta.ref ? <>Ref {d.meta.ref}<span>·</span></> : null}
-            {d.meta.pax} guests<span>·</span>{d.meta.arrival}{d.meta.departure ? <> <span>→</span> {d.meta.departure}</> : null}
+            {d.meta.pax} {d.meta.pax === 1 ? 'guest' : 'guests'}<span>·</span>{d.meta.arrival}{d.meta.departure ? <> <span>→</span> {d.meta.departure}</> : null}
           </div>
         </div>
       </div>

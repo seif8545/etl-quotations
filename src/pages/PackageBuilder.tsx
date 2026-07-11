@@ -286,7 +286,7 @@ export default function PackageBuilder({ draft, saved, onClose }: { draft?: Quot
         image: { type: 'jpeg', quality: 0.95 },
         html2canvas: { scale: 2, useCORS: true, backgroundColor: '#fffefa', logging: false },
         jsPDF: { unit: 'px', format: [794, 1123], orientation: 'portrait', hotfixes: ['px_scaling'] },
-        pagebreak: { mode: ['css', 'legacy'], avoid: ['.day', '.inc-col', '.price-box', '.price-table', '.hotel-card', '.itin-strip', '.itin-why', '.intro-card'] },
+        pagebreak: { mode: ['css'], avoid: ['.day', '.inc-col', '.price-box', '.price-table', '.hotel-card', '.itin-strip', '.itin-why', '.intro-card'] },
       }).from(node).save()
       await savePackage()
     } catch (e: any) {
