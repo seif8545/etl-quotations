@@ -50,7 +50,7 @@ const CSS = `
 .intro-card { background: #f7f1e6; border-left: 4px solid #c8960a; border-radius: 8px; padding: 20px 24px; font-size: 15px; color: #33465c; line-height: 1.6; }
 
 /* Day cards */
-.day { display: flex; background: #fff; border: 1px solid #ecdcb6; border-radius: 14px; overflow: hidden; margin-bottom: 48px; box-shadow: 0 6px 20px rgba(14,42,71,0.06); page-break-inside: avoid; }
+.day { display: flex; background: #fff; border: 1px solid #ecdcb6; border-radius: 14px; overflow: hidden; margin: 32px 0; box-shadow: 0 6px 20px rgba(14,42,71,0.06); page-break-inside: avoid; }
 .day.alt { flex-direction: row-reverse; }
 .day-photo { width: 260px; height: 200px; flex-shrink: 0; object-fit: cover; }
 .day-body { padding: 22px 26px; flex: 1; }
@@ -67,8 +67,8 @@ const CSS = `
 .chip { font-size: 11px; color: #806000; border: 1px solid #e6cf8f; background: #fdf6e3; border-radius: 999px; padding: 3px 11px; }
 
 /* Accommodation */
-.accommodation-section { page-break-inside: avoid; }
-.hotel-card { display: flex; align-items: center; gap: 16px; background: #f7f1e6; border-radius: 10px; padding: 14px 20px; margin-bottom: 10px; page-break-inside: avoid; }
+.accommodation-section { page-break-inside: avoid; margin: 32px 0; }
+.hotel-card { display: flex; align-items: center; gap: 16px; background: #f7f1e6; border-radius: 10px; padding: 14px 20px; margin: 20px 0; page-break-inside: avoid; }
 .hotel-badge { width: 52px; height: 52px; flex-shrink: 0; border-radius: 50%; background: linear-gradient(135deg,#0e2a47,#163d6b); color: #e8b015; display: flex; flex-direction: column; align-items: center; justify-content: center; }
 .hotel-badge b { font-size: 20px; font-weight: 700; line-height: 1; }
 .hotel-badge span { font-size: 9px; letter-spacing: 1px; text-transform: uppercase; }
@@ -77,7 +77,7 @@ const CSS = `
 
 /* Included / excluded */
 .inc-grid { display: flex; gap: 22px; }
-.included-section { page-break-inside: avoid; }
+.included-section { page-break-inside: avoid; margin: 32px 0; }
 .inc-col { flex: 1; background: #fff; border: 1px solid #ece0c4; border-radius: 12px; padding: 20px 22px; page-break-inside: avoid; }
 .inc-col h4 { font-size: 16px; font-weight: 700; margin: 0 0 14px; color: #0e2a47; }
 .inc-item { display: flex; align-items: flex-start; gap: 9px; font-size: 13px; color: #3a495c; margin-bottom: 9px; line-height: 1.4; }
