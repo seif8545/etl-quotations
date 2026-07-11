@@ -55,7 +55,9 @@ const CSS = `
 .day-body { padding: 22px 26px; flex: 1; }
 .day-tag { display: inline-block; background: linear-gradient(135deg,#c8960a,#e8b015); color: #3a2a00; font-weight: 700; font-size: 11px; letter-spacing: 1.2px; padding: 4px 13px; border-radius: 999px; }
 .day-title { font-size: 23px; font-weight: 600; color: #0e2a47; margin: 10px 0 8px; }
-.day-desc { font-size: 13.5px; color: #45566b; line-height: 1.55; }
+.day-desc { list-style: none; margin: 8px 0 0; padding: 0; }
+.day-desc li { position: relative; padding-left: 15px; margin-bottom: 5px; font-size: 12.5px; color: #45566b; line-height: 1.5; }
+.day-desc li::before { content: '•'; position: absolute; left: 2px; top: -1px; color: #c8960a; font-weight: 700; font-size: 13px; }
 .day-chips { margin-top: 14px; display: flex; flex-wrap: wrap; gap: 7px; }
 .day-meals { margin-top: 9px; display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
 .meals-label { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: #9a8862; margin-right: 2px; }
@@ -167,7 +169,9 @@ const ItineraryDoc = forwardRef<HTMLDivElement, { data: ItineraryData }>(({ data
               <div className="day-body">
                 <span className="day-tag">DAY {i + 1}</span>
                 <div className="fr day-title">{day.title}</div>
-                {day.description ? <div className="day-desc">{day.description}</div> : null}
+                {day.description ? (
+                  <ul className="day-desc">{day.description.split('\n').map((l) => l.trim()).filter(Boolean).map((l, k) => <li key={k}>{l}</li>)}</ul>
+                ) : null}
                 {day.highlights.length > 0 && (
                   <div className="day-chips">{day.highlights.map((h, j) => <span className="chip" key={j}>{h}</span>)}</div>
                 )}

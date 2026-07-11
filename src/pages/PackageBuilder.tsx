@@ -36,12 +36,12 @@ const DEFAULT_PRICE_ROWS = (): PriceRow[] => [
 
 const DEFAULT_ARRIVAL = (): FixedDay => ({
   on: true, title: 'Arrival — Welcome to Egypt',
-  description: 'On arrival, our representative will meet and assist you through the airport formalities before a private transfer to your hotel for check-in and overnight.',
+  description: 'Arrival at Cairo International Airport.\nMeet & assist by our representative through passport and customs formalities.\nPrivate air-conditioned transfer to your hotel.\nCheck-in, overnight and time to relax after your journey.',
   photo: 'arrivedepart/arrival-plane.jpg', meals: { breakfast: false, lunch: false, dinner: true },
 })
 const DEFAULT_DEPARTURE = (): FixedDay => ({
   on: true, title: 'Departure',
-  description: 'After breakfast, check out of your hotel and enjoy a private transfer to the airport for your onward flight. We wish you a safe journey home.',
+  description: 'Breakfast at your hotel (subject to flight timing).\nCheck-out and assistance with your luggage.\nPrivate air-conditioned transfer to the airport.\nFinal meet & assist through departure formalities — we wish you a safe journey home!',
   photo: 'arrivedepart/departure-plane.jpg', meals: { breakfast: true, lunch: false, dinner: false },
 })
 
@@ -109,8 +109,9 @@ export default function PackageBuilder({ draft, saved, onClose }: { draft?: Quot
       if (saved || !draft) return // saved packages are already initialised from stored state
       const nameOf = (id: number) => r.sites.find((s) => s.id === id)?.name ?? ''
       const dd = draft.days ?? []
+      const presetById = new Map(r.dayPresets.map((p) => [p.id, p]))
       const presetDays: EditableDay[] = dd.map((d) => ({
-        uid: d.uid, title: d.label, description: d.description, photo: d.photo,
+        uid: d.uid, title: d.label, description: presetById.get(d.presetId)?.description ?? d.description, photo: d.photo,
         sites: (d.siteIds ?? []).map(nameOf).filter(Boolean), guide: !!d.includeGuide, meals: TOUR_MEALS(),
       }))
       // Sites picked directly (not via a preset day) each become their own day.
@@ -120,7 +121,7 @@ export default function PackageBuilder({ draft, saved, onClose }: { draft?: Quot
         .filter((id) => !covered.has(id))
         .map((id) => {
           const nm = nameOf(id)
-          return { uid: newUid(), title: nm, description: '', photo: photoForSite(nm), sites: nm ? [nm] : [], guide: draft.includeGuide, meals: TOUR_MEALS() }
+          return { uid: newUid(), title: nm, description: nm ? `Visit ${nm} with time to explore its highlights.` : '', photo: photoForSite(nm), sites: nm ? [nm] : [], guide: draft.includeGuide, meals: TOUR_MEALS() }
         })
       setDays([...presetDays, ...manualDays])
       if (dd[0]?.photo) setHero(dd[0].photo)
