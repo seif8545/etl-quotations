@@ -50,7 +50,7 @@ const CSS = `
 .intro-card { background: #f7f1e6; border-left: 4px solid #c8960a; border-radius: 8px; padding: 20px 24px; font-size: 15px; color: #33465c; line-height: 1.6; }
 
 /* Day cards */
-.day { display: flex; background: #fff; border: 1px solid #ecdcb6; border-radius: 14px; overflow: hidden; margin-bottom: 14px; box-shadow: 0 6px 20px rgba(14,42,71,0.06); page-break-inside: avoid; }
+.day { display: flex; background: #fff; border: 1px solid #ecdcb6; border-radius: 14px; overflow: hidden; margin-bottom: 48px; box-shadow: 0 6px 20px rgba(14,42,71,0.06); page-break-inside: avoid; }
 .day.alt { flex-direction: row-reverse; }
 .day-photo { width: 260px; height: 200px; flex-shrink: 0; object-fit: cover; }
 .day-body { padding: 22px 26px; flex: 1; }
@@ -171,7 +171,7 @@ const ItineraryDoc = forwardRef<HTMLDivElement, { data: ItineraryData }>(({ data
 
       {/* Days */}
       {d.days.length > 0 && (
-        <div className="itin-sec" style={{ paddingTop: 8 }}>
+        <div className="itin-sec" style={{ paddingTop: 32 }}>
           <h2 className="fr sec-h">Your Day-by-Day Journey</h2>
           <div className="rule" />
           {d.days.map((day, i) => (
