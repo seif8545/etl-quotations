@@ -103,26 +103,25 @@ const CSS = `
 .pt-hotels { color: #45566b; }
 
 /* Why us */
-/* Why us */
-.itin-closing { page-break-before: always; background: linear-gradient(180deg,#0e2a47,#081a30); color: #fff; height: 1120px; overflow: hidden; padding: 46px 56px 56px; display: flex; flex-direction: column; }
-.itin-why { padding: 0 0 30px; }
+.itin-closing { page-break-before: always; page-break-inside: avoid; background: linear-gradient(180deg,#0e2a47,#081a30); color: #fff; height: 1120px; overflow: hidden; padding: 36px 56px 36px; display: flex; flex-direction: column; }
+.itin-why { padding: 0 0 20px; }
 .itin-why .sec-h { color: #fff; }
-.why-grid { display: flex; flex-wrap: wrap; gap: 20px 34px; margin-top: 6px; }
+.why-grid { display: flex; flex-wrap: wrap; gap: 16px 34px; margin-top: 6px; }
 .why-item { width: 45%; }
 .why-item b { display: block; font-family: 'Fraunces', Georgia, serif; font-size: 16px; color: #e8b015; margin-bottom: 4px; }
 .why-item span { font-size: 12.5px; color: rgba(255,255,255,0.82); line-height: 1.5; }
 
 /* Contact */
 .itin-contact { text-align: center; margin-top: auto; }
-.contact-logo { background: #ffffff; border-radius: 999px; padding: 14px 28px; display: inline-block; margin-bottom: 30px; }
+.contact-logo { background: #ffffff; border-radius: 999px; padding: 14px 28px; display: inline-block; margin-bottom: 20px; }
 .contact-logo img { height: 50px; display: block; }
-.contact-thanks { font-size: 40px; font-weight: 600; margin: 0 0 10px; color: #fff; }
-.contact-tag { font-size: 15px; color: rgba(255,255,255,0.82); margin-bottom: 34px; }
+.contact-thanks { font-size: 38px; font-weight: 600; margin: 0 0 8px; color: #fff; }
+.contact-tag { font-size: 15px; color: rgba(255,255,255,0.82); margin-bottom: 24px; }
 .contact-rows { display: inline-block; text-align: left; }
-.contact-row { display: flex; gap: 12px; margin-bottom: 14px; font-size: 15px; align-items: baseline; }
+.contact-row { display: flex; gap: 12px; margin-bottom: 12px; font-size: 15px; align-items: baseline; }
 .contact-row b { color: #e8b015; width: 96px; flex-shrink: 0; font-weight: 600; }
 .contact-row span { color: #fff; }
-.contact-brand { margin-bottom: 30px; }
+.contact-brand { margin-bottom: 20px; }
 .contact-brand-name { display: block; font-size: 38px; font-weight: 600; color: #e8b015; letter-spacing: 2px; }
 .contact-brand-sub { display: block; font-size: 15px; letter-spacing: 10px; color: #c8960a; margin-top: 2px; }
 `
