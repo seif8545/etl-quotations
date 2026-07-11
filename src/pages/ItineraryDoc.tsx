@@ -17,7 +17,8 @@ export interface ItineraryData {
 }
 
 const CSS = `
-.itin { width: 794px; background: #fffefa; color: #0e2a47; font-family: 'Inter', system-ui, sans-serif; font-size: 14px; line-height: 1.5; }
+/* Add margin: 0 auto; right after the width */
+.itin { width: 794px; margin: 0 auto; background: #fffefa; color: #0e2a47; font-family: 'Inter', system-ui, sans-serif; font-size: 14px; line-height: 1.5; }
 .itin * { box-sizing: border-box; }
 .itin .fr { font-family: 'Fraunces', Georgia, serif; }
 

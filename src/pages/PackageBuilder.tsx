@@ -284,9 +284,9 @@ export default function PackageBuilder({ draft, saved, onClose }: { draft?: Quot
         margin: 0,
         filename: safe + '.pdf',
         image: { type: 'jpeg', quality: 0.95 },
-        html2canvas: { scale: 2, useCORS: true, backgroundColor: '#fffefa', logging: false },
+        // Add windowWidth and width to lock the capture perfectly to the container
+        html2canvas: { scale: 2, useCORS: true, backgroundColor: '#fffefa', logging: false, windowWidth: 794, width: 794 },
         jsPDF: { unit: 'px', format: [794, 1123], orientation: 'portrait', hotfixes: ['px_scaling'] },
-        // Added .accommodation-section to prevent the heading from separating from the cards
         pagebreak: { mode: ['css'], avoid: ['.day', '.hotel-card', '.b-inc', '.included-section', '.pricing-table', 'table', '.accommodation-section'] },
       }).from(node).save()
       await savePackage()
