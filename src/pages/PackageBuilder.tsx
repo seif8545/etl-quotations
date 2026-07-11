@@ -285,7 +285,7 @@ export default function PackageBuilder({ draft, saved, onClose }: { draft?: Quot
         filename: safe + '.pdf',
         image: { type: 'jpeg', quality: 0.95 },
         // Add windowWidth and width to lock the capture perfectly to the container
-        html2canvas: { scale: 2, useCORS: true, backgroundColor: '#fffefa', logging: false, windowWidth: 794, width: 794 },
+        html2canvas: { scale: 2, useCORS: true, backgroundColor: '#fffefa', logging: false },
         jsPDF: { unit: 'px', format: [794, 1123], orientation: 'portrait', hotfixes: ['px_scaling'] },
         pagebreak: { mode: ['css'], avoid: ['.day', '.hotel-card', '.b-inc', '.included-section', '.pricing-table', 'table', '.accommodation-section'] },
       }).from(node).save()
@@ -468,7 +468,7 @@ export default function PackageBuilder({ draft, saved, onClose }: { draft?: Quot
       </div>
 
       {/* Off-screen branded document captured for the PDF */}
-      <div style={{ position: 'absolute', left: -99999, top: 0 }}>
+      <div style={{ position: 'absolute', left: -99999, top: 0, width: '794px' }}>
         <ItineraryDoc ref={docRef} data={data} />
       </div>
 
