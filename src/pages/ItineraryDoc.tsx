@@ -43,15 +43,15 @@ const CSS = `
 .stat span { font-size: 12px; letter-spacing: 1.5px; text-transform: uppercase; color: rgba(255,255,255,0.75); }
 
 /* Sections */
-.itin-sec { padding: 34px 56px; }
+.itin-sec { padding: 22px 48px; }
 .sec-h { font-size: 27px; font-weight: 600; color: #0e2a47; margin: 0 0 6px; }
 .rule { width: 62px; height: 3px; background: linear-gradient(135deg,#c8960a,#e8b015); border-radius: 3px; margin-bottom: 20px; }
 .intro-card { background: #f7f1e6; border-left: 4px solid #c8960a; border-radius: 8px; padding: 20px 24px; font-size: 15px; color: #33465c; line-height: 1.6; }
 
 /* Day cards */
-.day { display: flex; background: #fff; border: 1px solid #ecdcb6; border-radius: 14px; overflow: hidden; margin-bottom: 22px; box-shadow: 0 6px 20px rgba(14,42,71,0.06); page-break-inside: avoid; }
+.day { display: flex; background: #fff; border: 1px solid #ecdcb6; border-radius: 14px; overflow: hidden; margin-bottom: 14px; box-shadow: 0 6px 20px rgba(14,42,71,0.06); page-break-inside: avoid; }
 .day.alt { flex-direction: row-reverse; }
-.day-photo { width: 300px; height: 240px; flex-shrink: 0; object-fit: cover; }
+.day-photo { width: 260px; height: 200px; flex-shrink: 0; object-fit: cover; }
 .day-body { padding: 22px 26px; flex: 1; }
 .day-tag { display: inline-block; background: linear-gradient(135deg,#c8960a,#e8b015); color: #3a2a00; font-weight: 700; font-size: 11px; letter-spacing: 1.2px; padding: 4px 13px; border-radius: 999px; }
 .day-title { font-size: 23px; font-weight: 600; color: #0e2a47; margin: 10px 0 8px; }
