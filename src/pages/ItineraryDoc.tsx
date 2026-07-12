@@ -50,7 +50,6 @@ const CSS = `
 /* Day — one full page each; alternating photo position */
 .day-full { height: 1123px; overflow: hidden; display: flex; flex-direction: column; background: #fffefa; }
 .df-photo { position: relative; overflow: hidden; flex-shrink: 0; height: 632px; }
-.day-full.b .df-photo { height: 556px; }
 .df-img { position: absolute; inset: 0; background-size: cover; background-position: center; }
 .df-grad { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(8,26,48,0) 42%, rgba(8,26,48,0.88) 100%); }
 .df-num { position: absolute; top: 30px; right: 54px; font-size: 150px; font-weight: 600; line-height: 0.8; color: rgba(255,255,255,0.20); }
@@ -65,8 +64,6 @@ const CSS = `
 .df-desc li { position: relative; padding-left: 20px; margin-bottom: 11px; font-size: 15px; color: #45566b; line-height: 1.6; }
 .df-desc li::before { content: '\\2022'; position: absolute; left: 2px; top: 0; color: #c8960a; font-weight: 700; }
 .df-body .d-foot { margin-top: 26px; border-top: 1px solid #ece0c4; padding-top: 18px; }
-.day-full.a .df-body { justify-content: flex-start; }
-.day-full.b .df-body { justify-content: center; }
 
 /* Day details (shared) */
 .d-tags { font-size: 12px; letter-spacing: 0.4px; color: #9a8862; margin-bottom: 10px; }
@@ -157,38 +154,21 @@ const ItineraryDoc = forwardRef<HTMLDivElement, { data: ItineraryData }>(({ data
   const dayPage = (day: DDay, i: number) => {
     const bl = bulletsOf(day.description)
     const num = String(i + 1).padStart(2, '0')
-    const variant = i % 2 === 0 ? 'a' : 'b'
-    const photo = (
-      <div className="df-photo">
-        {day.photoUrl ? <div className="df-img" style={{ backgroundImage: `url("${day.photoUrl}")` }} /> : null}
-        {variant === 'a' ? (
-          <>
-            <div className="df-grad" />
-            <div className="df-num fr">{num}</div>
-            <div className="df-cap">
-              <div className="df-eyebrow">Day {i + 1}</div>
-              <h2 className="df-title fr">{day.title}</h2>
-            </div>
-          </>
-        ) : null}
-      </div>
-    )
-    const body = (
-      <div className="df-body">
-        {variant === 'b' ? (
-          <>
-            <div className="df-b-eyebrow">Day {i + 1}</div>
-            <h2 className="df-b-title fr">{day.title}</h2>
-            <div className="df-b-rule" />
-          </>
-        ) : null}
-        {bl.length > 0 ? <ul className="df-desc">{bl.map((l, k) => <li key={k}>{l}</li>)}</ul> : null}
-        {details(day)}
-      </div>
-    )
     return (
-      <div className={`day-full ${variant}`} key={i}>
-        {variant === 'a' ? <>{photo}{body}</> : <>{body}{photo}</>}
+      <div className="day-full a" key={i}>
+        <div className="df-photo">
+          {day.photoUrl ? <div className="df-img" style={{ backgroundImage: `url("${day.photoUrl}")` }} /> : null}
+          <div className="df-grad" />
+          <div className="df-num fr">{num}</div>
+          <div className="df-cap">
+            <div className="df-eyebrow">Day {i + 1}</div>
+            <h2 className="df-title fr">{day.title}</h2>
+          </div>
+        </div>
+        <div className="df-body">
+          {bl.length > 0 ? <ul className="df-desc">{bl.map((l, k) => <li key={k}>{l}</li>)}</ul> : null}
+          {details(day)}
+        </div>
       </div>
     )
   }
