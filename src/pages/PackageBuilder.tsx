@@ -586,21 +586,36 @@ export default function PackageBuilder({ draft, saved, onClose }: { draft?: Quot
 
       const safe = (title || 'package').replace(/[^\w\-]+/g, '_')
 
-      await html2pdf().set({
-
+      const opt = {
         margin: 0,
-
         filename: safe + '.pdf',
-
         image: { type: 'jpeg', quality: 0.95 },
-
-        html2canvas: { scale: 2, useCORS: true, backgroundColor: '#fffefa', logging: false, scrollX: 0, scrollY: 0, windowWidth: 794 },
-
+        html2canvas: { scale: 2, useCORS: true, backgroundColor: '#fffefa', logging: false },
         jsPDF: { unit: 'px', format: [794, 1123], orientation: 'portrait', hotfixes: ['px_scaling'] },
-
         pagebreak: { mode: ['css'] },
-
-      }).from(node).save()
+      }
+      try {
+        // Render to canvas, shave the outer edge pixels (kills the capture seam), then build the PDF.
+        // Only left/right are rescaled; vertical is untouched so page slicing stays identical.
+        const worker: any = html2pdf().set(opt).from(node)
+        const src: HTMLCanvasElement = await worker.toContainer().toCanvas().get('canvas')
+        if (src && src.width > 20 && src.height > 20) {
+          const cut = 8
+          const out = document.createElement('canvas')
+          out.width = src.width
+          out.height = src.height
+          const ctx = out.getContext('2d')
+          if (ctx) {
+            ctx.fillStyle = '#fffefa'
+            ctx.fillRect(0, 0, out.width, out.height)
+            ctx.drawImage(src, cut, 0, src.width - cut * 2, src.height, 0, 0, out.width, out.height)
+            worker.prop.canvas = out
+          }
+        }
+        await worker.toImg().toPdf().save()
+      } catch (cropErr) {
+        await html2pdf().set(opt).from(node).save()
+      }
 
       await savePackage()
 
@@ -895,7 +910,7 @@ export default function PackageBuilder({ draft, saved, onClose }: { draft?: Quot
 
       {/* Off-screen branded document captured for the PDF */}
 
-      <div style={{ position: 'absolute', left: -10000, top: 0 }}>
+      <div style={{ position: 'absolute', left: -99999, top: 0 }}>
 
         <ItineraryDoc ref={docRef} data={data} />
 
