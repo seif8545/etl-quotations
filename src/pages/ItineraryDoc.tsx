@@ -47,42 +47,34 @@ const CSS = `
 .op-stats span { display: block; margin-top: 8px; font-size: 12px; letter-spacing: 2px; text-transform: uppercase; color: #8a7a5c; }
 .op-intro { font-size: 18px; line-height: 1.9; color: #3a495c; max-width: 640px; margin: 0; }
 
-/* Hero day (full page) */
-.hero-day { height: 1123px; overflow: hidden; position: relative; display: flex; flex-direction: column; background: #fffefa; }
-.hero-photo { position: relative; height: 636px; overflow: hidden; flex-shrink: 0; }
-.hero-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.hero-grad { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(8,26,48,0) 44%, rgba(8,26,48,0.88) 100%); }
-.hero-num { position: absolute; top: 30px; right: 54px; font-size: 150px; font-weight: 600; line-height: 0.8; color: rgba(255,255,255,0.20); }
-.hero-cap { position: absolute; left: 60px; right: 60px; bottom: 46px; z-index: 2; color: #fff; }
-.hero-eyebrow { color: #f0c53a; font-weight: 600; font-size: 12px; letter-spacing: 3px; text-transform: uppercase; margin-bottom: 10px; }
-.hero-title { font-size: 46px; font-weight: 600; line-height: 1.04; margin: 0; color: #fff; text-shadow: 0 2px 16px rgba(0,0,0,0.4); }
-.hero-body { flex: 1; padding: 38px 60px 46px; display: flex; flex-direction: column; }
-.hero-desc { list-style: none; margin: 0 0 16px; padding: 0; }
-.hero-desc li { position: relative; padding-left: 18px; margin-bottom: 8px; font-size: 13.5px; color: #45566b; line-height: 1.6; }
-.hero-desc li::before { content: '\\2022'; position: absolute; left: 2px; top: 0; color: #c8960a; font-weight: 700; }
-.hero-body .d-foot { margin-top: auto; border-top: 1px solid #ece0c4; padding-top: 16px; }
-
-/* Spread day (2-3 per page) */
-.spread-page { height: 1123px; overflow: hidden; box-sizing: border-box; padding: 54px 56px; display: flex; flex-direction: column; justify-content: center; gap: 32px; background: #fffefa; }
-.spread { display: flex; align-items: stretch; gap: 30px; min-height: 260px; }
-.spread.alt { flex-direction: row-reverse; }
-.spread-photo { width: 296px; flex-shrink: 0; align-self: stretch; border-radius: 8px; background-size: cover; background-position: center; box-shadow: 0 10px 26px rgba(14,42,71,0.12); }
-.spread-body { flex: 1; display: flex; flex-direction: column; justify-content: center; }
-.spread-eyebrow { color: #b08a1e; font-weight: 700; font-size: 11px; letter-spacing: 3px; text-transform: uppercase; }
-.spread-title { font-size: 28px; font-weight: 600; color: #0e2a47; margin: 7px 0 0; line-height: 1.1; }
-.spread-tick { width: 46px; height: 2px; background: linear-gradient(135deg,#c8960a,#e8b015); margin: 14px 0 16px; }
-.spread-desc { list-style: none; margin: 0; padding: 0; }
-.spread-desc li { position: relative; padding-left: 16px; margin-bottom: 5px; font-size: 12.5px; color: #45566b; line-height: 1.5; }
-.spread-desc li::before { content: '\\2022'; position: absolute; left: 2px; top: 0; color: #c8960a; font-weight: 700; }
-.spread .d-foot { border-top: 1px solid #efe6d2; padding-top: 12px; margin-top: 14px; }
+/* Day — one full page each; alternating photo position */
+.day-full { height: 1123px; overflow: hidden; display: flex; flex-direction: column; background: #fffefa; }
+.df-photo { position: relative; overflow: hidden; flex-shrink: 0; height: 632px; }
+.day-full.b .df-photo { height: 556px; }
+.df-img { position: absolute; inset: 0; background-size: cover; background-position: center; }
+.df-grad { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(8,26,48,0) 42%, rgba(8,26,48,0.88) 100%); }
+.df-num { position: absolute; top: 30px; right: 54px; font-size: 150px; font-weight: 600; line-height: 0.8; color: rgba(255,255,255,0.20); }
+.df-cap { position: absolute; left: 62px; right: 62px; bottom: 46px; z-index: 2; color: #fff; }
+.df-eyebrow { color: #f0c53a; font-weight: 600; font-size: 12px; letter-spacing: 3px; text-transform: uppercase; margin-bottom: 10px; }
+.df-title { font-size: 46px; font-weight: 600; line-height: 1.04; margin: 0; color: #fff; text-shadow: 0 2px 16px rgba(0,0,0,0.4); }
+.df-body { flex: 1; padding: 44px 64px 48px; display: flex; flex-direction: column; }
+.df-b-eyebrow { color: #b08a1e; font-weight: 600; font-size: 12px; letter-spacing: 3px; text-transform: uppercase; margin-bottom: 8px; }
+.df-b-title { font-size: 40px; font-weight: 600; line-height: 1.06; color: #0e2a47; margin: 0; }
+.df-b-rule { width: 66px; height: 3px; background: linear-gradient(135deg,#c8960a,#e8b015); border-radius: 3px; margin: 18px 0 24px; }
+.df-desc { list-style: none; margin: 0; padding: 0; }
+.df-desc li { position: relative; padding-left: 20px; margin-bottom: 11px; font-size: 15px; color: #45566b; line-height: 1.6; }
+.df-desc li::before { content: '\\2022'; position: absolute; left: 2px; top: 0; color: #c8960a; font-weight: 700; }
+.df-body .d-foot { margin-top: 26px; border-top: 1px solid #ece0c4; padding-top: 18px; }
+.day-full.a .df-body { justify-content: flex-start; }
+.day-full.b .df-body { justify-content: center; }
 
 /* Day details (shared) */
-.d-tags { font-size: 11px; letter-spacing: 0.4px; color: #9a8862; margin-bottom: 9px; }
-.d-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 16px; }
-.d-meals { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.d-tags { font-size: 12px; letter-spacing: 0.4px; color: #9a8862; margin-bottom: 10px; }
+.d-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 18px; }
+.d-meals { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 7px; }
 .d-lbl { font-size: 10px; text-transform: uppercase; letter-spacing: 1.5px; color: #9a8862; margin-right: 5px; }
-.d-pill { font-size: 11px; color: #0e2a47; background: #f4f7fa; border: 1px solid #dde7f0; border-radius: 999px; padding: 3px 10px; }
-.d-accom { font-size: 12px; color: #33465c; }
+.d-pill { font-size: 12px; color: #0e2a47; background: #f4f7fa; border: 1px solid #dde7f0; border-radius: 999px; padding: 4px 12px; }
+.d-accom { font-size: 13px; color: #33465c; }
 .d-accom .d-lbl { color: #b08a1e; }
 
 /* Summary */
@@ -151,39 +143,6 @@ const ItineraryDoc = forwardRef<HTMLDivElement, { data: ItineraryData }>(({ data
   }, [])
 
   type DDay = ItineraryData['days'][number]
-  type M = { day: DDay; i: number; bl: string[] }
-  const meta: M[] = d.days.map((day, i) => ({ day, i, bl: bulletsOf(day.description) }))
-
-  // Promote content-rich days to full-page hero layouts on a rhythm (~1 every 4 days)
-  const heroes = new Set<number>()
-  let since = 99
-  meta.forEach(({ i, day, bl }) => {
-    const canHero = !!day.photoUrl && bl.length >= 3
-    if (canHero && (i === 0 || since >= 3)) { heroes.add(i); since = 0 } else { since += 1 }
-  })
-
-  type Block = { hero: true; item: M } | { hero: false; items: M[] }
-  const blocks: Block[] = []
-  let cur: M[] = []
-  let curH = 0
-  const est = (m: M) => Math.max(110 + m.bl.length * 28, 260) + 24
-  const flush = () => { if (cur.length) { blocks.push({ hero: false, items: cur }); cur = []; curH = 0 } }
-  meta.forEach((m) => {
-    if (heroes.has(m.i)) { flush(); blocks.push({ hero: true, item: m }); return }
-    const h = est(m)
-    if (cur.length && curH + h > 1000) flush()
-    cur.push(m); curH += h
-  })
-  flush()
-
-  // Avoid a lonely single-spread page: rebalance a trailing 1 against a preceding full page (3+1 -> 2+2)
-  for (let i = 1; i < blocks.length; i++) {
-    const a = blocks[i - 1]
-    const b = blocks[i]
-    if (!a.hero && !b.hero && b.items.length === 1 && a.items.length >= 3) {
-      b.items.unshift(a.items.pop() as M)
-    }
-  }
 
   const details = (day: DDay) => (
     <div className="d-foot">
@@ -195,36 +154,44 @@ const ItineraryDoc = forwardRef<HTMLDivElement, { data: ItineraryData }>(({ data
     </div>
   )
 
-  const heroDay = (m: M) => (
-    <div className="hero-day" key={`h${m.i}`}>
-      <div className="hero-photo">
-        {m.day.photoUrl ? <img src={m.day.photoUrl} crossOrigin="anonymous" alt="" /> : null}
-        <div className="hero-grad" />
-        <div className="hero-num fr">{String(m.i + 1).padStart(2, '0')}</div>
-        <div className="hero-cap">
-          <div className="hero-eyebrow">Day {m.i + 1}</div>
-          <h2 className="hero-title fr">{m.day.title}</h2>
-        </div>
+  const dayPage = (day: DDay, i: number) => {
+    const bl = bulletsOf(day.description)
+    const num = String(i + 1).padStart(2, '0')
+    const variant = i % 2 === 0 ? 'a' : 'b'
+    const photo = (
+      <div className="df-photo">
+        {day.photoUrl ? <div className="df-img" style={{ backgroundImage: `url("${day.photoUrl}")` }} /> : null}
+        {variant === 'a' ? (
+          <>
+            <div className="df-grad" />
+            <div className="df-num fr">{num}</div>
+            <div className="df-cap">
+              <div className="df-eyebrow">Day {i + 1}</div>
+              <h2 className="df-title fr">{day.title}</h2>
+            </div>
+          </>
+        ) : null}
       </div>
-      <div className="hero-body">
-        {m.bl.length > 0 ? <ul className="hero-desc">{m.bl.map((l, k) => <li key={k}>{l}</li>)}</ul> : null}
-        {details(m.day)}
+    )
+    const body = (
+      <div className="df-body">
+        {variant === 'b' ? (
+          <>
+            <div className="df-b-eyebrow">Day {i + 1}</div>
+            <h2 className="df-b-title fr">{day.title}</h2>
+            <div className="df-b-rule" />
+          </>
+        ) : null}
+        {bl.length > 0 ? <ul className="df-desc">{bl.map((l, k) => <li key={k}>{l}</li>)}</ul> : null}
+        {details(day)}
       </div>
-    </div>
-  )
-
-  const spread = (m: M) => (
-    <div className={`spread${m.i % 2 === 1 ? ' alt' : ''}`} key={`s${m.i}`}>
-      {m.day.photoUrl ? <div className="spread-photo" style={{ backgroundImage: `url("${m.day.photoUrl}")` }} /> : null}
-      <div className="spread-body">
-        <div className="spread-eyebrow">Day {m.i + 1}</div>
-        <h3 className="spread-title fr">{m.day.title}</h3>
-        <div className="spread-tick" />
-        {m.bl.length > 0 ? <ul className="spread-desc">{m.bl.map((l, k) => <li key={k}>{l}</li>)}</ul> : null}
-        {details(m.day)}
+    )
+    return (
+      <div className={`day-full ${variant}`} key={i}>
+        {variant === 'a' ? <>{photo}{body}</> : <>{body}{photo}</>}
       </div>
-    </div>
-  )
+    )
+  }
 
   return (
     <div className="itin" ref={ref}>
@@ -258,11 +225,8 @@ const ItineraryDoc = forwardRef<HTMLDivElement, { data: ItineraryData }>(({ data
         {d.intro ? <p className="fr op-intro">{d.intro}</p> : null}
       </div>
 
-      {/* Day layouts (varied) */}
-      {blocks.map((b, bi) => b.hero
-        ? heroDay(b.item)
-        : <div className="spread-page" key={`p${bi}`}>{b.items.map(spread)}</div>
-      )}
+      {/* One full page per day */}
+      {d.days.map((day, i) => dayPage(day, i))}
 
       {/* Accommodation + inclusions + price */}
       {(d.hotels.length > 0 || d.included.length > 0 || d.excluded.length > 0 || d.price.show) && (
