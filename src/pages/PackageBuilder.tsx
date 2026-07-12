@@ -596,7 +596,7 @@ export default function PackageBuilder({ draft, saved, onClose }: { draft?: Quot
 
         html2canvas: { scale: 2, useCORS: true, backgroundColor: '#fffefa', logging: false },
 
-        jsPDF: { unit: 'px', format: [794, 1123], orientation: 'portrait', hotfixes: ['px_scaling'] },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
 
         pagebreak: { mode: ['css'] },
 
