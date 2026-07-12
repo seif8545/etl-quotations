@@ -23,7 +23,7 @@ const CSS = `
 
 /* Cover */
 .itin-cover { position: relative; height: 1123px; overflow: hidden; display: flex; flex-direction: column; justify-content: space-between; }
-.cover-hero { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.cover-hero { position: absolute; inset: -3px; width: calc(100% + 6px); height: calc(100% + 6px); object-fit: cover; }
 .cover-ov { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(14,42,71,0.18) 0%, rgba(14,42,71,0.30) 45%, rgba(8,26,48,0.92) 100%); }
 .cover-top { position: relative; z-index: 2; padding: 48px; display: flex; justify-content: center; }
 .cover-logo { background: #ffffff; border-radius: 999px; padding: 13px 26px; box-shadow: 0 6px 24px rgba(0,0,0,0.25); }
@@ -50,7 +50,7 @@ const CSS = `
 /* Day — one full page each; alternating photo position */
 .day-full { height: 1123px; overflow: hidden; display: flex; flex-direction: column; background: #fffefa; }
 .df-photo { position: relative; overflow: hidden; flex-shrink: 0; height: 632px; }
-.df-img { position: absolute; inset: 0; background-size: cover; background-position: center; }
+.df-img { position: absolute; inset: -3px; background-size: cover; background-position: center; }
 .df-grad { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(8,26,48,0) 42%, rgba(8,26,48,0.88) 100%); }
 .df-num { position: absolute; top: 30px; right: 54px; font-size: 150px; font-weight: 600; line-height: 0.8; color: rgba(255,255,255,0.20); }
 .df-cap { position: absolute; left: 62px; right: 62px; bottom: 46px; z-index: 2; color: #fff; }
