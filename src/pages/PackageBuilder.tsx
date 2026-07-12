@@ -595,24 +595,22 @@ export default function PackageBuilder({ draft, saved, onClose }: { draft?: Quot
         pagebreak: { mode: ['css'] },
       }
       try {
-        // Render to canvas, shave the outer edge pixels (kills the capture seam), then build the PDF.
-        // Only left/right are rescaled; vertical is untouched so page slicing stays identical.
-        const worker: any = html2pdf().set(opt).from(node)
-        const src: HTMLCanvasElement = await worker.toContainer().toCanvas().get('canvas')
-        if (src && src.width > 20 && src.height > 20) {
-          const cut = 8
+        // Render to canvas, shave the outer edge pixels (removes html2canvas's capture seam),
+        // rescale left/right to fill; vertical is untouched so the 18-page slicing is identical.
+        await html2pdf().set(opt).from(node).toCanvas().then(function (this: any) {
+          const src: HTMLCanvasElement | undefined = this && this.prop ? this.prop.canvas : undefined
+          if (!src || !src.width || !src.height) return
+          const cut = 12
           const out = document.createElement('canvas')
           out.width = src.width
           out.height = src.height
           const ctx = out.getContext('2d')
-          if (ctx) {
-            ctx.fillStyle = '#fffefa'
-            ctx.fillRect(0, 0, out.width, out.height)
-            ctx.drawImage(src, cut, 0, src.width - cut * 2, src.height, 0, 0, out.width, out.height)
-            worker.prop.canvas = out
-          }
-        }
-        await worker.toImg().toPdf().save()
+          if (!ctx) return
+          ctx.fillStyle = '#fffefa'
+          ctx.fillRect(0, 0, out.width, out.height)
+          ctx.drawImage(src, cut, 0, src.width - cut * 2, src.height, 0, 0, out.width, out.height)
+          this.prop.canvas = out
+        }).toImg().toPdf().save()
       } catch (cropErr) {
         await html2pdf().set(opt).from(node).save()
       }
