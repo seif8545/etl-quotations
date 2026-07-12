@@ -594,9 +594,9 @@ export default function PackageBuilder({ draft, saved, onClose }: { draft?: Quot
 
         image: { type: 'jpeg', quality: 0.95 },
 
-        html2canvas: { scale: 2, useCORS: true, backgroundColor: '#fffefa', logging: false },
+        html2canvas: { scale: 2, useCORS: true, backgroundColor: '#fffefa', logging: false, scrollX: 0, scrollY: 0, windowWidth: 794 },
 
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+        jsPDF: { unit: 'px', format: [794, 1123], orientation: 'portrait', hotfixes: ['px_scaling'] },
 
         pagebreak: { mode: ['css'] },
 
@@ -895,7 +895,7 @@ export default function PackageBuilder({ draft, saved, onClose }: { draft?: Quot
 
       {/* Off-screen branded document captured for the PDF */}
 
-      <div style={{ position: 'absolute', left: -99999, top: 0 }}>
+      <div style={{ position: 'absolute', left: -10000, top: 0 }}>
 
         <ItineraryDoc ref={docRef} data={data} />
 
