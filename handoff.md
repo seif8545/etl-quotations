@@ -133,7 +133,9 @@ Two files do everything:
   flights,manifest,picker,busy` and now **`meta` and `hotels` are `useState`** (were read-only consts).
 - `data:ItineraryData = useMemo(...)` builds the render model from all state (deps include meta/hotels/totalNights).
   `heroUrl = '/images/tours/' + hero`; `pricing:{ show:priceTableOn, refPp:pp, refSgl:sgl, rows:priceRows }`.
-  For **saved** packages, overview.nights is recomputed from the accommodation rows so the editor updates it live.
+  For **saved** packages, overview.nights is recomputed live from the accommodation rows AND overview.days from
+  the rendered day pages (`days.length + arrival.on + departure.on`) — the stored overview.days was stale (a
+  saved doc showed "15 days" for a 13-day trip, 14 Jul). Re-saving heals the stored value.
 - `buildState():PackageState` → `savePackage()` inserts into `q_package_docs`.
 - **Trip details editor** (added this session) — top of `.builder-body`, `.b-trip`: Arrival/Departure date pickers,
   Guests, and Accommodation-nights rows (nights + destination + remove, "+ Add accommodation"). Styles in `styles.css`.

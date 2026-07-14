@@ -408,7 +408,10 @@ export default function PackageBuilder({ draft, saved, onClose }: { draft?: Quot
 
     if (saved) {
 
-      overview = { ...saved.overview, nights: hotels.length ? totalNights : saved.overview.nights, pax: meta.pax }
+      // days: never trust the stored value — count the day pages actually rendered
+      // (arrival + itinerary days + departure). nights stays live from the accommodation rows.
+      const liveDayCount = days.length + (arrival.on ? 1 : 0) + (departure.on ? 1 : 0)
+      overview = { ...saved.overview, days: liveDayCount || saved.overview.days, nights: hotels.length ? totalNights : saved.overview.nights, pax: meta.pax }
 
     } else {
 
