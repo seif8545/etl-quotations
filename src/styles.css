@@ -288,6 +288,11 @@ input[type=checkbox] { width: 17px; height: 17px; accent-color: var(--gold); cur
 .picker-thumbs img { width: 116px; height: 78px; object-fit: cover; border-radius: 8px; cursor: pointer; border: 2px solid transparent; transition: border-color .12s ease, transform .12s ease; }
 .picker-thumbs img:hover { border-color: var(--gold); transform: scale(1.03); }
 
+/* photo picker — upload bar */
+.picker-up { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; margin: 12px 18px 0; padding: 12px 14px; border: 2px dashed var(--gold); border-radius: 12px; background: var(--cream-2); font-size: 13px; color: var(--navy); }
+.picker-browse { color: var(--gold-ink); text-decoration: underline; cursor: pointer; font-weight: 600; }
+.picker-up-area { width: 170px; padding: 6px 10px; }
+
 /* ---------- Meal ticker (package builder) ---------- */
 .meal-ticker { display: flex; align-items: center; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
 .meal-ticker-label { font-size: 11px; text-transform: uppercase; letter-spacing: .8px; color: var(--muted); margin-right: 2px; }

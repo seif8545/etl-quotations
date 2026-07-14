@@ -206,6 +206,13 @@ Image paths are `/assets/images/tours/<area>/<name>.webp`; the same basenames ex
 - `public/images/tours/manifest.json` = `{ "<area>": ["file.jpeg", ...] }`. The picker fetches it at runtime and
   the manifest key doubles as the folder path (`/images/tours/<key>/<file>`) — so key must equal folder name.
 - To add images: drop files in `public/images/tours/<area>/`, add them to `manifest.json`, commit+push.
+- `dahabiya-philae` area added 14 Jul (7 jpgs; the user had dropped the folder at public/images/ — picker
+  folders must live under public/images/tours/ + have a manifest key).
+- **Runtime uploads (14 Jul):** the picker has a drag-&-drop / browse bar → Supabase Storage public bucket
+  `tour-photos` (policies `q tour photos read` / `q tour photos upload`), one folder per collection; they render
+  as "<Collection> — Uploaded" sections and are picked as FULL public URLs. `photoSrc()` in PackageBuilder maps
+  photo values (http/data pass through, else `/images/tours/` prefix), so PackageState may contain absolute
+  URLs now — old relative paths still work everywhere.
 
 ---
 

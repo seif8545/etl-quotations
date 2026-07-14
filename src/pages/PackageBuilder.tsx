@@ -158,6 +158,11 @@ function MealTicker({ meals, onChange }: { meals: Meals; onChange: (m: Meals) =>
 
 
 
+const PHOTO_BUCKET = 'tour-photos'
+
+/** Photo values are either a path under /images/tours/ or a full URL (Supabase Storage upload). */
+const photoSrc = (p: string) => (/^https?:\/\//.test(p) || p.startsWith('data:') ? p : '/images/tours/' + p)
+
 /** Client-facing branded package PDF builder. Opens from a quotation (draft) or a saved package. */
 
 function FixedDayEditor({ label, day, set, onPickPhoto }: { label: string; day: FixedDay; set: (d: FixedDay) => void; onPickPhoto: () => void }) {
@@ -170,7 +175,7 @@ function FixedDayEditor({ label, day, set, onPickPhoto }: { label: string; day: 
       {day.on && (
         <div className="b-day-body">
           <div className="b-photo">
-            {day.photo ? <img src={`/images/tours/${day.photo}`} alt="" /> : <div className="b-nophoto">No photo</div>}
+            {day.photo ? <img src={photoSrc(day.photo)} alt="" /> : <div className="b-nophoto">No photo</div>}
             <button className="link" onClick={onPickPhoto}>Change photo</button>
           </div>
           <div className="b-day-text">
@@ -217,6 +222,9 @@ export default function PackageBuilder({ draft, saved, onClose }: { draft?: Quot
   const [flights, setFlights] = useState<FlightInsert[]>(saved?.flights ?? [])
 
   const [manifest, setManifest] = useState<Record<string, string[]>>({})
+  const [uploads, setUploads] = useState<Record<string, { name: string; url: string }[]>>({})
+  const [uploadArea, setUploadArea] = useState('my-uploads')
+  const [uploading, setUploading] = useState(false)
 
   const [picker, setPicker] = useState<{ target: string } | null>(null)
 
@@ -355,6 +363,7 @@ export default function PackageBuilder({ draft, saved, onClose }: { draft?: Quot
     }).catch((e) => setError(e.message ?? String(e)))
 
     fetch('/images/tours/manifest.json').then((r) => r.json()).then(setManifest).catch(() => {})
+    loadUploads()
 
   }, [])
 
@@ -383,6 +392,39 @@ export default function PackageBuilder({ draft, saved, onClose }: { draft?: Quot
   const setFlightTarget = (id: number, targetUid: string, position: 'start' | 'end') => setFlights((fs) => fs.map((f) => (f.id === id ? { ...f, targetUid, position } : f)))
 
 
+
+  async function loadUploads() {
+    try {
+      const root = await supabase.storage.from(PHOTO_BUCKET).list('', { limit: 200 })
+      if (root.error || !root.data) return
+      const out: Record<string, { name: string; url: string }[]> = {}
+      for (const entry of root.data) {
+        if (entry.id) continue // a top-level file, not a collection folder
+        const { data: inner } = await supabase.storage.from(PHOTO_BUCKET).list(entry.name, { limit: 500, sortBy: { column: 'name', order: 'asc' } })
+        const imgs = (inner ?? []).filter((f) => f.id)
+        if (!imgs.length) continue
+        out[entry.name] = imgs.map((f) => ({ name: f.name, url: supabase.storage.from(PHOTO_BUCKET).getPublicUrl(entry.name + '/' + f.name).data.publicUrl }))
+      }
+      setUploads(out)
+    } catch { /* picker still works without uploads */ }
+  }
+
+  async function uploadPhotos(fileList: FileList | File[]) {
+    const area = (uploadArea.trim() || 'my-uploads').toLowerCase().replace(/[^a-z0-9 _-]+/g, '').replace(/\s+/g, '-') || 'my-uploads'
+    const imgs = Array.from(fileList).filter((f) => f.type.startsWith('image/'))
+    if (!imgs.length) return
+    setUploading(true)
+    try {
+      for (const f of imgs) {
+        const clean = f.name.toLowerCase().replace(/[^a-z0-9._-]+/g, '-')
+        const { error: upErr } = await supabase.storage.from(PHOTO_BUCKET).upload(`${area}/${Date.now()}-${clean}`, f, { contentType: f.type || 'image/jpeg' })
+        if (upErr) throw upErr
+      }
+      await loadUploads()
+      setUploadArea(area)
+    } catch (e: any) { setError(e.message ?? String(e)) }
+    setUploading(false)
+  }
 
   function pickPhoto(photo: string) {
 
@@ -457,13 +499,13 @@ export default function PackageBuilder({ draft, saved, onClose }: { draft?: Quot
 
     const seq: { uid: string; title: string; description: string; photoUrl: string; highlights: string[]; meals: string[]; hotel: string }[] = [
 
-      ...(arrival.on ? [{ uid: '__arrival', title: arrival.title, description: arrival.description, photoUrl: arrival.photo ? '/images/tours/' + arrival.photo : '', highlights: ['Meet & assist', 'Hotel check-in', 'Overnight'], meals: mealList(arrival.meals), hotel: arrival.hotel }] : []),
+      ...(arrival.on ? [{ uid: '__arrival', title: arrival.title, description: arrival.description, photoUrl: arrival.photo ? photoSrc(arrival.photo) : '', highlights: ['Meet & assist', 'Hotel check-in', 'Overnight'], meals: mealList(arrival.meals), hotel: arrival.hotel }] : []),
 
       ...days.map((d) => ({
 
         uid: d.uid, title: d.title, description: d.description,
 
-        photoUrl: d.photo ? '/images/tours/' + d.photo : '',
+        photoUrl: d.photo ? photoSrc(d.photo) : '',
 
         highlights: [...d.sites.map((s) => s.trim()).filter(Boolean), ...(d.guide ? ['Private guide'] : [])],
 
@@ -473,7 +515,7 @@ export default function PackageBuilder({ draft, saved, onClose }: { draft?: Quot
 
       })),
 
-      ...(departure.on ? [{ uid: '__departure', title: departure.title, description: departure.description, photoUrl: departure.photo ? '/images/tours/' + departure.photo : '', highlights: ['Hotel check-out', 'Airport transfer'], meals: mealList(departure.meals), hotel: departure.hotel }] : []),
+      ...(departure.on ? [{ uid: '__departure', title: departure.title, description: departure.description, photoUrl: departure.photo ? photoSrc(departure.photo) : '', highlights: ['Hotel check-out', 'Airport transfer'], meals: mealList(departure.meals), hotel: departure.hotel }] : []),
 
     ]
 
@@ -501,7 +543,7 @@ export default function PackageBuilder({ draft, saved, onClose }: { draft?: Quot
 
       title, intro,
 
-      heroUrl: '/images/tours/' + hero,
+      heroUrl: photoSrc(hero),
 
       logoUrl: '/images/logo.png',
 
@@ -718,7 +760,7 @@ export default function PackageBuilder({ draft, saved, onClose }: { draft?: Quot
 
           <section className="b-cover">
 
-            <img className="b-hero" src={`/images/tours/${hero}`} alt="" />
+            <img className="b-hero" src={photoSrc(hero)} alt="" />
 
             <button className="link" onClick={() => setPicker({ target: 'hero' })}>Change cover photo</button>
 
@@ -758,7 +800,7 @@ export default function PackageBuilder({ draft, saved, onClose }: { draft?: Quot
 
                 <div className="b-photo">
 
-                  {d.photo ? <img src={`/images/tours/${d.photo}`} alt="" /> : <div className="b-nophoto">No photo</div>}
+                  {d.photo ? <img src={photoSrc(d.photo)} alt="" /> : <div className="b-nophoto">No photo</div>}
 
                   <button className="link" onClick={() => setPicker({ target: d.uid })}>Change photo</button>
 
@@ -962,6 +1004,19 @@ export default function PackageBuilder({ draft, saved, onClose }: { draft?: Quot
 
             <div className="picker-head"><b>Choose a photo</b><button onClick={() => setPicker(null)}>×</button></div>
 
+            <div className="picker-up" onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); uploadPhotos(e.dataTransfer.files) }}>
+              <b>{uploading ? 'Uploading…' : 'Add photos:'}</b>
+              {!uploading && <>
+                <span>drag & drop onto this box, or</span>
+                <label className="picker-browse">browse
+                  <input type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={(e) => { const fl = e.target.files ? Array.from(e.target.files) : []; e.target.value = ''; if (fl.length) uploadPhotos(fl) }} />
+                </label>
+                <span>· collection:</span>
+                <input className="picker-up-area" list="picker-up-areas" value={uploadArea} onChange={(e) => setUploadArea(e.target.value)} />
+                <datalist id="picker-up-areas">{[...new Set([...Object.keys(manifest), ...Object.keys(uploads)])].map((s) => <option key={s} value={s} />)}</datalist>
+              </>}
+            </div>
+
             <div className="picker-grid">
 
               {Object.entries(manifest).map(([area, files]) => (
@@ -975,6 +1030,26 @@ export default function PackageBuilder({ draft, saved, onClose }: { draft?: Quot
                     {files.map((f) => (
 
                       <img key={f} src={`/images/tours/${area}/${f}`} alt="" onClick={() => pickPhoto(`${area}/${f}`)} />
+
+                    ))}
+
+                  </div>
+
+                </div>
+
+              ))}
+
+              {Object.entries(uploads).map(([area, ufiles]) => (
+
+                <div key={'up-' + area} className="picker-area">
+
+                  <h5>{area.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())} — Uploaded</h5>
+
+                  <div className="picker-thumbs">
+
+                    {ufiles.map((f) => (
+
+                      <img key={f.url} src={f.url} alt="" onClick={() => pickPhoto(f.url)} />
 
                     ))}
 
