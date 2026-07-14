@@ -465,7 +465,7 @@ export default function PackageBuilder({ draft, saved, onClose }: { draft?: Quot
 
         photoUrl: d.photo ? '/images/tours/' + d.photo : '',
 
-        highlights: [...d.sites, ...(d.guide ? ['Private guide'] : [])],
+        highlights: [...d.sites.map((s) => s.trim()).filter(Boolean), ...(d.guide ? ['Private guide'] : [])],
 
         meals: mealList(d.meals),
 
@@ -768,7 +768,7 @@ export default function PackageBuilder({ draft, saved, onClose }: { draft?: Quot
 
                   <textarea rows={3} value={d.description} onChange={(e) => updateDay(d.uid, { description: e.target.value })} />
 
-                  {d.sites.length > 0 && <div className="muted small">Highlights: {d.sites.join(', ')}</div>}
+                  <input className="b-highlights" placeholder="Highlights (comma-separated — leave empty for none)" value={d.sites.join(', ')} onChange={(e) => updateDay(d.uid, { sites: e.target.value.split(',').map((s) => s.replace(/^\s+/, '')) })} />
 
                   <MealTicker meals={d.meals} onChange={(m) => updateDay(d.uid, { meals: m })} />
 

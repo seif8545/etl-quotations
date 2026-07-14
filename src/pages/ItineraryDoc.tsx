@@ -249,10 +249,9 @@ const ItineraryDoc = forwardRef<HTMLDivElement, { data: ItineraryData }>(({ data
       {/* Pricing table */}
       {d.pricing.show && d.pricing.rows.length > 0 && (
         <div className="summary-page">
-          <div className="sec-eyebrow">Investment</div>
+          <div className="sec-eyebrow">Pricing</div>
           <h2 className="fr sec-title">Package Pricing</h2>
           <div className="sec-rule" />
-          {d.pricing.refPp > 0 && <div className="price-ref">Based on the quoted rate of <b>${d.pricing.refPp.toLocaleString()}</b> per person in double occupancy{d.pricing.refSgl > 0 ? <> · single supplement <b>${d.pricing.refSgl.toLocaleString()}</b></> : null}.</div>}
           <table className="price-table">
             <thead><tr><th>Category</th><th>Per Person in Double</th><th>Single Supplement</th><th>Offered Hotels</th></tr></thead>
             <tbody>

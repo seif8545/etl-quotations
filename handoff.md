@@ -141,7 +141,9 @@ Two files do everything:
   Guests, and Accommodation-nights rows (nights + destination + remove, "+ Add accommodation"). Styles in `styles.css`.
 - **Photo picker:** each day + the cover have a "Change photo"/"Change cover photo" link → `setPicker({target})` →
   overlay that maps `manifest` (`public/images/tours/manifest.json`, fetched at runtime) grouped by area; clicking a
-  thumb calls `pickPhoto`. `FixedDayEditor` is a **module-scope** component (see §8 — it must NOT be defined inside
+  thumb calls `pickPhoto`. Each editable day's Highlights line is an editable comma-separated input bound to `day.sites`
+  (cleared = no tag line in the PDF; 'Private guide' is still auto-appended from `day.guide` at data build).
+  `FixedDayEditor` is a **module-scope** component (see §8 — it must NOT be defined inside
   the render or every keystroke remounts the inputs and loses focus). Area labels are prettified in the picker
   (`area.replace(/-/g,' ')` + title-case) so `group-shots` shows as "Group Shots".
 
