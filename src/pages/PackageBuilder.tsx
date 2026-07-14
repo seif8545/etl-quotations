@@ -584,6 +584,18 @@ export default function PackageBuilder({ draft, saved, onClose }: { draft?: Quot
 
       await waitForAssets(node)
 
+      // html2canvas crops the capture at the element's on-screen rect: if the builder
+      // overlay (or the window) is scrolled when Export is clicked, the whole capture
+      // shifts down by the scroll amount — blank page(s) at the start and the closing
+      // page(s) sliced off the end. Zero all scrolls during capture, restore after.
+      // (Do NOT pass scrollX/scrollY/windowWidth to html2canvas — that breaks capture.)
+      const scrolled: Array<[HTMLElement, number, number]> = []
+      for (let el: HTMLElement | null = node.parentElement; el; el = el.parentElement) {
+        if (el.scrollTop || el.scrollLeft) { scrolled.push([el, el.scrollTop, el.scrollLeft]); el.scrollTop = 0; el.scrollLeft = 0 }
+      }
+      const winX = window.scrollX, winY = window.scrollY
+      window.scrollTo(0, 0)
+
       const safe = (title || 'package').replace(/[^\w\-]+/g, '_')
 
       const opt = {
@@ -613,6 +625,9 @@ export default function PackageBuilder({ draft, saved, onClose }: { draft?: Quot
         }).toImg().toPdf().save()
       } catch (cropErr) {
         await html2pdf().set(opt).from(node).save()
+      } finally {
+        window.scrollTo(winX, winY)
+        scrolled.forEach(([el, t, l]) => { el.scrollTop = t; el.scrollLeft = l })
       }
 
       await savePackage()

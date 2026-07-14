@@ -59,6 +59,14 @@ Colors: navy `#0e2a47`, navy-deep `#081a30`, gold `#c8960a`/`#e8b015`/pale `#f0c
 - **`q_package_docs` columns:** `id bigint`, `name text NOT NULL`, `group_ref text`, `pax int`,
   `arrival_date date`, `departure_date date`, `data jsonb NOT NULL` (= a `PackageState`, see §4),
   `created_by uuid NOT NULL`, `created_at timestamptz`.
+- **Document sharing (14 Jul session):** all four doc tables (`q_quotations`, `q_package_docs`, `q_letters`,
+  `q_vouchers`) now have `shared_with uuid[] NOT NULL DEFAULT '{}'`. The old single ALL policy per table is split
+  into select/insert/update/delete; SELECT adds `auth.uid() = any(shared_with)` so recipients can view but never
+  modify/delete. Trigger `q_guard_shared_with()` on all 4 tables blocks non-admins from setting/changing
+  `shared_with` (allows when `auth.uid()` is null, i.e. MCP/service SQL). UI: `Documents.tsx` now takes
+  `isAdmin` + `uid` props from `App.tsx`; admins get a per-row "Share…" button → checkbox modal listing non-admin
+  `q_profiles` (updates `shared_with` immediately); non-admins see a "Shared with you" tag on rows they don't own
+  and no Delete. Styles: `.share-*` block at the end of `styles.css` (reuses `.picker-overlay`/`.picker`).
 
 Pricing rules (base Excel module): 120 sites / 104 transfers; +10% from 1 Nov 2025 (`new_price*` + `effective_date`);
 vehicle by pax ≤7 limo / ≤15 coaster / 16+ bus (`q_pax_tiers`); SGL supp = 70% of DBL (`q_settings`);
@@ -245,6 +253,16 @@ Image paths are `/assets/images/tours/<area>/<name>.webp`; the same basenames ex
   lets the real browser lay it out, then copies each element's bounding rect + draws images — so anything the
   browser resolves to "auto"/intrinsic is where bugs live). Then have the user re-export to confirm.
 
+**I. Whole export shifted DOWN by a constant offset — blank first page(s), last page(s) cut off (14 Jul).**
+  Reported as "adding a pricing table breaks the rendering" — actually scroll-dependent: html2canvas crops
+  the capture at the element's on-screen bounding rect, and the offscreen `<ItineraryDoc>` wrapper is an
+  absolute child of the scrollable `.builder-overlay`. Scroll the builder (e.g. down at the pricing-table
+  editor) and the rect sits scrollTop px above the viewport while html2canvas's clone lays out unscrolled ⇒
+  the whole capture shifts down by exactly the scroll amount (measured 1348px on the user's 18-page export:
+  page 1 blank + closing page gone). Fix in `exportPdf()`: zero `window` scroll and every scrolled ancestor's
+  scrollTop/Left before capture, restore in `finally`. Still never pass scrollX/scrollY/windowWidth to
+  html2canvas itself (see D).
+
 ---
 
 ## 9. CURRENT STATE / PENDING
@@ -252,7 +270,14 @@ Image paths are `/assets/images/tours/<area>/<name>.webp`; the same basenames ex
 - `tsc --noEmit` passes clean. Base modules (Excel/Letter/Voucher/Admin) unchanged and working.
 - Package PDF: cover fixed (portrait heroes work), one-per-page days, canvas-crop for the seam, singular labels,
   Trip-details editor (dates + accommodation nights) live above the Export button.
-- 6 packages live in `q_package_docs` (ids 52–55, 57, 58). `group-shots` area (20 photos) added to the picker.
+- `q_package_docs` has grown to ~68 rows (user kept building beyond the original ids 52–55, 57, 58).
+  `group-shots` area (20 photos) is in the picker.
+- **Dahabiya day presets (14 Jul session):** `q_day_presets` ids 33–40, sorts 30–37, named "Dahabiya 1 — …" to
+  "Dahabiya 8 — …" so they render as one consecutive chip row in the Quotation wizard (Luxor–Luxor, 7 nights).
+  Costed sites: D2 Valley of Kings+Hatshepsut, D3 Edfu, D4 Philae+High Dam, D6 Kom Ombo, D7 Karnak+Luxor Temple.
+  Abu Simbel (D5) is *optional* in the text and NOT costed (add site 80 via Admin → Day presets if wanted).
+  Guide on D2/3/4/6/7 only; no transfers (the boat is the transport). NB: site 71 = "Habo" (Medinet Habu), NOT
+  Memnon — the Colossi have no q_sites entry (free to visit).
 - **Uncommitted / needs the user's `git push`** to deploy: whatever the working tree shows (`git status`). DB and
   photos are already live for local `npm run dev`; the live site needs the push.
 - **Likely next asks:** insert more of the 25 tours; add hotel-photo-per-tier to the pricing table (not a field
