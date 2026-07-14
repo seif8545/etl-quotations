@@ -230,11 +230,11 @@ export default function PackageBuilder({ draft, saved, onClose }: { draft?: Quot
 
 
 
-  const hotels = saved?.hotels ?? (draft?.accommodation ?? []).filter((a) => a.nights > 0)
+  const [hotels, setHotels] = useState<{ nights: number; destination: string }[]>((saved?.hotels ?? (draft?.accommodation ?? []).filter((a) => a.nights > 0)) as { nights: number; destination: string }[])
 
   const totalNights = hotels.reduce((s, h) => s + h.nights, 0)
 
-  const meta = saved?.meta ?? { ref: draft?.groupRef ?? '', pax: draft?.pax ?? 0, arrival: draft?.arrivalDate ?? '', departure: draft?.departureDate ?? '' }
+  const [meta, setMeta] = useState(saved?.meta ?? { ref: draft?.groupRef ?? '', pax: draft?.pax ?? 0, arrival: draft?.arrivalDate ?? '', departure: draft?.departureDate ?? '' })
 
 
 
@@ -408,7 +408,7 @@ export default function PackageBuilder({ draft, saved, onClose }: { draft?: Quot
 
     if (saved) {
 
-      overview = { ...saved.overview, pax: meta.pax }
+      overview = { ...saved.overview, nights: hotels.length ? totalNights : saved.overview.nights, pax: meta.pax }
 
     } else {
 
@@ -677,6 +677,26 @@ export default function PackageBuilder({ draft, saved, onClose }: { draft?: Quot
         {error && <div className="error">{error}</div>}
 
         <div className="builder-body">
+
+          <div className="b-trip">
+            <div className="b-trip-dates">
+              <label>Arrival <input type="date" value={meta.arrival} onChange={(e) => setMeta((m) => ({ ...m, arrival: e.target.value }))} /></label>
+              <label>Departure <input type="date" value={meta.departure} onChange={(e) => setMeta((m) => ({ ...m, departure: e.target.value }))} /></label>
+              <label>Guests <input type="number" min={1} value={meta.pax} onChange={(e) => setMeta((m) => ({ ...m, pax: Math.max(1, Number(e.target.value) || 1) }))} style={{ width: 64 }} /></label>
+            </div>
+            <div className="b-trip-accom">
+              <b>Accommodation nights</b>
+              {hotels.map((h, i) => (
+                <div className="b-accom-row" key={i}>
+                  <input type="number" min={0} value={h.nights} onChange={(e) => setHotels((hs) => hs.map((x, j) => (j === i ? { ...x, nights: Math.max(0, Number(e.target.value) || 0) } : x)))} />
+                  <span>nights in</span>
+                  <input value={h.destination} onChange={(e) => setHotels((hs) => hs.map((x, j) => (j === i ? { ...x, destination: e.target.value } : x)))} placeholder="Destination" />
+                  <button className="link danger" onClick={() => setHotels((hs) => hs.filter((_, j) => j !== i))}>remove</button>
+                </div>
+              ))}
+              <button onClick={() => setHotels((hs) => [...hs, { nights: 1, destination: '' }])}>+ Add accommodation</button>
+            </div>
+          </div>
 
           <section className="b-cover">
 
