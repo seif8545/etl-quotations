@@ -930,7 +930,7 @@ export default function PackageBuilder({ draft, saved, onClose }: { draft?: Quot
 
                 <div key={area} className="picker-area">
 
-                  <h5>{area}</h5>
+                  <h5>{area.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())}</h5>
 
                   <div className="picker-thumbs">
 
