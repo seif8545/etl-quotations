@@ -23,7 +23,7 @@ const CSS = `
 
 /* Cover */
 .itin-cover { position: relative; height: 1123px; overflow: hidden; display: flex; flex-direction: column; justify-content: space-between; }
-.cover-hero { position: absolute; inset: -3px; width: calc(100% + 6px); height: calc(100% + 6px); object-fit: cover; }
+.cover-hero { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .cover-ov { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(14,42,71,0.18) 0%, rgba(14,42,71,0.30) 45%, rgba(8,26,48,0.92) 100%); }
 .cover-top { position: relative; z-index: 2; padding: 48px; display: flex; justify-content: center; }
 .cover-logo { background: #ffffff; border-radius: 999px; padding: 13px 26px; box-shadow: 0 6px 24px rgba(0,0,0,0.25); }
@@ -197,9 +197,9 @@ const ItineraryDoc = forwardRef<HTMLDivElement, { data: ItineraryData }>(({ data
         <h2 className="fr op-title">At a Glance</h2>
         <div className="op-rule" />
         <div className="op-stats">
-          <div><b className="fr">{d.overview.days}</b><span>Days</span></div>
-          <div><b className="fr">{d.overview.nights}</b><span>Nights</span></div>
-          <div><b className="fr">{d.overview.cities}</b><span>Cities</span></div>
+          <div><b className="fr">{d.overview.days}</b><span>{d.overview.days === 1 ? 'Day' : 'Days'}</span></div>
+          <div><b className="fr">{d.overview.nights}</b><span>{d.overview.nights === 1 ? 'Night' : 'Nights'}</span></div>
+          <div><b className="fr">{d.overview.cities}</b><span>{d.overview.cities === 1 ? 'City' : 'Cities'}</span></div>
           <div><b className="fr">{d.overview.pax}</b><span>{d.overview.pax === 1 ? 'Guest' : 'Guests'}</span></div>
         </div>
         {d.intro ? <p className="fr op-intro">{d.intro}</p> : null}
