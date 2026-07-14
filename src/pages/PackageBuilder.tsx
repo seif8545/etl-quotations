@@ -916,7 +916,7 @@ export default function PackageBuilder({ draft, saved, onClose }: { draft?: Quot
 
                           <td><input type="number" min={0} value={r.single} onChange={(e) => updateRow(i, { single: +e.target.value })} /></td>
 
-                          <td><input value={r.hotels} onChange={(e) => updateRow(i, { hotels: e.target.value })} placeholder="e.g. Falcon Hills or equal" /></td>
+                          <td><textarea className="pr-hotels" rows={4} value={r.hotels} onChange={(e) => updateRow(i, { hotels: e.target.value })} placeholder={'One line per destination, e.g.\nCairo: Hilton Grand Nile or equal\nNile Cruise: Sonesta or similar\nHurghada: JAZ Aquamarine or equal'} /></td>
 
                           <td>{priceRows.length > 1 && <button className="link danger" onClick={() => setPriceRows((rs) => rs.filter((_, j) => j !== i))}>×</button>}</td>
 

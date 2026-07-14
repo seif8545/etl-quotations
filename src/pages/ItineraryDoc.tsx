@@ -105,6 +105,7 @@ const CSS = `
 .pt-cat { color: #0e2a47; font-weight: 600; white-space: nowrap; }
 .pt-price { color: #806000; font-weight: 600; white-space: nowrap; }
 .pt-hotels { color: #6a7789; font-size: 11.5px; }
+.pt-hl + .pt-hl { margin-top: 4px; }
 
 /* Closing */
 .sec-h { font-size: 30px; font-weight: 600; color: #0e2a47; margin: 0 0 6px; }
@@ -256,7 +257,7 @@ const ItineraryDoc = forwardRef<HTMLDivElement, { data: ItineraryData }>(({ data
             <thead><tr><th>Category</th><th>Per Person in Double</th><th>Single Supplement</th><th>Offered Hotels</th></tr></thead>
             <tbody>
               {d.pricing.rows.map((r, i) => (
-                <tr key={i}><td className="pt-cat">{r.category}</td><td className="pt-price">{r.dbl > 0 ? `${r.dbl.toLocaleString()} USD` : '—'}</td><td className="pt-price">{r.single > 0 ? `${r.single.toLocaleString()} USD` : '—'}</td><td className="pt-hotels">{r.hotels}</td></tr>
+                <tr key={i}><td className="pt-cat">{r.category}</td><td className="pt-price">{r.dbl > 0 ? `${r.dbl.toLocaleString()} USD` : '—'}</td><td className="pt-price">{r.single > 0 ? `${r.single.toLocaleString()} USD` : '—'}</td><td className="pt-hotels">{r.hotels.split('\n').map((l) => l.trim()).filter(Boolean).map((l, k) => <div className="pt-hl" key={k}>{l}</div>)}</td></tr>
               ))}
             </tbody>
           </table>
