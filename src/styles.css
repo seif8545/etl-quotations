@@ -397,3 +397,15 @@ input[type=checkbox] { width: 17px; height: 17px; accent-color: var(--gold); cur
 .b-accom-row span { font-size: 13px; color: var(--muted); }
 .b-accom-row input[type=number] { width: 58px; text-align: center; }
 .b-accom-row input:not([type=number]) { flex: 1; min-width: 120px; }
+
+
+/* ---------- Share (reveal documents) modal ---------- */
+.share-card { width: min(430px, 92%); }
+.share-body { padding: 14px 18px 18px; }
+.share-body > p { margin: 0 0 12px; }
+.share-person { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; cursor: pointer; margin-bottom: 8px; background: #fff; }
+.share-person:hover { border-color: var(--gold); }
+.share-person.on { border-color: var(--navy); background: var(--cream-2); }
+.share-person input { accent-color: var(--navy); width: 16px; height: 16px; flex: 0 0 auto; }
+.share-name { font-weight: 600; color: var(--navy); }
+.share-tag { font-size: 11px; text-transform: uppercase; letter-spacing: .6px; color: var(--gold-ink); background: var(--cream-2); border: 1px solid var(--border); border-radius: 999px; padding: 3px 10px; white-space: nowrap; }

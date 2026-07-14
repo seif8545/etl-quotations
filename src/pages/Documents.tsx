@@ -12,7 +12,7 @@ import type { QuotationDraft } from '../lib/types'
 const TABS = ['Quotations', 'Packages', 'Letters', 'Vouchers'] as const
 type Tab = (typeof TABS)[number]
 
-export default function Documents({ openQuotation }: { openQuotation: (d: QuotationDraft) => void }) {
+export default function Documents({ openQuotation, isAdmin, uid }: { openQuotation: (d: QuotationDraft) => void; isAdmin: boolean; uid: string }) {
   const [tab, setTab] = useState<Tab>('Quotations')
   const [rows, setRows] = useState<any[]>([])
   const [search, setSearch] = useState('')
@@ -20,6 +20,8 @@ export default function Documents({ openQuotation }: { openQuotation: (d: Quotat
   const [busyId, setBusyId] = useState<number | null>(null)
   const [pdfDraft, setPdfDraft] = useState<QuotationDraft | null>(null)
   const [savedPkg, setSavedPkg] = useState<PackageState | null>(null)
+  const [agents, setAgents] = useState<{ id: string; full_name: string; email: string }[]>([])
+  const [shareRow, setShareRow] = useState<any | null>(null)
 
   const table = tab === 'Quotations' ? 'q_quotations' : tab === 'Packages' ? 'q_package_docs' : tab === 'Letters' ? 'q_letters' : 'q_vouchers'
 
@@ -29,6 +31,12 @@ export default function Documents({ openQuotation }: { openQuotation: (d: Quotat
     else { setError(''); setRows(data ?? []) }
   }
   useEffect(() => { load() }, [tab])
+
+  useEffect(() => {
+    if (!isAdmin) return
+    supabase.from('q_profiles').select('id, full_name, email').neq('role', 'admin').order('email')
+      .then(({ data }) => setAgents(data ?? []))
+  }, [isAdmin])
 
   const visible = search
     ? rows.filter((r) => JSON.stringify(r).toLowerCase().includes(search.toLowerCase()))
@@ -65,6 +73,19 @@ export default function Documents({ openQuotation }: { openQuotation: (d: Quotat
       downloadBlob(blob, tab === 'Letters' ? 'GuaranteeLetter.docx' : 'HotelVoucher.docx')
     } catch (e: any) { setError(e.message ?? String(e)) }
     setBusyId(null)
+  }
+
+  const docLabel = (r: any) => r.name || r.consignee || r.hotel_name || `#${r.id}`
+
+  async function toggleShare(personId: string) {
+    if (!shareRow) return
+    const cur: string[] = shareRow.shared_with ?? []
+    const next = cur.includes(personId) ? cur.filter((x) => x !== personId) : [...cur, personId]
+    const { error } = await supabase.from(table).update({ shared_with: next }).eq('id', shareRow.id)
+    if (error) { setError(error.message); return }
+    const upd = { ...shareRow, shared_with: next }
+    setShareRow(upd)
+    setRows((rs) => rs.map((r) => (r.id === upd.id ? upd : r)))
   }
 
   async function del(row: any) {
@@ -120,7 +141,15 @@ export default function Documents({ openQuotation }: { openQuotation: (d: Quotat
                       <button className="link" onClick={() => word(r)}>Word</button>
                       <button className="link" onClick={() => (tab === 'Letters' ? letterToPdf(r.data) : voucherToPdf(r.data)).catch((e: any) => setError(e.message ?? String(e)))}>PDF</button>
                     </>}
-                    <button className="link danger" onClick={() => del(r)}>Delete</button>
+                    {isAdmin && (
+                      <button className="link" onClick={() => setShareRow(r)}>
+                        {(r.shared_with?.length ?? 0) > 0 ? `Shared (${r.shared_with.length})` : 'Share…'}
+                      </button>
+                    )}
+                    {!isAdmin && r.created_by !== uid && <span className="share-tag">Shared with you</span>}
+                    {(isAdmin || r.created_by === uid) && (
+                      <button className="link danger" onClick={() => del(r)}>Delete</button>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -128,6 +157,27 @@ export default function Documents({ openQuotation }: { openQuotation: (d: Quotat
           </table>
         </div>
       </div>
+      {shareRow && (
+        <div className="picker-overlay" onClick={() => setShareRow(null)}>
+          <div className="picker share-card" onClick={(e) => e.stopPropagation()}>
+            <div className="picker-head"><b>Share “{docLabel(shareRow)}”</b><button onClick={() => setShareRow(null)}>×</button></div>
+            <div className="share-body">
+              <p className="muted small">Anyone selected can see, open and export this document. Only you can change or delete it.</p>
+              {agents.length === 0 && <p className="muted">No non-admin users found.</p>}
+              {agents.map((a) => {
+                const on = ((shareRow.shared_with ?? []) as string[]).includes(a.id)
+                return (
+                  <label key={a.id} className={on ? 'share-person on' : 'share-person'}>
+                    <input type="checkbox" checked={on} onChange={() => toggleShare(a.id)} />
+                    <span className="share-name">{a.full_name || a.email}</span>
+                    {a.full_name && <span className="muted small">{a.email}</span>}
+                  </label>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+      )}
       {pdfDraft && <PackageBuilder draft={pdfDraft} onClose={() => { setPdfDraft(null); load() }} />}
       {savedPkg && <PackageBuilder saved={savedPkg} onClose={() => { setSavedPkg(null); load() }} />}
     </div>

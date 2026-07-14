@@ -57,7 +57,7 @@ export default function App() {
       {page === 'letter' && <Letter done={home} />}
       {page === 'voucher' && <Voucher done={home} />}
       {page === 'documents' && (
-        <Documents openQuotation={(d) => { setEditDraft(d); setPage('quotation') }} />
+        <Documents openQuotation={(d) => { setEditDraft(d); setPage('quotation') }} isAdmin={isAdmin} uid={session.user.id} />
       )}
       {page === 'admin' && (isAdmin ? <Admin /> : <div className="center-page">Admins only.</div>)}
     </div>
