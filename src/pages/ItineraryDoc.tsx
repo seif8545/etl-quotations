@@ -209,8 +209,8 @@ const ItineraryDoc = forwardRef<HTMLDivElement, { data: ItineraryData }>(({ data
       {/* One full page per day */}
       {d.days.map((day, i) => dayPage(day, i))}
 
-      {/* Accommodation + inclusions + price */}
-      {(d.hotels.length > 0 || d.included.length > 0 || d.excluded.length > 0 || d.price.show) && (
+      {/* Accommodation + price */}
+      {(d.hotels.length > 0 || d.price.show) && (
         <div className="summary-page">
           {d.hotels.length > 0 && (
             <div className="sum-block">
@@ -225,17 +225,6 @@ const ItineraryDoc = forwardRef<HTMLDivElement, { data: ItineraryData }>(({ data
               ))}
             </div>
           )}
-          {(d.included.length > 0 || d.excluded.length > 0) && (
-            <div className="sum-block">
-              <div className="sec-eyebrow">The Details</div>
-              <h2 className="fr sec-title">What's Included</h2>
-              <div className="sec-rule" />
-              <div className="inc-grid">
-                <div className="inc-col"><h4>Included</h4>{d.included.map((t, i) => <div className="inc-item" key={i}><span className="mark yes">✓</span>{t}</div>)}</div>
-                <div className="inc-col"><h4>Not included</h4>{d.excluded.map((t, i) => <div className="inc-item" key={i}><span className="mark no">✕</span>{t}</div>)}</div>
-              </div>
-            </div>
-          )}
           {d.price.show && (
             <div className="price-box">
               <div className="price-eyebrow">Package Price</div>
@@ -244,6 +233,21 @@ const ItineraryDoc = forwardRef<HTMLDivElement, { data: ItineraryData }>(({ data
               {d.price.sgl > 0 && <div className="price-sgl">Single room supplement: ${d.price.sgl.toLocaleString()} per person</div>}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Inclusions — own fixed page so long lists never clip the price box */}
+      {(d.included.length > 0 || d.excluded.length > 0) && (
+        <div className="summary-page">
+          <div className="sum-block">
+            <div className="sec-eyebrow">The Details</div>
+            <h2 className="fr sec-title">What's Included</h2>
+            <div className="sec-rule" />
+            <div className="inc-grid">
+              <div className="inc-col"><h4>Included</h4>{d.included.map((t, i) => <div className="inc-item" key={i}><span className="mark yes">✓</span>{t}</div>)}</div>
+              <div className="inc-col"><h4>Not included</h4>{d.excluded.map((t, i) => <div className="inc-item" key={i}><span className="mark no">✕</span>{t}</div>)}</div>
+            </div>
+          </div>
         </div>
       )}
 

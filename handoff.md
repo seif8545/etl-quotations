@@ -117,7 +117,9 @@ Two files do everything:
   1. `.itin-cover` — full-bleed hero image + logo + eyebrow + title + gold divider + meta (dates/guests).
   2. `.opening` — "At a Glance": stats (Days/Nights/Cities/Guests, singular-aware) + intro paragraph.
   3. **One `.day-full` page per day** (see below).
-  4. `.summary-page` — Accommodation cards + What's Included/Excluded + price box.
+  4. `.summary-page` — Accommodation cards + Package Price box.
+  4b. `.summary-page` — What's Included/Excluded on its OWN page (since 14 Jul: long inclusion lists were
+      overflowing the single summary page and clipping the price box — fixed heights clip, they don't flow).
   5. `.summary-page` — Package Pricing tier table (only if `priceTableOn && priceRows.length`).
   6. `.itin-closing` — navy "Why Egypt Top Light" + "Thank You" + contact.
 - **Days = ONE PER PAGE** (the user explicitly chose this — see §8 history). `dayPage(day,i)` renders a full-page
