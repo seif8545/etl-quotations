@@ -600,7 +600,7 @@ export default function PackageBuilder({ draft, saved, onClose }: { draft?: Quot
         await html2pdf().set(opt).from(node).toCanvas().then(function (this: any) {
           const src: HTMLCanvasElement | undefined = this && this.prop ? this.prop.canvas : undefined
           if (!src || !src.width || !src.height) return
-          const cut = 12
+          const cut = 18
           const out = document.createElement('canvas')
           out.width = src.width
           out.height = src.height
