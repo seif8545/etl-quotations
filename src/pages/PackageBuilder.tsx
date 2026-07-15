@@ -10,7 +10,7 @@ import ItineraryDoc from './ItineraryDoc'
 
 import type { ItineraryData } from './ItineraryDoc'
 
-import type { QuotationDraft, RefData } from '../lib/types'
+import type { QuotationDraft, RefData, DayPreset } from '../lib/types'
 
 
 
@@ -189,7 +189,7 @@ function FixedDayEditor({ label, day, set, onPickPhoto }: { label: string; day: 
   )
 }
 
-export default function PackageBuilder({ draft, saved, onClose }: { draft?: QuotationDraft; saved?: PackageState; onClose: () => void }) {
+export default function PackageBuilder({ draft, saved, savedId, onClose }: { draft?: QuotationDraft; saved?: PackageState; savedId?: number; onClose: () => void }) {
 
   const [ref, setRef] = useState<RefData | null>(null)
 
@@ -233,6 +233,8 @@ export default function PackageBuilder({ draft, saved, onClose }: { draft?: Quot
   const [savedMsg, setSavedMsg] = useState('')
 
   const [error, setError] = useState('')
+
+  const [currentId, setCurrentId] = useState<number | undefined>(savedId)
 
   const docRef = useRef<HTMLDivElement>(null)
 
@@ -386,6 +388,15 @@ export default function PackageBuilder({ draft, saved, onClose }: { draft?: Quot
     setDays((ds) => ds.map((d) => (d.uid === uid ? { ...d, ...patch } : d)))
 
   const removeDay = (uid: string) => setDays((ds) => ds.filter((d) => d.uid !== uid))
+
+  function addDayFromPreset(p: DayPreset) {
+    const nameOf = (id: number) => ref?.sites.find((x) => x.id === id)?.name ?? ''
+    const day: EditableDay = {
+      uid: newUid(), title: p.name, description: p.description, photo: p.photo,
+      sites: p.site_ids.map(nameOf).filter(Boolean), guide: p.include_guide, meals: TOUR_MEALS(), hotel: '',
+    }
+    setDays((ds) => [...ds, day])
+  }
 
   const updateRow = (i: number, patch: Partial<PriceRow>) => setPriceRows((rs) => rs.map((r, j) => (j === i ? { ...r, ...patch } : r)))
 
@@ -589,25 +600,47 @@ export default function PackageBuilder({ draft, saved, onClose }: { draft?: Quot
 
 
 
-  async function savePackage() {
+  async function savePackage(asNewVersion = false) {
 
     try {
 
       const st = buildState()
 
-      const { data: u } = await supabase.auth.getUser()
-
-      const { error: e } = await supabase.from('q_package_docs').insert({
+      const row = {
 
         name: st.title, group_ref: st.meta.ref, pax: st.meta.pax,
 
         arrival_date: st.meta.arrival || null, departure_date: st.meta.departure || null,
 
-        data: st, created_by: u.user?.id,
+        data: st,
 
-      })
+      }
 
-      if (!e) { setSavedMsg('Saved to Packages'); setTimeout(() => setSavedMsg(''), 2500) }
+      if (currentId && !asNewVersion) {
+
+        const { error: e } = await supabase.from('q_package_docs').update(row).eq('id', currentId)
+
+        if (!e) { setSavedMsg('Saved'); setTimeout(() => setSavedMsg(''), 2500) }
+
+      } else {
+
+        const { data: u } = await supabase.auth.getUser()
+
+        const { data: ins, error: e } = await supabase.from('q_package_docs')
+
+          .insert({ ...row, created_by: u.user?.id }).select('id').single()
+
+        if (!e) {
+
+          if (ins?.id) setCurrentId(ins.id)
+
+          setSavedMsg(asNewVersion ? 'Saved as new version' : 'Saved to Packages')
+
+          setTimeout(() => setSavedMsg(''), 2500)
+
+        }
+
+      }
 
     } catch { /* don't block export on save errors */ }
 
@@ -675,7 +708,7 @@ export default function PackageBuilder({ draft, saved, onClose }: { draft?: Quot
         scrolled.forEach(([el, t, l]) => { el.scrollTop = t; el.scrollLeft = l })
       }
 
-      await savePackage()
+      await savePackage(false)
 
     } catch (e: any) {
 
@@ -726,7 +759,8 @@ export default function PackageBuilder({ draft, saved, onClose }: { draft?: Quot
 
           {savedMsg && <span className="small" style={{ color: '#bfe6c0' }}>{savedMsg}</span>}
 
-          <button onClick={savePackage}>Save</button>
+          <button onClick={() => savePackage(false)}>Save</button>
+          {currentId && <button onClick={() => savePackage(true)}>Save as new version</button>}
 
           <button onClick={onClose}>Close</button>
 
@@ -777,6 +811,21 @@ export default function PackageBuilder({ draft, saved, onClose }: { draft?: Quot
           <FixedDayEditor label="Arrival day" day={arrival} set={setArrival} onPickPhoto={() => setPicker({ target: 'arrival' })} />
 
 
+
+          {ref!.dayPresets.length > 0 && (
+            <div className="day-presets">
+              {(() => {
+                const total: Record<string, number> = {}
+                ref!.dayPresets.forEach((p) => { total[p.name] = (total[p.name] ?? 0) + 1 })
+                const seen: Record<string, number> = {}
+                return ref!.dayPresets.map((p) => {
+                  seen[p.name] = (seen[p.name] ?? 0) + 1
+                  const label = total[p.name] > 1 ? `${p.name} #${seen[p.name]}` : p.name
+                  return <button key={p.id} type="button" className="day-chip-add" onClick={() => addDayFromPreset(p)}>+ {label}</button>
+                })
+              })()}
+            </div>
+          )}
 
           {days.map((d, i) => (
 

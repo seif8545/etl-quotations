@@ -20,6 +20,7 @@ export default function Documents({ openQuotation, isAdmin, uid }: { openQuotati
   const [busyId, setBusyId] = useState<number | null>(null)
   const [pdfDraft, setPdfDraft] = useState<QuotationDraft | null>(null)
   const [savedPkg, setSavedPkg] = useState<PackageState | null>(null)
+  const [savedPkgId, setSavedPkgId] = useState<number | null>(null)
   const [agents, setAgents] = useState<{ id: string; full_name: string; email: string }[]>([])
   const [shareRow, setShareRow] = useState<any | null>(null)
 
@@ -135,7 +136,7 @@ export default function Documents({ openQuotation, isAdmin, uid }: { openQuotati
                       {r.draft && <button className="link" onClick={() => saveAsPackage(r)}>Save as package</button>}
                     </>}
                     {tab === 'Packages' && r.data && (
-                      <button className="link" onClick={() => setSavedPkg(r.data as PackageState)}>Open / Export</button>
+                      <button className="link" onClick={() => { setSavedPkg(r.data as PackageState); setSavedPkgId(r.id) }}>Open / Export</button>
                     )}
                     {(tab === 'Letters' || tab === 'Vouchers') && r.data && <>
                       <button className="link" onClick={() => word(r)}>Word</button>
@@ -179,7 +180,7 @@ export default function Documents({ openQuotation, isAdmin, uid }: { openQuotati
         </div>
       )}
       {pdfDraft && <PackageBuilder draft={pdfDraft} onClose={() => { setPdfDraft(null); load() }} />}
-      {savedPkg && <PackageBuilder saved={savedPkg} onClose={() => { setSavedPkg(null); load() }} />}
+      {savedPkg && <PackageBuilder saved={savedPkg} savedId={savedPkgId ?? undefined} onClose={() => { setSavedPkg(null); setSavedPkgId(null); load() }} />}
     </div>
   )
 }
