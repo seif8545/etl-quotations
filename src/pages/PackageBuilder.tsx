@@ -12,6 +12,8 @@ import type { ItineraryData } from './ItineraryDoc'
 
 import type { QuotationDraft, RefData, DayPreset } from '../lib/types'
 
+// build-cache-buster: v4
+
 
 
 interface Meals { breakfast: boolean; lunch: boolean; dinner: boolean }
@@ -401,6 +403,8 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
   const updateRow = (i: number, patch: Partial<PriceRow>) => setPriceRows((rs) => rs.map((r, j) => (j === i ? { ...r, ...patch } : r)))
 
   const setFlightTarget = (id: number, targetUid: string, position: 'start' | 'end') => setFlights((fs) => fs.map((f) => (f.id === id ? { ...f, targetUid, position } : f)))
+
+  const removeFlight = (id: number) => setFlights((fs) => fs.filter((f) => f.id !== id))
 
 
 
@@ -881,9 +885,12 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
 
             <section className="b-sec">
 
-              <h4>Inter-city transfers</h4>
+              <div className="b-day-head">
+                <h4>Inter-city transfers</h4>
+                <button className="link danger" onClick={() => setFlights([])}>Remove all</button>
+              </div>
 
-              <p className="muted small">Slot each inter-city flight or road transfer into a day — it appears as a bullet at the start or end of that day.</p>
+              <p className="muted small">Slot each inter-city flight or road transfer into a day — it appears as a bullet at the start or end of that day, or remove ones you don't need.</p>
 
               {flights.map((f) => (
 
@@ -912,6 +919,8 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
                     ])}
 
                   </select>
+
+                  <button className="link danger" onClick={() => removeFlight(f.id)}>Remove</button>
 
                 </div>
 
