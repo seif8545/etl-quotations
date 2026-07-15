@@ -196,7 +196,12 @@ A 25-item array (`uploads/tours.json`) scraped from egypttoplight.net/tours. Eac
 `id, slug, title, duration, nights, price, destinations[], governorates[], category, coverImage, gallery[],
 excerpt, overview, highlights[], groupSize, pace, itinerary:[{day,title,description}], included[], excluded[], rating, reviews`.
 Image paths are `/assets/images/tours/<area>/<name>.webp`; the same basenames exist as `.jpeg`/`.jpg` in the app's
-`public/images/tours/<area>/`. Only tours 5 and 25 have been inserted; the other 23 are ready to go on request.
+`public/images/tours/<area>/`. All 25 tours are now inserted: 5 & 25 previously, and the remaining 23 on 14 Jul as ids **98-120**
+(generated from tours.json at `egypt-top-light-travel-v2/egypt-top-light/data/tours.json`, mounted this session).
+Notes on the 23: pp = tours.json price, `priceTableOn:false` + empty priceRows (no tier source — user adds hotel
+categories in the builder); hotels hand-derived per itinerary (verified: hotel nights == overview.nights == days-1
+for every row); day photos keyword-matched against the real photo inventory (Jordan/Jerusalem days fall back to
+generic shots — no such photos exist in the library yet); dahabiya tours use the new `dahabiya-philae` photos.
 
 ---
 
