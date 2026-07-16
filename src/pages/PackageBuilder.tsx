@@ -182,8 +182,9 @@ function FixedDayEditor({ label, day, set, onPickPhoto }: { label: string; day: 
       {day.on && (
         <div className="b-day-body">
           <div className="b-photo">
-            {day.photo ? <img src={photoSrc(day.photo)} alt="" /> : <div className="b-nophoto">No photo</div>}
+            {day.photo ? <img src={photoSrc(day.photo)} alt="" /> : <div className="b-nophoto">No photo — the PDF will show a styled title card instead</div>}
             <button className="link" onClick={onPickPhoto}>Change photo</button>
+            {day.photo && <button className="link danger" onClick={() => set({ ...day, photo: '' })}>Remove photo</button>}
           </div>
           <div className="b-day-text">
             <textarea rows={3} value={day.description} onChange={(e) => set({ ...day, description: e.target.value })} />
@@ -875,9 +876,11 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
 
                 <div className="b-photo">
 
-                  {d.photo ? <img src={photoSrc(d.photo)} alt="" /> : <div className="b-nophoto">No photo</div>}
+                  {d.photo ? <img src={photoSrc(d.photo)} alt="" /> : <div className="b-nophoto">No photo — the PDF will show a styled title card instead</div>}
 
                   <button className="link" onClick={() => setPicker({ target: d.uid })}>Change photo</button>
+
+                  {d.photo && <button className="link danger" onClick={() => updateDay(d.uid, { photo: '' })}>Remove photo</button>}
 
                 </div>
 
