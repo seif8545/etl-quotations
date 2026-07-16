@@ -12,13 +12,12 @@ import type { ItineraryData } from './ItineraryDoc'
 
 import type { QuotationDraft, RefData, DayPreset } from '../lib/types'
 
-// build-cache-buster: v4
 
 
 
 interface Meals { breakfast: boolean; lunch: boolean; dinner: boolean }
 
-interface EditableDay { uid: string; title: string; description: string; photo: string; sites: string[]; guide: boolean; meals: Meals; hotel: string }
+interface EditableDay { uid: string; title: string; description: string; photo: string; sites: string[]; guide: boolean; meals: Meals; hotel: string; dayLabel?: string }
 
 interface FixedDay { on: boolean; title: string; description: string; photo: string; meals: Meals; hotel: string }
 
@@ -138,6 +137,8 @@ function MealTicker({ meals, onChange }: { meals: Meals; onChange: (m: Meals) =>
 
   const items: [keyof Meals, string][] = [['breakfast', 'Breakfast'], ['lunch', 'Lunch'], ['dinner', 'Dinner']]
 
+  const none = !meals.breakfast && !meals.lunch && !meals.dinner
+
   return (
 
     <div className="meal-ticker">
@@ -151,6 +152,10 @@ function MealTicker({ meals, onChange }: { meals: Meals; onChange: (m: Meals) =>
           onClick={() => onChange({ ...meals, [k]: !meals[k] })}>{label}</button>
 
       ))}
+
+      <button type="button" className={`meal-toggle meal-toggle-none${none ? ' on' : ''}`}
+        title="No meals this day — removes the Meals line from the PDF"
+        onClick={() => onChange({ breakfast: false, lunch: false, dinner: false })}>None</button>
 
     </div>
 
@@ -391,6 +396,17 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
 
   const removeDay = (uid: string) => setDays((ds) => ds.filter((d) => d.uid !== uid))
 
+  function duplicateDay(uid: string) {
+    setDays((ds) => {
+      const i = ds.findIndex((d) => d.uid === uid)
+      if (i === -1) return ds
+      const copy: EditableDay = { ...ds[i], uid: newUid() }
+      return [...ds.slice(0, i + 1), copy, ...ds.slice(i + 1)]
+    })
+  }
+
+  const setDayLabel = (uid: string, dayLabel: string) => updateDay(uid, { dayLabel: dayLabel || undefined })
+
   function addDayFromPreset(p: DayPreset) {
     const nameOf = (id: number) => ref?.sites.find((x) => x.id === id)?.name ?? ''
     const day: EditableDay = {
@@ -512,7 +528,7 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
 
 
 
-    const seq: { uid: string; title: string; description: string; photoUrl: string; highlights: string[]; meals: string[]; hotel: string }[] = [
+    const seq: { uid: string; title: string; description: string; photoUrl: string; highlights: string[]; meals: string[]; hotel: string; dayLabel?: string }[] = [
 
       ...(arrival.on ? [{ uid: '__arrival', title: arrival.title, description: arrival.description, photoUrl: arrival.photo ? photoSrc(arrival.photo) : '', highlights: ['Meet & assist', 'Hotel check-in', 'Overnight'], meals: mealList(arrival.meals), hotel: arrival.hotel }] : []),
 
@@ -527,6 +543,8 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
         meals: mealList(d.meals),
 
         hotel: d.hotel,
+
+        dayLabel: d.dayLabel,
 
       })),
 
@@ -839,9 +857,13 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
 
                 <b>Day {i + (arrival.on ? 2 : 1)}</b>
 
+                <input className="b-day-label" placeholder={`Day ${i + (arrival.on ? 2 : 1)}`} title="Override the day label shown in the PDF (e.g. 'Days 2-5')" value={d.dayLabel ?? ''} onChange={(e) => setDayLabel(d.uid, e.target.value)} />
+
                 <button disabled={i === 0} onClick={() => move(i, -1)}>↑</button>
 
                 <button disabled={i === days.length - 1} onClick={() => move(i, 1)}>↓</button>
+
+                <button title="Insert a copy of this day right below it" onClick={() => duplicateDay(d.uid)}>⧉ Duplicate</button>
 
                 <input value={d.title} onChange={(e) => updateDay(d.uid, { title: e.target.value })} />
 
