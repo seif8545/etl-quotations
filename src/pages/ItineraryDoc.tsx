@@ -12,7 +12,7 @@ export interface ItineraryData {
   included: string[]
   excluded: string[]
   price: { pp: number; sgl: number; show: boolean }
-  pricing: { show: boolean; refPp: number; refSgl: number; rows: { category: string; dbl: number; single: number; hotels: string }[] }
+  pricing: { show: boolean; refPp: number; refSgl: number; rows: { category: string; dbl: number; single: number; triple: number; quad: number; hotels: string }[]; columns?: 'all' | 'dbl' | 'single' | 'triple' | 'quad' }
   contact: { phone: string; email: string; website: string; social: string }
 }
 
@@ -273,21 +273,40 @@ const ItineraryDoc = forwardRef<HTMLDivElement, { data: ItineraryData }>(({ data
       )}
 
       {/* Pricing table */}
-      {d.pricing.show && d.pricing.rows.length > 0 && (
-        <div className="summary-page">
-          <div className="sec-eyebrow">Pricing</div>
-          <h2 className="fr sec-title">Package Pricing</h2>
-          <div className="sec-rule" />
-          <table className="price-table">
-            <thead><tr><th>Category</th><th>Per Person in Double</th><th>Single Supplement</th><th>Offered Hotels</th></tr></thead>
-            <tbody>
-              {d.pricing.rows.map((r, i) => (
-                <tr key={i}><td className="pt-cat">{r.category}</td><td className="pt-price">{r.dbl > 0 ? `${r.dbl.toLocaleString()} USD` : '—'}</td><td className="pt-price">{r.single > 0 ? `${r.single.toLocaleString()} USD` : '—'}</td><td className="pt-hotels">{r.hotels.split('\n').map((l) => l.trim()).filter(Boolean).map((l, k) => <div className="pt-hl" key={k}>{l}</div>)}</td></tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+      {d.pricing.show && d.pricing.rows.length > 0 && (() => {
+        type PriceColKey = 'dbl' | 'single' | 'triple' | 'quad'
+        const PRICE_COLS: { key: PriceColKey; label: string }[] = [
+          { key: 'dbl', label: 'Per Person in Double' },
+          { key: 'single', label: 'Single Supplement' },
+          { key: 'triple', label: 'Per Person in Triple' },
+          { key: 'quad', label: 'Per Person in Quadruple' },
+        ]
+        const val = (r: (typeof d.pricing.rows)[number], key: PriceColKey) => r[key] || 0
+        const mode = d.pricing.columns || 'all'
+        const hasAny = (key: PriceColKey) => d.pricing.rows.some((r) => val(r, key) > 0)
+        const cols = mode === 'all'
+          ? PRICE_COLS.filter((c) => c.key === 'dbl' || c.key === 'single' || hasAny(c.key))
+          : PRICE_COLS.filter((c) => c.key === mode)
+        return (
+          <div className="summary-page">
+            <div className="sec-eyebrow">Pricing</div>
+            <h2 className="fr sec-title">Package Pricing</h2>
+            <div className="sec-rule" />
+            <table className="price-table">
+              <thead><tr><th>Category</th>{cols.map((c) => <th key={c.key}>{c.label}</th>)}<th>Offered Hotels</th></tr></thead>
+              <tbody>
+                {d.pricing.rows.map((r, i) => (
+                  <tr key={i}>
+                    <td className="pt-cat">{r.category}</td>
+                    {cols.map((c) => <td className="pt-price" key={c.key}>{val(r, c.key) > 0 ? `${val(r, c.key).toLocaleString()} USD` : '—'}</td>)}
+                    <td className="pt-hotels">{r.hotels.split('\n').map((l) => l.trim()).filter(Boolean).map((l, k) => <div className="pt-hl" key={k}>{l}</div>)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )
+      })()}
 
       {/* Closing */}
       <div className="itin-closing">
