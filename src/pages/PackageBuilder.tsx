@@ -21,7 +21,9 @@ interface EditableDay { uid: string; title: string; description: string; photo: 
 
 interface FixedDay { on: boolean; title: string; description: string; photo: string; meals: Meals; hotel: string }
 
-interface PriceRow { category: string; dbl: number; single: number; hotels: string }
+interface PriceRow { category: string; dbl: number; single: number; triple: number; quad: number; hotels: string }
+
+type PriceColumnsMode = 'all' | 'dbl' | 'single' | 'triple' | 'quad'
 
 interface FlightInsert { id: number; label: string; text: string; targetUid: string; position: 'start' | 'end' }
 
@@ -47,7 +49,7 @@ export interface PackageState {
 
   included: string; excluded: string
 
-  priceTableOn: boolean; priceRows: PriceRow[]
+  priceTableOn: boolean; priceRows: PriceRow[]; priceColumns?: PriceColumnsMode
 
   flights: FlightInsert[]
 
@@ -63,13 +65,13 @@ const mealList = (m: Meals): string[] => [m.breakfast && 'Breakfast', m.lunch &&
 
 const DEFAULT_PRICE_ROWS = (): PriceRow[] => [
 
-  { category: '3 Star', dbl: 0, single: 0, hotels: '' },
+  { category: '3 Star', dbl: 0, single: 0, triple: 0, quad: 0, hotels: '' },
 
-  { category: '4 Star', dbl: 0, single: 0, hotels: '' },
+  { category: '4 Star', dbl: 0, single: 0, triple: 0, quad: 0, hotels: '' },
 
-  { category: '4 Star Deluxe', dbl: 0, single: 0, hotels: '' },
+  { category: '4 Star Deluxe', dbl: 0, single: 0, triple: 0, quad: 0, hotels: '' },
 
-  { category: '5 Star', dbl: 0, single: 0, hotels: '' },
+  { category: '5 Star', dbl: 0, single: 0, triple: 0, quad: 0, hotels: '' },
 
 ]
 
@@ -222,6 +224,8 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
   const [priceTableOn, setPriceTableOn] = useState(saved?.priceTableOn ?? false)
 
   const [priceRows, setPriceRows] = useState<PriceRow[]>(saved?.priceRows ?? DEFAULT_PRICE_ROWS())
+
+  const [priceColumnsMode, setPriceColumnsMode] = useState<PriceColumnsMode>(saved?.priceColumns ?? 'all')
 
   const [included, setIncluded] = useState(saved?.included ?? '')
 
@@ -595,13 +599,13 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
 
       price: { pp, sgl, show: showPrice },
 
-      pricing: { show: priceTableOn, refPp: pp, refSgl: sgl, rows: priceRows },
+      pricing: { show: priceTableOn, refPp: pp, refSgl: sgl, rows: priceRows, columns: priceColumnsMode },
 
       contact: CONTACT,
 
     }
 
-  }, [title, intro, hero, days, arrival, departure, pp, sgl, showPrice, priceTableOn, priceRows, included, excluded, draft, saved, hotels, totalNights, ref, meta, flights])
+  }, [title, intro, hero, days, arrival, departure, pp, sgl, showPrice, priceTableOn, priceRows, priceColumnsMode, included, excluded, draft, saved, hotels, totalNights, ref, meta, flights])
 
 
 
@@ -615,7 +619,7 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
 
       hotels, days, arrival, departure,
 
-      pp, sgl, showPrice, included, excluded, priceTableOn, priceRows, flights,
+      pp, sgl, showPrice, included, excluded, priceTableOn, priceRows, priceColumns: priceColumnsMode, flights,
 
     }
 
@@ -1023,11 +1027,21 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
 
                 <div className="muted small">Quote reference: ${pp.toLocaleString()} per person (double){sgl > 0 ? ` · $${sgl.toLocaleString()} single supplement` : ''}</div>
 
+                <div className="price-columns-picker">
+                  <span className="meal-ticker-label">Show in PDF</span>
+                  {([
+                    ['all', 'All'], ['dbl', 'Double only'], ['single', 'Single only'], ['triple', 'Triple only'], ['quad', 'Quadruple only'],
+                  ] as [PriceColumnsMode, string][]).map(([mode, label]) => (
+                    <button type="button" key={mode} className={`meal-toggle${priceColumnsMode === mode ? ' on' : ''}`}
+                      onClick={() => setPriceColumnsMode(mode)}>{label}</button>
+                  ))}
+                </div>
+
                 <div className="table-scroll">
 
                   <table className="grid-table wide">
 
-                    <thead><tr><th>Category</th><th>Per person (DBL) USD</th><th>Single supp. USD</th><th>Offered hotels</th><th /></tr></thead>
+                    <thead><tr><th>Category</th><th>Per person (DBL) USD</th><th>Single supp. USD</th><th>Triple USD</th><th>Quad USD</th><th>Offered hotels</th><th /></tr></thead>
 
                     <tbody>
 
@@ -1040,6 +1054,10 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
                           <td><input type="number" min={0} value={r.dbl} onChange={(e) => updateRow(i, { dbl: +e.target.value })} /></td>
 
                           <td><input type="number" min={0} value={r.single} onChange={(e) => updateRow(i, { single: +e.target.value })} /></td>
+
+                          <td><input type="number" min={0} value={r.triple} onChange={(e) => updateRow(i, { triple: +e.target.value })} /></td>
+
+                          <td><input type="number" min={0} value={r.quad} onChange={(e) => updateRow(i, { quad: +e.target.value })} /></td>
 
                           <td><textarea className="pr-hotels" rows={4} value={r.hotels} onChange={(e) => updateRow(i, { hotels: e.target.value })} placeholder={'One line per destination, e.g.\nCairo: Hilton Grand Nile or equal\nNile Cruise: Sonesta or similar\nHurghada: JAZ Aquamarine or equal'} /></td>
 
@@ -1055,7 +1073,7 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
 
                 </div>
 
-                <button onClick={() => setPriceRows((rs) => [...rs, { category: '', dbl: 0, single: 0, hotels: '' }])}>+ Add row</button>
+                <button onClick={() => setPriceRows((rs) => [...rs, { category: '', dbl: 0, single: 0, triple: 0, quad: 0, hotels: '' }])}>+ Add row</button>
 
               </div>
 
