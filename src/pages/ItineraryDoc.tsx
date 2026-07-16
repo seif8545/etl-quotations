@@ -57,6 +57,14 @@ const CSS = `
 .df-eyebrow { color: #f0c53a; font-weight: 600; font-size: 12px; letter-spacing: 3px; text-transform: uppercase; margin-bottom: 10px; }
 .df-title { font-size: 46px; font-weight: 600; line-height: 1.04; margin: 0; color: #fff; text-shadow: 0 2px 16px rgba(0,0,0,0.4); }
 .df-body { flex: 1; padding: 44px 64px 48px; display: flex; flex-direction: column; }
+.df-noimg { position: relative; flex-shrink: 0; height: 300px; background: linear-gradient(135deg,#0e2a47,#163d6b); padding: 40px 64px 0; overflow: hidden; }
+.df-noimg-top { display: flex; align-items: center; justify-content: space-between; }
+.df-noimg-logo { background: #ffffff; border-radius: 999px; padding: 10px 22px; display: inline-flex; box-shadow: 0 6px 20px rgba(0,0,0,0.25); }
+.df-noimg-logo img { height: 32px; display: block; }
+.df-noimg-num { font-size: 64px; font-weight: 600; line-height: 1; color: rgba(255,255,255,0.18); }
+.df-noimg-eyebrow { color: #f0c53a; font-weight: 600; font-size: 12px; letter-spacing: 3px; text-transform: uppercase; margin-top: 30px; }
+.df-noimg-divider { width: 66px; height: 3px; background: linear-gradient(135deg,#c8960a,#e8b015); border-radius: 3px; margin: 14px 0 16px; }
+.df-noimg-title { font-size: 38px; font-weight: 600; line-height: 1.08; color: #fff; margin: 0; text-shadow: 0 2px 12px rgba(0,0,0,0.3); }
 .df-b-eyebrow { color: #b08a1e; font-weight: 600; font-size: 12px; letter-spacing: 3px; text-transform: uppercase; margin-bottom: 8px; }
 .df-b-title { font-size: 40px; font-weight: 600; line-height: 1.06; color: #0e2a47; margin: 0; }
 .df-b-rule { width: 66px; height: 3px; background: linear-gradient(135deg,#c8960a,#e8b015); border-radius: 3px; margin: 18px 0 24px; }
@@ -155,17 +163,30 @@ const ItineraryDoc = forwardRef<HTMLDivElement, { data: ItineraryData }>(({ data
   const dayPage = (day: DDay, i: number) => {
     const bl = bulletsOf(day.description)
     const num = String(i + 1).padStart(2, '0')
+    const label = day.dayLabel || `Day ${i + 1}`
     return (
       <div className="day-full a" key={i}>
-        <div className="df-photo">
-          {day.photoUrl ? <div className="df-img" style={{ backgroundImage: `url("${day.photoUrl}")` }} /> : null}
-          <div className="df-grad" />
-          <div className="df-num fr">{num}</div>
-          <div className="df-cap">
-            <div className="df-eyebrow">{day.dayLabel || `Day ${i + 1}`}</div>
-            <h2 className="df-title fr">{day.title}</h2>
+        {day.photoUrl ? (
+          <div className="df-photo">
+            <div className="df-img" style={{ backgroundImage: `url("${day.photoUrl}")` }} />
+            <div className="df-grad" />
+            <div className="df-num fr">{num}</div>
+            <div className="df-cap">
+              <div className="df-eyebrow">{label}</div>
+              <h2 className="df-title fr">{day.title}</h2>
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="df-noimg">
+            <div className="df-noimg-top">
+              <div className="df-noimg-logo"><img src={d.logoUrl} crossOrigin="anonymous" alt="Egypt Top Light" /></div>
+              <div className="df-noimg-num fr">{num}</div>
+            </div>
+            <div className="df-noimg-eyebrow">{label}</div>
+            <div className="df-noimg-divider" />
+            <h2 className="df-noimg-title fr">{day.title}</h2>
+          </div>
+        )}
         <div className="df-body">
           {bl.length > 0 ? <ul className="df-desc">{bl.map((l, k) => <li key={k}>{l}</li>)}</ul> : null}
           {details(day)}
