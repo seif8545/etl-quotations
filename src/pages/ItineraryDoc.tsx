@@ -7,7 +7,7 @@ export interface ItineraryData {
   logoUrl: string
   meta: { ref: string; pax: number; arrival: string; departure: string }
   overview: { days: number; nights: number; cities: number; pax: number }
-  days: { title: string; description: string; photoUrl: string; highlights: string[]; meals: string[]; hotel: string }[]
+  days: { title: string; description: string; photoUrl: string; highlights: string[]; meals: string[]; hotel: string; dayLabel?: string }[]
   hotels: { nights: number; destination: string }[]
   included: string[]
   excluded: string[]
@@ -162,7 +162,7 @@ const ItineraryDoc = forwardRef<HTMLDivElement, { data: ItineraryData }>(({ data
           <div className="df-grad" />
           <div className="df-num fr">{num}</div>
           <div className="df-cap">
-            <div className="df-eyebrow">Day {i + 1}</div>
+            <div className="df-eyebrow">{day.dayLabel || `Day ${i + 1}`}</div>
             <h2 className="df-title fr">{day.title}</h2>
           </div>
         </div>
