@@ -681,8 +681,6 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
 
     try {
 
-      const html2pdf = await getHtml2Pdf()
-
       const node = docRef.current
 
       if (!node) throw new Error('Document not ready')
@@ -702,34 +700,74 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
       window.scrollTo(0, 0)
 
       const safe = (title || 'package').replace(/[^\w\-]+/g, '_')
+      const PAGE_W = 794, PAGE_H = 1123, SCALE = 2, CUT = 18
 
-      const opt = {
-        margin: 0,
-        filename: safe + '.pdf',
-        image: { type: 'jpeg', quality: 0.95 },
-        html2canvas: { scale: 2, useCORS: true, backgroundColor: '#fffefa', logging: false },
-        jsPDF: { unit: 'px', format: [794, 1123], orientation: 'portrait', hotfixes: ['px_scaling'] },
-        pagebreak: { mode: ['css'] },
+      const crop = (src: HTMLCanvasElement) => {
+        const out = document.createElement('canvas')
+        out.width = src.width
+        out.height = src.height
+        const ctx = out.getContext('2d')
+        if (!ctx) return src
+        ctx.fillStyle = '#fffefa'
+        ctx.fillRect(0, 0, out.width, out.height)
+        ctx.drawImage(src, CUT, 0, src.width - CUT * 2, src.height, 0, 0, out.width, out.height)
+        return out
       }
+
       try {
-        // Render to canvas, shave the outer edge pixels (removes html2canvas's capture seam),
-        // rescale left/right to fill; vertical is untouched so the 18-page slicing is identical.
-        await html2pdf().set(opt).from(node).toCanvas().then(function (this: any) {
-          const src: HTMLCanvasElement | undefined = this && this.prop ? this.prop.canvas : undefined
-          if (!src || !src.width || !src.height) return
-          const cut = 18
-          const out = document.createElement('canvas')
-          out.width = src.width
-          out.height = src.height
-          const ctx = out.getContext('2d')
-          if (!ctx) return
-          ctx.fillStyle = '#fffefa'
-          ctx.fillRect(0, 0, out.width, out.height)
-          ctx.drawImage(src, cut, 0, src.width - cut * 2, src.height, 0, 0, out.width, out.height)
-          this.prop.canvas = out
-        }).toImg().toPdf().save()
-      } catch (cropErr) {
-        await html2pdf().set(opt).from(node).save()
+        // Capture ONE PAGE AT A TIME instead of rasterizing the whole multi-page document
+        // into a single giant canvas. Each direct child of the .itin container (cover,
+        // opening, each day, each summary page, closing) is already exactly one PDF
+        // page's worth of height (1123px), so this produces an identical result to the
+        // old whole-document capture — but every canvas stays small (~1588x2246px at
+        // scale 2) regardless of how many pages the itinerary has.
+        //
+        // This matters because a single canvas for a long itinerary (15-20+ pages) can
+        // exceed the max canvas area mobile browsers allow (iOS Safari and many Android
+        // WebViews cap this well below desktop limits). When that happens, html2canvas
+        // doesn't error — it silently returns a blank canvas, producing a PDF with the
+        // right page count but every page completely white. Per-page capture sidesteps
+        // that ceiling entirely.
+        const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
+          import('html2canvas'),
+          import('jspdf'),
+        ])
+
+        const pages = Array.from(node.children) as HTMLElement[]
+        if (pages.length === 0) throw new Error('No pages to export')
+
+        const pdf = new jsPDF({ unit: 'px', format: [PAGE_W, PAGE_H], orientation: 'portrait', hotfixes: ['px_scaling'] })
+
+        for (let i = 0; i < pages.length; i++) {
+          const raw = await html2canvas(pages[i], { scale: SCALE, useCORS: true, backgroundColor: '#fffefa', logging: false })
+          const out = crop(raw)
+          if (i > 0) pdf.addPage([PAGE_W, PAGE_H], 'portrait')
+          pdf.addImage(out.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, PAGE_W, PAGE_H)
+        }
+
+        pdf.save(safe + '.pdf')
+      } catch (perPageErr) {
+        // Fallback: previous whole-document capture. Covers desktop browsers even if the
+        // per-page path above can't run for some reason (e.g. html2canvas/jspdf not
+        // resolvable as direct imports in this build).
+        const html2pdf = await getHtml2Pdf()
+        const opt = {
+          margin: 0,
+          filename: safe + '.pdf',
+          image: { type: 'jpeg', quality: 0.95 },
+          html2canvas: { scale: SCALE, useCORS: true, backgroundColor: '#fffefa', logging: false },
+          jsPDF: { unit: 'px', format: [PAGE_W, PAGE_H], orientation: 'portrait', hotfixes: ['px_scaling'] },
+          pagebreak: { mode: ['css'] },
+        }
+        try {
+          await html2pdf().set(opt).from(node).toCanvas().then(function (this: any) {
+            const src: HTMLCanvasElement | undefined = this && this.prop ? this.prop.canvas : undefined
+            if (!src || !src.width || !src.height) return
+            this.prop.canvas = crop(src)
+          }).toImg().toPdf().save()
+        } catch (cropErr) {
+          await html2pdf().set(opt).from(node).save()
+        }
       } finally {
         window.scrollTo(winX, winY)
         scrolled.forEach(([el, t, l]) => { el.scrollTop = t; el.scrollLeft = l })
