@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { printHtml, fmtDate } from '../lib/docx'
+import { renderDocx, fmtDate, docxBlobToPdf } from '../lib/docx'
+import { downloadBlob } from '../lib/excel'
 
 /** One priced line item: a free-text label + a number rate (Extra Details / Deductions). */
 export interface RateItem { label: string; rate: number }
@@ -98,59 +99,56 @@ function guestRows(d: InvoiceData) {
   return rows
 }
 
-/** Print / Save-as-PDF view styled to match "Invoice example.docx" (first page only). */
-export function printInvoice(d: InvoiceData, serial: string) {
-  const rows = guestRows(d)
-  const extraRows = d.extras.filter((x) => x.label.trim() || x.rate)
-  const total = invoiceTotal(d)
+/** Build the docxtemplater data for /templates/invoice_tpl.docx — a real copy of
+ *  "Invoice example.docx" (logo, brand colors, bank block, footer all preserved)
+ *  with the editable fields swapped for template tags. See handoff notes for the
+ *  tag map: header has {issue_date}/{serial}; client card has {client_name}/
+ *  {client_details}; the item table is a docxtemplater row-loop over `items`
+ *  (guests + extras, each with an optional per-row {inclusions} line); `deductions`
+ *  is a second row-loop; `balance` is a 0-or-1-item array so the Balance row only
+ *  renders once a deduction exists. */
+export function invoiceTemplateData(d: InvoiceData, serial: string) {
+  const items = [
+    ...guestRows(d).map((r) => ({
+      label: `${String(r.count).padStart(2, '0')} ${r.label} * ${r.rate.toLocaleString()} USD`,
+      amount: usd(r.amount),
+      inclusions: d.inclusions.trim(),
+      hasInclusions: !!d.inclusions.trim(),
+    })),
+    ...d.extras
+      .filter((x) => x.label.trim() || x.rate)
+      .map((x) => ({
+        label: x.label,
+        amount: usd(x.rate),
+        inclusions: d.inclusions.trim(),
+        hasInclusions: !!d.inclusions.trim(),
+      })),
+  ]
+  const deductions = d.deductions
+    .filter((x) => x.label.trim() || x.rate)
+    .map((x) => ({ label: x.label, amount: usd(x.rate) }))
   const balance = invoiceBalance(d)
 
-  const itemRows = [
-    ...rows.map((r) => `<tr><td class="inv-inc">${d.inclusions ? d.inclusions.replace(/\n/g, '<br/>') : 'Included in the Package'}</td>
-      <td>${String(r.count).padStart(2, '0')} ${r.label} * ${r.rate.toLocaleString()} USD</td>
-      <td class="inv-amt">${usd(r.amount)}</td></tr>`),
-    ...extraRows.map((x) => `<tr><td class="inv-inc">${d.inclusions ? d.inclusions.replace(/\n/g, '<br/>') : 'Included in the Package'}</td>
-      <td>${x.label}</td><td class="inv-amt">${usd(x.rate)}</td></tr>`),
-  ].join('')
+  return {
+    issue_date: fmtDate(d.issueDate),
+    serial,
+    client_name: d.clientName,
+    client_details: d.clientDetails,
+    items,
+    total: usd(invoiceTotal(d)),
+    deductions,
+    balance: balance !== null ? [{ amount: usd(balance) }] : [],
+  }
+}
 
-  const deductionRows = d.deductions
-    .filter((x) => x.label.trim() || x.rate)
-    .map((x) => `<tr><td colspan="2">${x.label}</td><td class="inv-amt">${usd(x.rate)}</td></tr>`)
-    .join('')
+export async function generateInvoiceDocx(d: InvoiceData, serial: string): Promise<Blob> {
+  return renderDocx('/templates/invoice_tpl.docx', invoiceTemplateData(d, serial))
+}
 
-  printHtml('Invoice', `
-    <div class="inv-head">
-      <div class="inv-brand">Egypt Top Light Travel</div>
-      <h1>Invoice</h1>
-    </div>
-    <table class="inv-top">
-      <tr>
-        <td>Egypt Top Light<br/><span class="small">Apartment 1, Al Shams Building No.23, Al Haram, Giza,
-          Giza Governorate 12555, Egypt<br/>TEL: +20233778015<br/>FAX: +20233778016<br/>
-          info@egypttoplight.net<br/>www.egypttoplight.net</span></td>
-        <td>${d.clientName ? `<b>${d.clientName}</b>` : ''}${d.clientDetails ? `<br/><span class="small">${d.clientDetails.replace(/\n/g, '<br/>')}</span>` : ''}</td>
-      </tr>
-    </table>
-    <div class="inv-meta">
-      <span>Issue Date: ${fmtDate(d.issueDate)}</span>
-      <span>Serial Number: ${serial}</span>
-    </div>
-    <table class="inv-items">
-      <tr><th>Inclusions</th><th>Description</th><th>Amount</th></tr>
-      ${itemRows}
-      <tr class="inv-total-row"><td colspan="2">TOTAL</td><td class="inv-amt">${usd(total)}</td></tr>
-      ${deductionRows}
-      ${balance !== null ? `<tr class="inv-balance-row"><td colspan="2">Balance</td><td class="inv-amt">${usd(balance)}</td></tr>` : ''}
-    </table>
-    <div class="inv-bank">
-      <b>Bank Account :</b><br/>
-      Bank Name : National Bank of Egypt<br/>
-      Account name : EGYPT TOP LIGHT<br/>
-      ACCOUNT USD NO. : 0203061068387501011<br/>
-      SWIFT CODE : NBEGEGCX020<br/>
-      ADDRESS : North Fifteen Street , ZAHRAA EL MAADI , Cairo , Egypt.<br/>
-      IBAN : EG5900030020306106838750
-    </div>`)
+/** Invoice as a PDF that mirrors the Word document. */
+export async function invoiceToPdf(d: InvoiceData, serial: string) {
+  const blob = await generateInvoiceDocx(d, serial)
+  await docxBlobToPdf(blob, 'Invoice.pdf')
 }
 
 export async function saveInvoice(d: InvoiceData, serial: string) {
@@ -199,10 +197,17 @@ export default function Invoice({ done, initial }: { done: () => void; initial?:
   async function generate(save: boolean) {
     setBusy(true); setError('')
     try {
+      const blob = await generateInvoiceDocx(d, serial)
       if (save) await saveInvoice(d, serial)
-      printInvoice(d, serial)
+      downloadBlob(blob, 'Invoice.docx')
       if (save) done()
     } catch (e: any) { setError(e.message ?? String(e)) }
+    setBusy(false)
+  }
+
+  async function downloadPdf() {
+    setBusy(true); setError('')
+    try { await invoiceToPdf(d, serial) } catch (e: any) { setError(e.message ?? String(e)) }
     setBusy(false)
   }
 
@@ -297,9 +302,9 @@ export default function Invoice({ done, initial }: { done: () => void; initial?:
       {error && <div className="error">{error}</div>}
       <div className="doc-actions">
         <button className="primary" disabled={busy} onClick={() => generate(true)}>
-          {busy ? 'Working…' : 'Print / PDF + Save'}
+          {busy ? 'Working…' : 'Generate Word + Save'}
         </button>
-        <button disabled={busy} onClick={() => generate(false)}>Print / PDF (no save)</button>
+        <button disabled={busy} onClick={downloadPdf}>Download PDF</button>
         <button className="link" onClick={done}>Cancel</button>
       </div>
     </div>

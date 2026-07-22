@@ -5,7 +5,7 @@ import { generateLetterDocx, letterToPdf } from './Letter'
 import type { LetterData } from './Letter'
 import { generateVoucherDocx, voucherToPdf } from './Voucher'
 import type { VoucherData } from './Voucher'
-import { printInvoice } from './Invoice'
+import { generateInvoiceDocx, invoiceToPdf } from './Invoice'
 import type { InvoiceData } from './Invoice'
 import PackageBuilder from './PackageBuilder'
 import type { PackageState } from './PackageBuilder'
@@ -72,8 +72,10 @@ export default function Documents({ openQuotation, isAdmin, uid }: { openQuotati
     try {
       const blob = tab === 'Letters'
         ? await generateLetterDocx(row.data as LetterData)
-        : await generateVoucherDocx(row.data as VoucherData)
-      downloadBlob(blob, tab === 'Letters' ? 'GuaranteeLetter.docx' : 'HotelVoucher.docx')
+        : tab === 'Vouchers'
+        ? await generateVoucherDocx(row.data as VoucherData)
+        : await generateInvoiceDocx(row.data as InvoiceData, row.serial)
+      downloadBlob(blob, tab === 'Letters' ? 'GuaranteeLetter.docx' : tab === 'Vouchers' ? 'HotelVoucher.docx' : 'Invoice.docx')
     } catch (e: any) { setError(e.message ?? String(e)) }
     setBusyId(null)
   }
@@ -142,13 +144,12 @@ export default function Documents({ openQuotation, isAdmin, uid }: { openQuotati
                     {tab === 'Packages' && r.data && (
                       <button className="link" onClick={() => { setSavedPkg(r.data as PackageState); setSavedPkgId(r.id) }}>Open / Export</button>
                     )}
-                    {(tab === 'Letters' || tab === 'Vouchers') && r.data && <>
+                    {(tab === 'Letters' || tab === 'Vouchers' || tab === 'Invoices') && r.data && <>
                       <button className="link" onClick={() => word(r)}>Word</button>
-                      <button className="link" onClick={() => (tab === 'Letters' ? letterToPdf(r.data) : voucherToPdf(r.data)).catch((e: any) => setError(e.message ?? String(e)))}>PDF</button>
+                      <button className="link" onClick={() => (
+                        tab === 'Letters' ? letterToPdf(r.data) : tab === 'Vouchers' ? voucherToPdf(r.data) : invoiceToPdf(r.data, r.serial)
+                      ).catch((e: any) => setError(e.message ?? String(e)))}>PDF</button>
                     </>}
-                    {tab === 'Invoices' && r.data && (
-                      <button className="link" onClick={() => printInvoice(r.data as InvoiceData, r.serial)}>Print / PDF</button>
-                    )}
                     {isAdmin && (
                       <button className="link" onClick={() => setShareRow(r)}>
                         {(r.shared_with?.length ?? 0) > 0 ? `Shared (${r.shared_with.length})` : 'Share…'}
