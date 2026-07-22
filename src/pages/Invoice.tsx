@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { renderDocx, fmtDate, docxBlobToPdf } from '../lib/docx'
+import { renderDocx, fmtDate } from '../lib/docx'
 import { downloadBlob } from '../lib/excel'
 
 /** One priced line item: a free-text label + a number rate (Extra Details / Deductions). */
@@ -145,10 +145,18 @@ export async function generateInvoiceDocx(d: InvoiceData, serial: string): Promi
   return renderDocx('/templates/invoice_tpl.docx', invoiceTemplateData(d, serial))
 }
 
-/** Invoice as a PDF that mirrors the Word document — always exactly one page. */
+/** Invoice as a PDF that mirrors the Word document exactly — converted server-side
+ *  (same ConvertAPI proxy Letter.tsx uses via functions/api/convert.js) rather than
+ *  the browser-side html2canvas screenshot trick, which mis-renders this doc's
+ *  wide item table (squeezed/clipped output, spurious extra page). */
 export async function invoiceToPdf(d: InvoiceData, serial: string) {
-  const blob = await generateInvoiceDocx(d, serial)
-  await docxBlobToPdf(blob, 'Invoice.pdf', { firstPageOnly: true })
+  const docxBlob = await generateInvoiceDocx(d, serial)
+  const formData = new FormData()
+  formData.append('File', docxBlob, 'Invoice.docx')
+  const response = await fetch('/api/convert', { method: 'POST', body: formData })
+  if (!response.ok) throw new Error('PDF conversion failed. Please try again.')
+  const pdfBlob = await response.blob()
+  downloadBlob(pdfBlob, 'Invoice.pdf')
 }
 
 export async function saveInvoice(d: InvoiceData, serial: string) {
