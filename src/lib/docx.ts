@@ -29,6 +29,17 @@ export function printHtml(title: string, bodyHtml: string) {
   th, td { border: 1px solid #000; padding: 5px 8px; font-size: 13px; text-align: left; }
   p { font-size: 14px; }
   .cols { display: flex; justify-content: space-between; max-width: 560px; }
+  .small { font-size: 11px; }
+  .inv-head { display: flex; justify-content: space-between; align-items: baseline; border-bottom: 2px solid #000; margin-bottom: 10px; }
+  .inv-brand { font-weight: bold; font-size: 16px; }
+  .inv-head h1 { font-size: 20px; margin: 0; }
+  .inv-top td { vertical-align: top; width: 50%; }
+  .inv-meta { display: flex; justify-content: space-between; font-size: 13px; margin: 10px 0; }
+  .inv-items td.inv-inc { width: 40%; }
+  .inv-items td.inv-amt, .inv-items th:last-child { text-align: right; white-space: nowrap; }
+  .inv-total-row, .inv-balance-row { font-weight: bold; }
+  .inv-total-row td, .inv-balance-row td { border-top: 2px solid #000; }
+  .inv-bank { font-size: 12px; margin-top: 18px; }
 </style></head><body>${bodyHtml}</body></html>`)
   w.document.close()
   w.focus()

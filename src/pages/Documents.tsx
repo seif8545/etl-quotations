@@ -5,11 +5,13 @@ import { generateLetterDocx, letterToPdf } from './Letter'
 import type { LetterData } from './Letter'
 import { generateVoucherDocx, voucherToPdf } from './Voucher'
 import type { VoucherData } from './Voucher'
+import { printInvoice } from './Invoice'
+import type { InvoiceData } from './Invoice'
 import PackageBuilder from './PackageBuilder'
 import type { PackageState } from './PackageBuilder'
 import type { QuotationDraft } from '../lib/types'
 
-const TABS = ['Quotations', 'Packages', 'Letters', 'Vouchers'] as const
+const TABS = ['Quotations', 'Packages', 'Letters', 'Vouchers', 'Invoices'] as const
 type Tab = (typeof TABS)[number]
 
 export default function Documents({ openQuotation, isAdmin, uid }: { openQuotation: (d: QuotationDraft) => void; isAdmin: boolean; uid: string }) {
@@ -24,7 +26,7 @@ export default function Documents({ openQuotation, isAdmin, uid }: { openQuotati
   const [agents, setAgents] = useState<{ id: string; full_name: string; email: string }[]>([])
   const [shareRow, setShareRow] = useState<any | null>(null)
 
-  const table = tab === 'Quotations' ? 'q_quotations' : tab === 'Packages' ? 'q_package_docs' : tab === 'Letters' ? 'q_letters' : 'q_vouchers'
+  const table = tab === 'Quotations' ? 'q_quotations' : tab === 'Packages' ? 'q_package_docs' : tab === 'Letters' ? 'q_letters' : tab === 'Vouchers' ? 'q_vouchers' : 'q_invoices'
 
   async function load() {
     const { data, error } = await supabase.from(table).select('*').order('created_at', { ascending: false })
@@ -76,7 +78,7 @@ export default function Documents({ openQuotation, isAdmin, uid }: { openQuotati
     setBusyId(null)
   }
 
-  const docLabel = (r: any) => r.name || r.consignee || r.hotel_name || `#${r.id}`
+  const docLabel = (r: any) => r.name || r.consignee || r.hotel_name || r.client_name || r.serial || `#${r.id}`
 
   async function toggleShare(personId: string) {
     if (!shareRow) return
@@ -117,6 +119,7 @@ export default function Documents({ openQuotation, isAdmin, uid }: { openQuotati
                 {tab === 'Packages' && <><th>Name</th><th>Ref</th><th>Pax</th><th>Arrival</th><th>Departure</th></>}
                 {tab === 'Letters' && <><th>To</th><th>Arrival</th><th>Departure</th><th>Pax</th></>}
                 {tab === 'Vouchers' && <><th>Hotel</th><th>Group</th><th>From</th><th>To</th><th>Rooms</th></>}
+                {tab === 'Invoices' && <><th>Serial</th><th>Client</th><th>Issue date</th><th>Total</th><th>Balance</th></>}
                 <th>Created</th><th>Actions</th>
               </tr>
             </thead>
@@ -127,6 +130,7 @@ export default function Documents({ openQuotation, isAdmin, uid }: { openQuotati
                   {tab === 'Packages' && <><td>{r.name}</td><td>{r.group_ref}</td><td>{r.pax}</td><td>{r.arrival_date}</td><td>{r.departure_date}</td></>}
                   {tab === 'Letters' && <><td>{r.consignee}</td><td>{r.arrival_date}</td><td>{r.departure_date}</td><td>{r.pax}</td></>}
                   {tab === 'Vouchers' && <><td>{r.hotel_name}</td><td>{r.guest_or_group_name}</td><td>{r.from_date}</td><td>{r.to_date}</td><td>{r.singles + r.doubles + r.twins + r.triples}</td></>}
+                  {tab === 'Invoices' && <><td>{r.serial}</td><td>{r.client_name}</td><td>{r.issue_date}</td><td>{r.total}</td><td>{r.balance ?? '—'}</td></>}
                   <td>{new Date(r.created_at).toLocaleDateString('en-GB')}</td>
                   <td className="actions">
                     {tab === 'Quotations' && <>
@@ -142,6 +146,9 @@ export default function Documents({ openQuotation, isAdmin, uid }: { openQuotati
                       <button className="link" onClick={() => word(r)}>Word</button>
                       <button className="link" onClick={() => (tab === 'Letters' ? letterToPdf(r.data) : voucherToPdf(r.data)).catch((e: any) => setError(e.message ?? String(e)))}>PDF</button>
                     </>}
+                    {tab === 'Invoices' && r.data && (
+                      <button className="link" onClick={() => printInvoice(r.data as InvoiceData, r.serial)}>Print / PDF</button>
+                    )}
                     {isAdmin && (
                       <button className="link" onClick={() => setShareRow(r)}>
                         {(r.shared_with?.length ?? 0) > 0 ? `Shared (${r.shared_with.length})` : 'Share…'}

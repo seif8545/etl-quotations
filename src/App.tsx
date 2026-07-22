@@ -8,9 +8,10 @@ import QuotationWizard from './pages/QuotationWizard'
 import Admin from './pages/Admin'
 import Letter from './pages/Letter'
 import Voucher from './pages/Voucher'
+import Invoice from './pages/Invoice'
 import Documents from './pages/Documents'
 
-export type Page = 'home' | 'quotation' | 'letter' | 'voucher' | 'documents' | 'admin'
+export type Page = 'home' | 'quotation' | 'letter' | 'voucher' | 'invoice' | 'documents' | 'admin'
 
 export default function App() {
   const [session, setSession] = useState<Session | null>(null)
@@ -56,6 +57,7 @@ export default function App() {
       {page === 'quotation' && <QuotationWizard done={home} initial={editDraft} />}
       {page === 'letter' && <Letter done={home} />}
       {page === 'voucher' && <Voucher done={home} />}
+      {page === 'invoice' && <Invoice done={home} />}
       {page === 'documents' && (
         <Documents openQuotation={(d) => { setEditDraft(d); setPage('quotation') }} isAdmin={isAdmin} uid={session.user.id} />
       )}

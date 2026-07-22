@@ -17,6 +17,10 @@ export default function Home({ go }: { go: (p: Page) => void }) {
           <h3>Hotel Voucher</h3>
           <p>Word voucher with room allocation</p>
         </button>
+        <button className="module" onClick={() => go('invoice')}>
+          <h3>Invoice</h3>
+          <p>Client invoice with guests, extras &amp; balance</p>
+        </button>
       </div>
       <p className="muted" style={{ marginTop: 24 }}>
         Everything you generate is saved under <b>Documents</b> — reopen, duplicate, or re-download any time.
