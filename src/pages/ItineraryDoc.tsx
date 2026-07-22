@@ -7,12 +7,12 @@ export interface ItineraryData {
   logoUrl: string
   meta: { ref: string; pax: number; arrival: string; departure: string }
   overview: { days: number; nights: number; cities: number; pax: number }
-  days: { title: string; description: string; photoUrl: string; highlights: string[]; meals: string[]; hotel: string }[]
+  days: { title: string; description: string; photoUrl: string; highlights: string[]; meals: string[]; hotel: string; dayLabel?: string }[]
   hotels: { nights: number; destination: string }[]
   included: string[]
   excluded: string[]
   price: { pp: number; sgl: number; show: boolean }
-  pricing: { show: boolean; refPp: number; refSgl: number; rows: { category: string; dbl: number; single: number; hotels: string }[] }
+  pricing: { show: boolean; refPp: number; refSgl: number; rows: { category: string; dbl: number; single: number; triple: number; quad: number; hotels: string }[]; columns?: 'all' | 'dbl' | 'single' | 'triple' | 'quad' }
   contact: { phone: string; email: string; website: string; social: string }
 }
 
@@ -57,6 +57,14 @@ const CSS = `
 .df-eyebrow { color: #f0c53a; font-weight: 600; font-size: 12px; letter-spacing: 3px; text-transform: uppercase; margin-bottom: 10px; }
 .df-title { font-size: 46px; font-weight: 600; line-height: 1.04; margin: 0; color: #fff; text-shadow: 0 2px 16px rgba(0,0,0,0.4); }
 .df-body { flex: 1; padding: 44px 64px 48px; display: flex; flex-direction: column; }
+.df-noimg { position: relative; flex-shrink: 0; height: 300px; background: linear-gradient(135deg,#0e2a47,#163d6b); padding: 40px 64px 0; overflow: hidden; }
+.df-noimg-top { display: flex; align-items: center; justify-content: space-between; }
+.df-noimg-logo { background: #ffffff; border-radius: 999px; padding: 10px 22px; display: inline-flex; box-shadow: 0 6px 20px rgba(0,0,0,0.25); }
+.df-noimg-logo img { height: 32px; display: block; }
+.df-noimg-num { font-size: 64px; font-weight: 600; line-height: 1; color: rgba(255,255,255,0.18); }
+.df-noimg-eyebrow { color: #f0c53a; font-weight: 600; font-size: 12px; letter-spacing: 3px; text-transform: uppercase; margin-top: 30px; }
+.df-noimg-divider { width: 66px; height: 3px; background: linear-gradient(135deg,#c8960a,#e8b015); border-radius: 3px; margin: 14px 0 16px; }
+.df-noimg-title { font-size: 38px; font-weight: 600; line-height: 1.08; color: #fff; margin: 0; text-shadow: 0 2px 12px rgba(0,0,0,0.3); }
 .df-b-eyebrow { color: #b08a1e; font-weight: 600; font-size: 12px; letter-spacing: 3px; text-transform: uppercase; margin-bottom: 8px; }
 .df-b-title { font-size: 40px; font-weight: 600; line-height: 1.06; color: #0e2a47; margin: 0; }
 .df-b-rule { width: 66px; height: 3px; background: linear-gradient(135deg,#c8960a,#e8b015); border-radius: 3px; margin: 18px 0 24px; }
@@ -155,17 +163,30 @@ const ItineraryDoc = forwardRef<HTMLDivElement, { data: ItineraryData }>(({ data
   const dayPage = (day: DDay, i: number) => {
     const bl = bulletsOf(day.description)
     const num = String(i + 1).padStart(2, '0')
+    const label = day.dayLabel || `Day ${i + 1}`
     return (
       <div className="day-full a" key={i}>
-        <div className="df-photo">
-          {day.photoUrl ? <div className="df-img" style={{ backgroundImage: `url("${day.photoUrl}")` }} /> : null}
-          <div className="df-grad" />
-          <div className="df-num fr">{num}</div>
-          <div className="df-cap">
-            <div className="df-eyebrow">Day {i + 1}</div>
-            <h2 className="df-title fr">{day.title}</h2>
+        {day.photoUrl ? (
+          <div className="df-photo">
+            <div className="df-img" style={{ backgroundImage: `url("${day.photoUrl}")` }} />
+            <div className="df-grad" />
+            <div className="df-num fr">{num}</div>
+            <div className="df-cap">
+              <div className="df-eyebrow">{label}</div>
+              <h2 className="df-title fr">{day.title}</h2>
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="df-noimg">
+            <div className="df-noimg-top">
+              <div className="df-noimg-logo"><img src={d.logoUrl} crossOrigin="anonymous" alt="Egypt Top Light" /></div>
+              <div className="df-noimg-num fr">{num}</div>
+            </div>
+            <div className="df-noimg-eyebrow">{label}</div>
+            <div className="df-noimg-divider" />
+            <h2 className="df-noimg-title fr">{day.title}</h2>
+          </div>
+        )}
         <div className="df-body">
           {bl.length > 0 ? <ul className="df-desc">{bl.map((l, k) => <li key={k}>{l}</li>)}</ul> : null}
           {details(day)}
@@ -252,21 +273,40 @@ const ItineraryDoc = forwardRef<HTMLDivElement, { data: ItineraryData }>(({ data
       )}
 
       {/* Pricing table */}
-      {d.pricing.show && d.pricing.rows.length > 0 && (
-        <div className="summary-page">
-          <div className="sec-eyebrow">Pricing</div>
-          <h2 className="fr sec-title">Package Pricing</h2>
-          <div className="sec-rule" />
-          <table className="price-table">
-            <thead><tr><th>Category</th><th>Per Person in Double</th><th>Single Supplement</th><th>Offered Hotels</th></tr></thead>
-            <tbody>
-              {d.pricing.rows.map((r, i) => (
-                <tr key={i}><td className="pt-cat">{r.category}</td><td className="pt-price">{r.dbl > 0 ? `${r.dbl.toLocaleString()} USD` : '—'}</td><td className="pt-price">{r.single > 0 ? `${r.single.toLocaleString()} USD` : '—'}</td><td className="pt-hotels">{r.hotels.split('\n').map((l) => l.trim()).filter(Boolean).map((l, k) => <div className="pt-hl" key={k}>{l}</div>)}</td></tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+      {d.pricing.show && d.pricing.rows.length > 0 && (() => {
+        type PriceColKey = 'dbl' | 'single' | 'triple' | 'quad'
+        const PRICE_COLS: { key: PriceColKey; label: string }[] = [
+          { key: 'dbl', label: 'Per Person in Double' },
+          { key: 'single', label: 'Single Supplement' },
+          { key: 'triple', label: 'Per Person in Triple' },
+          { key: 'quad', label: 'Per Person in Quadruple' },
+        ]
+        const val = (r: (typeof d.pricing.rows)[number], key: PriceColKey) => r[key] || 0
+        const mode = d.pricing.columns || 'all'
+        const hasAny = (key: PriceColKey) => d.pricing.rows.some((r) => val(r, key) > 0)
+        const cols = mode === 'all'
+          ? PRICE_COLS.filter((c) => c.key === 'dbl' || c.key === 'single' || hasAny(c.key))
+          : PRICE_COLS.filter((c) => c.key === mode)
+        return (
+          <div className="summary-page">
+            <div className="sec-eyebrow">Pricing</div>
+            <h2 className="fr sec-title">Package Pricing</h2>
+            <div className="sec-rule" />
+            <table className="price-table">
+              <thead><tr><th>Category</th>{cols.map((c) => <th key={c.key}>{c.label}</th>)}<th>Offered Hotels</th></tr></thead>
+              <tbody>
+                {d.pricing.rows.map((r, i) => (
+                  <tr key={i}>
+                    <td className="pt-cat">{r.category}</td>
+                    {cols.map((c) => <td className="pt-price" key={c.key}>{val(r, c.key) > 0 ? `${val(r, c.key).toLocaleString()} USD` : '—'}</td>)}
+                    <td className="pt-hotels">{r.hotels.split('\n').map((l) => l.trim()).filter(Boolean).map((l, k) => <div className="pt-hl" key={k}>{l}</div>)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )
+      })()}
 
       {/* Closing */}
       <div className="itin-closing">

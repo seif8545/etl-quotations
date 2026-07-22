@@ -12,17 +12,18 @@ import type { ItineraryData } from './ItineraryDoc'
 
 import type { QuotationDraft, RefData, DayPreset } from '../lib/types'
 
-// build-cache-buster: v4
 
 
 
 interface Meals { breakfast: boolean; lunch: boolean; dinner: boolean }
 
-interface EditableDay { uid: string; title: string; description: string; photo: string; sites: string[]; guide: boolean; meals: Meals; hotel: string }
+interface EditableDay { uid: string; title: string; description: string; photo: string; sites: string[]; guide: boolean; meals: Meals; hotel: string; dayLabel?: string }
 
 interface FixedDay { on: boolean; title: string; description: string; photo: string; meals: Meals; hotel: string }
 
-interface PriceRow { category: string; dbl: number; single: number; hotels: string }
+interface PriceRow { category: string; dbl: number; single: number; triple: number; quad: number; hotels: string }
+
+type PriceColumnsMode = 'all' | 'dbl' | 'single' | 'triple' | 'quad'
 
 interface FlightInsert { id: number; label: string; text: string; targetUid: string; position: 'start' | 'end' }
 
@@ -48,7 +49,7 @@ export interface PackageState {
 
   included: string; excluded: string
 
-  priceTableOn: boolean; priceRows: PriceRow[]
+  priceTableOn: boolean; priceRows: PriceRow[]; priceColumns?: PriceColumnsMode
 
   flights: FlightInsert[]
 
@@ -64,13 +65,13 @@ const mealList = (m: Meals): string[] => [m.breakfast && 'Breakfast', m.lunch &&
 
 const DEFAULT_PRICE_ROWS = (): PriceRow[] => [
 
-  { category: '3 Star', dbl: 0, single: 0, hotels: '' },
+  { category: '3 Star', dbl: 0, single: 0, triple: 0, quad: 0, hotels: '' },
 
-  { category: '4 Star', dbl: 0, single: 0, hotels: '' },
+  { category: '4 Star', dbl: 0, single: 0, triple: 0, quad: 0, hotels: '' },
 
-  { category: '4 Star Deluxe', dbl: 0, single: 0, hotels: '' },
+  { category: '4 Star Deluxe', dbl: 0, single: 0, triple: 0, quad: 0, hotels: '' },
 
-  { category: '5 Star', dbl: 0, single: 0, hotels: '' },
+  { category: '5 Star', dbl: 0, single: 0, triple: 0, quad: 0, hotels: '' },
 
 ]
 
@@ -138,6 +139,8 @@ function MealTicker({ meals, onChange }: { meals: Meals; onChange: (m: Meals) =>
 
   const items: [keyof Meals, string][] = [['breakfast', 'Breakfast'], ['lunch', 'Lunch'], ['dinner', 'Dinner']]
 
+  const none = !meals.breakfast && !meals.lunch && !meals.dinner
+
   return (
 
     <div className="meal-ticker">
@@ -151,6 +154,10 @@ function MealTicker({ meals, onChange }: { meals: Meals; onChange: (m: Meals) =>
           onClick={() => onChange({ ...meals, [k]: !meals[k] })}>{label}</button>
 
       ))}
+
+      <button type="button" className={`meal-toggle meal-toggle-none${none ? ' on' : ''}`}
+        title="No meals this day — removes the Meals line from the PDF"
+        onClick={() => onChange({ breakfast: false, lunch: false, dinner: false })}>None</button>
 
     </div>
 
@@ -177,8 +184,9 @@ function FixedDayEditor({ label, day, set, onPickPhoto }: { label: string; day: 
       {day.on && (
         <div className="b-day-body">
           <div className="b-photo">
-            {day.photo ? <img src={photoSrc(day.photo)} alt="" /> : <div className="b-nophoto">No photo</div>}
+            {day.photo ? <img src={photoSrc(day.photo)} alt="" /> : <div className="b-nophoto">No photo — the PDF will show a styled title card instead</div>}
             <button className="link" onClick={onPickPhoto}>Change photo</button>
+            {day.photo && <button className="link danger" onClick={() => set({ ...day, photo: '' })}>Remove photo</button>}
           </div>
           <div className="b-day-text">
             <textarea rows={3} value={day.description} onChange={(e) => set({ ...day, description: e.target.value })} />
@@ -216,6 +224,8 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
   const [priceTableOn, setPriceTableOn] = useState(saved?.priceTableOn ?? false)
 
   const [priceRows, setPriceRows] = useState<PriceRow[]>(saved?.priceRows ?? DEFAULT_PRICE_ROWS())
+
+  const [priceColumnsMode, setPriceColumnsMode] = useState<PriceColumnsMode>(saved?.priceColumns ?? 'all')
 
   const [included, setIncluded] = useState(saved?.included ?? '')
 
@@ -391,6 +401,17 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
 
   const removeDay = (uid: string) => setDays((ds) => ds.filter((d) => d.uid !== uid))
 
+  function duplicateDay(uid: string) {
+    setDays((ds) => {
+      const i = ds.findIndex((d) => d.uid === uid)
+      if (i === -1) return ds
+      const copy: EditableDay = { ...ds[i], uid: newUid() }
+      return [...ds.slice(0, i + 1), copy, ...ds.slice(i + 1)]
+    })
+  }
+
+  const setDayLabel = (uid: string, dayLabel: string) => updateDay(uid, { dayLabel: dayLabel || undefined })
+
   function addDayFromPreset(p: DayPreset) {
     const nameOf = (id: number) => ref?.sites.find((x) => x.id === id)?.name ?? ''
     const day: EditableDay = {
@@ -512,7 +533,7 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
 
 
 
-    const seq: { uid: string; title: string; description: string; photoUrl: string; highlights: string[]; meals: string[]; hotel: string }[] = [
+    const seq: { uid: string; title: string; description: string; photoUrl: string; highlights: string[]; meals: string[]; hotel: string; dayLabel?: string }[] = [
 
       ...(arrival.on ? [{ uid: '__arrival', title: arrival.title, description: arrival.description, photoUrl: arrival.photo ? photoSrc(arrival.photo) : '', highlights: ['Meet & assist', 'Hotel check-in', 'Overnight'], meals: mealList(arrival.meals), hotel: arrival.hotel }] : []),
 
@@ -527,6 +548,8 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
         meals: mealList(d.meals),
 
         hotel: d.hotel,
+
+        dayLabel: d.dayLabel,
 
       })),
 
@@ -576,13 +599,13 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
 
       price: { pp, sgl, show: showPrice },
 
-      pricing: { show: priceTableOn, refPp: pp, refSgl: sgl, rows: priceRows },
+      pricing: { show: priceTableOn, refPp: pp, refSgl: sgl, rows: priceRows, columns: priceColumnsMode },
 
       contact: CONTACT,
 
     }
 
-  }, [title, intro, hero, days, arrival, departure, pp, sgl, showPrice, priceTableOn, priceRows, included, excluded, draft, saved, hotels, totalNights, ref, meta, flights])
+  }, [title, intro, hero, days, arrival, departure, pp, sgl, showPrice, priceTableOn, priceRows, priceColumnsMode, included, excluded, draft, saved, hotels, totalNights, ref, meta, flights])
 
 
 
@@ -596,7 +619,7 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
 
       hotels, days, arrival, departure,
 
-      pp, sgl, showPrice, included, excluded, priceTableOn, priceRows, flights,
+      pp, sgl, showPrice, included, excluded, priceTableOn, priceRows, priceColumns: priceColumnsMode, flights,
 
     }
 
@@ -658,8 +681,6 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
 
     try {
 
-      const html2pdf = await getHtml2Pdf()
-
       const node = docRef.current
 
       if (!node) throw new Error('Document not ready')
@@ -679,34 +700,74 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
       window.scrollTo(0, 0)
 
       const safe = (title || 'package').replace(/[^\w\-]+/g, '_')
+      const PAGE_W = 794, PAGE_H = 1123, SCALE = 2, CUT = 18
 
-      const opt = {
-        margin: 0,
-        filename: safe + '.pdf',
-        image: { type: 'jpeg', quality: 0.95 },
-        html2canvas: { scale: 2, useCORS: true, backgroundColor: '#fffefa', logging: false },
-        jsPDF: { unit: 'px', format: [794, 1123], orientation: 'portrait', hotfixes: ['px_scaling'] },
-        pagebreak: { mode: ['css'] },
+      const crop = (src: HTMLCanvasElement) => {
+        const out = document.createElement('canvas')
+        out.width = src.width
+        out.height = src.height
+        const ctx = out.getContext('2d')
+        if (!ctx) return src
+        ctx.fillStyle = '#fffefa'
+        ctx.fillRect(0, 0, out.width, out.height)
+        ctx.drawImage(src, CUT, 0, src.width - CUT * 2, src.height, 0, 0, out.width, out.height)
+        return out
       }
+
       try {
-        // Render to canvas, shave the outer edge pixels (removes html2canvas's capture seam),
-        // rescale left/right to fill; vertical is untouched so the 18-page slicing is identical.
-        await html2pdf().set(opt).from(node).toCanvas().then(function (this: any) {
-          const src: HTMLCanvasElement | undefined = this && this.prop ? this.prop.canvas : undefined
-          if (!src || !src.width || !src.height) return
-          const cut = 18
-          const out = document.createElement('canvas')
-          out.width = src.width
-          out.height = src.height
-          const ctx = out.getContext('2d')
-          if (!ctx) return
-          ctx.fillStyle = '#fffefa'
-          ctx.fillRect(0, 0, out.width, out.height)
-          ctx.drawImage(src, cut, 0, src.width - cut * 2, src.height, 0, 0, out.width, out.height)
-          this.prop.canvas = out
-        }).toImg().toPdf().save()
-      } catch (cropErr) {
-        await html2pdf().set(opt).from(node).save()
+        // Capture ONE PAGE AT A TIME instead of rasterizing the whole multi-page document
+        // into a single giant canvas. Each direct child of the .itin container (cover,
+        // opening, each day, each summary page, closing) is already exactly one PDF
+        // page's worth of height (1123px), so this produces an identical result to the
+        // old whole-document capture — but every canvas stays small (~1588x2246px at
+        // scale 2) regardless of how many pages the itinerary has.
+        //
+        // This matters because a single canvas for a long itinerary (15-20+ pages) can
+        // exceed the max canvas area mobile browsers allow (iOS Safari and many Android
+        // WebViews cap this well below desktop limits). When that happens, html2canvas
+        // doesn't error — it silently returns a blank canvas, producing a PDF with the
+        // right page count but every page completely white. Per-page capture sidesteps
+        // that ceiling entirely.
+        const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
+          import('html2canvas'),
+          import('jspdf'),
+        ])
+
+        const pages = Array.from(node.children) as HTMLElement[]
+        if (pages.length === 0) throw new Error('No pages to export')
+
+        const pdf = new jsPDF({ unit: 'px', format: [PAGE_W, PAGE_H], orientation: 'portrait', hotfixes: ['px_scaling'] })
+
+        for (let i = 0; i < pages.length; i++) {
+          const raw = await html2canvas(pages[i], { scale: SCALE, useCORS: true, backgroundColor: '#fffefa', logging: false })
+          const out = crop(raw)
+          if (i > 0) pdf.addPage([PAGE_W, PAGE_H], 'portrait')
+          pdf.addImage(out.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, PAGE_W, PAGE_H)
+        }
+
+        pdf.save(safe + '.pdf')
+      } catch (perPageErr) {
+        // Fallback: previous whole-document capture. Covers desktop browsers even if the
+        // per-page path above can't run for some reason (e.g. html2canvas/jspdf not
+        // resolvable as direct imports in this build).
+        const html2pdf = await getHtml2Pdf()
+        const opt = {
+          margin: 0,
+          filename: safe + '.pdf',
+          image: { type: 'jpeg', quality: 0.95 },
+          html2canvas: { scale: SCALE, useCORS: true, backgroundColor: '#fffefa', logging: false },
+          jsPDF: { unit: 'px', format: [PAGE_W, PAGE_H], orientation: 'portrait', hotfixes: ['px_scaling'] },
+          pagebreak: { mode: ['css'] },
+        }
+        try {
+          await html2pdf().set(opt).from(node).toCanvas().then(function (this: any) {
+            const src: HTMLCanvasElement | undefined = this && this.prop ? this.prop.canvas : undefined
+            if (!src || !src.width || !src.height) return
+            this.prop.canvas = crop(src)
+          }).toImg().toPdf().save()
+        } catch (cropErr) {
+          await html2pdf().set(opt).from(node).save()
+        }
       } finally {
         window.scrollTo(winX, winY)
         scrolled.forEach(([el, t, l]) => { el.scrollTop = t; el.scrollLeft = l })
@@ -839,9 +900,13 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
 
                 <b>Day {i + (arrival.on ? 2 : 1)}</b>
 
+                <input className="b-day-label" placeholder={`Day ${i + (arrival.on ? 2 : 1)}`} title="Override the day label shown in the PDF (e.g. 'Days 2-5')" value={d.dayLabel ?? ''} onChange={(e) => setDayLabel(d.uid, e.target.value)} />
+
                 <button disabled={i === 0} onClick={() => move(i, -1)}>↑</button>
 
                 <button disabled={i === days.length - 1} onClick={() => move(i, 1)}>↓</button>
+
+                <button title="Insert a copy of this day right below it" onClick={() => duplicateDay(d.uid)}>⧉ Duplicate</button>
 
                 <input value={d.title} onChange={(e) => updateDay(d.uid, { title: e.target.value })} />
 
@@ -853,9 +918,11 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
 
                 <div className="b-photo">
 
-                  {d.photo ? <img src={photoSrc(d.photo)} alt="" /> : <div className="b-nophoto">No photo</div>}
+                  {d.photo ? <img src={photoSrc(d.photo)} alt="" /> : <div className="b-nophoto">No photo — the PDF will show a styled title card instead</div>}
 
                   <button className="link" onClick={() => setPicker({ target: d.uid })}>Change photo</button>
+
+                  {d.photo && <button className="link danger" onClick={() => updateDay(d.uid, { photo: '' })}>Remove photo</button>}
 
                 </div>
 
@@ -998,11 +1065,21 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
 
                 <div className="muted small">Quote reference: ${pp.toLocaleString()} per person (double){sgl > 0 ? ` · $${sgl.toLocaleString()} single supplement` : ''}</div>
 
+                <div className="price-columns-picker">
+                  <span className="meal-ticker-label">Show in PDF</span>
+                  {([
+                    ['all', 'All'], ['dbl', 'Double only'], ['single', 'Single only'], ['triple', 'Triple only'], ['quad', 'Quadruple only'],
+                  ] as [PriceColumnsMode, string][]).map(([mode, label]) => (
+                    <button type="button" key={mode} className={`meal-toggle${priceColumnsMode === mode ? ' on' : ''}`}
+                      onClick={() => setPriceColumnsMode(mode)}>{label}</button>
+                  ))}
+                </div>
+
                 <div className="table-scroll">
 
                   <table className="grid-table wide">
 
-                    <thead><tr><th>Category</th><th>Per person (DBL) USD</th><th>Single supp. USD</th><th>Offered hotels</th><th /></tr></thead>
+                    <thead><tr><th>Category</th><th>Per person (DBL) USD</th><th>Single supp. USD</th><th>Triple USD</th><th>Quad USD</th><th>Offered hotels</th><th /></tr></thead>
 
                     <tbody>
 
@@ -1015,6 +1092,10 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
                           <td><input type="number" min={0} value={r.dbl} onChange={(e) => updateRow(i, { dbl: +e.target.value })} /></td>
 
                           <td><input type="number" min={0} value={r.single} onChange={(e) => updateRow(i, { single: +e.target.value })} /></td>
+
+                          <td><input type="number" min={0} value={r.triple} onChange={(e) => updateRow(i, { triple: +e.target.value })} /></td>
+
+                          <td><input type="number" min={0} value={r.quad} onChange={(e) => updateRow(i, { quad: +e.target.value })} /></td>
 
                           <td><textarea className="pr-hotels" rows={4} value={r.hotels} onChange={(e) => updateRow(i, { hotels: e.target.value })} placeholder={'One line per destination, e.g.\nCairo: Hilton Grand Nile or equal\nNile Cruise: Sonesta or similar\nHurghada: JAZ Aquamarine or equal'} /></td>
 
@@ -1030,7 +1111,7 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
 
                 </div>
 
-                <button onClick={() => setPriceRows((rs) => [...rs, { category: '', dbl: 0, single: 0, hotels: '' }])}>+ Add row</button>
+                <button onClick={() => setPriceRows((rs) => [...rs, { category: '', dbl: 0, single: 0, triple: 0, quad: 0, hotels: '' }])}>+ Add row</button>
 
               </div>
 
