@@ -145,10 +145,10 @@ export async function generateInvoiceDocx(d: InvoiceData, serial: string): Promi
   return renderDocx('/templates/invoice_tpl.docx', invoiceTemplateData(d, serial))
 }
 
-/** Invoice as a PDF that mirrors the Word document. */
+/** Invoice as a PDF that mirrors the Word document — always exactly one page. */
 export async function invoiceToPdf(d: InvoiceData, serial: string) {
   const blob = await generateInvoiceDocx(d, serial)
-  await docxBlobToPdf(blob, 'Invoice.pdf')
+  await docxBlobToPdf(blob, 'Invoice.pdf', { firstPageOnly: true })
 }
 
 export async function saveInvoice(d: InvoiceData, serial: string) {

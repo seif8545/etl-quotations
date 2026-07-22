@@ -65,8 +65,13 @@ function getDocxPreview(): Promise<any> {
   return docxPreviewP
 }
 
-/** Render a filled .docx blob to a PDF that looks like the Word document, and download it. */
-export async function docxBlobToPdf(blob: Blob, filename: string): Promise<void> {
+/** Render a filled .docx blob to a PDF that looks like the Word document, and download it.
+ *  `firstPageOnly` forces a single-page export (drops every page after the first,
+ *  regardless of content) — use for documents that must never spill to page 2, since
+ *  a "blank" trailing page still carries header/footer text and would otherwise
+ *  survive the empty-page trim below, leaving multiple pages bundled into one
+ *  capture (which is what produces a squeezed/garbled PDF). */
+export async function docxBlobToPdf(blob: Blob, filename: string, opts?: { firstPageOnly?: boolean }): Promise<void> {
   const [docx, html2pdf] = await Promise.all([getDocxPreview(), getHtml2Pdf()])
   // Off-screen absolute WRAPPER (font-size:0 kills baseline whitespace) with a
   // STATIC inner holder. html2canvas must capture a static node, not the
@@ -91,12 +96,18 @@ export async function docxBlobToPdf(blob: Blob, filename: string): Promise<void>
     if (!holder.firstChild || holder.offsetHeight < 10) {
       throw new Error('The Word document did not render for PDF export.')
     }
-    // Multi-section templates render a blank final page — drop trailing empties.
     const pages = Array.from(holder.querySelectorAll('.docx')) as HTMLElement[]
-    for (let i = pages.length - 1; i > 0; i--) {
-      const el = pages[i]
-      const hasContent = (el.textContent || '').trim().length > 0 || !!el.querySelector('img')
-      if (!hasContent) el.remove(); else break
+    if (opts?.firstPageOnly) {
+      // Keep exactly the first page — everything after it (even a "blank" page
+      // that only carries header/footer boilerplate) is dropped outright.
+      for (let i = pages.length - 1; i >= 1; i--) pages[i].remove()
+    } else {
+      // Multi-section templates render a blank final page — drop trailing empties.
+      for (let i = pages.length - 1; i > 0; i--) {
+        const el = pages[i]
+        const hasContent = (el.textContent || '').trim().length > 0 || !!el.querySelector('img')
+        if (!hasContent) el.remove(); else break
+      }
     }
     // Wait for embedded images (stamp, letterhead) to decode before capture.
     await waitForAssets(holder)
