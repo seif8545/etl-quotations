@@ -1097,13 +1097,19 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
 
                           <td><input type="number" min={0} value={r.quad} onChange={(e) => updateRow(i, { quad: +e.target.value })} /></td>
 
-<td>
+<td style={{ width: '30%', minWidth: '250px', maxWidth: '400px' }}>
   <textarea 
     className="pr-hotels" 
     rows={4} 
     value={r.hotels} 
     onChange={(e) => updateRow(i, { hotels: e.target.value })} 
-    style={{ width: '100%', minWidth: '250px', boxSizing: 'border-box', resize: 'vertical' }}
+    style={{ 
+      width: '100%', 
+      maxWidth: '100%',
+      boxSizing: 'border-box', 
+      resize: 'vertical',
+      whiteSpace: 'pre-wrap'
+    }}
     placeholder={'One line per destination, e.g.\nCairo: Hilton Grand Nile or equal\nNile Cruise: Sonesta or similar\nHurghada: JAZ Aquamarine or equal'} 
   />
 </td>
