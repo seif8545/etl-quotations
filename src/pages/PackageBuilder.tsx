@@ -1097,8 +1097,16 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
 
                           <td><input type="number" min={0} value={r.quad} onChange={(e) => updateRow(i, { quad: +e.target.value })} /></td>
 
-                          <td><textarea className="pr-hotels" rows={4} value={r.hotels} onChange={(e) => updateRow(i, { hotels: e.target.value })} placeholder={'One line per destination, e.g.\nCairo: Hilton Grand Nile or equal\nNile Cruise: Sonesta or similar\nHurghada: JAZ Aquamarine or equal'} /></td>
-
+<td>
+  <textarea 
+    className="pr-hotels" 
+    rows={4} 
+    value={r.hotels} 
+    onChange={(e) => updateRow(i, { hotels: e.target.value })} 
+    style={{ width: '100%', minWidth: '250px', boxSizing: 'border-box', resize: 'vertical' }}
+    placeholder={'One line per destination, e.g.\nCairo: Hilton Grand Nile or equal\nNile Cruise: Sonesta or similar\nHurghada: JAZ Aquamarine or equal'} 
+  />
+</td>
                           <td>{priceRows.length > 1 && <button className="link danger" onClick={() => setPriceRows((rs) => rs.filter((_, j) => j !== i))}>×</button>}</td>
 
                         </tr>
