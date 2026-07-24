@@ -200,7 +200,7 @@ input[type=checkbox] { width: 17px; height: 17px; accent-color: var(--gold); cur
 .admin-table .table-head { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; }
 .admin-table .table-head h3 { margin: 0; flex: 1; font-size: 20px; }
 .admin-table .table-head input { width: 220px; }
-.table-scroll { overflow-x: auto; border-radius: 10px; }
+.table-scroll { overflow-x: auto; border-radius: 10px; width: 100%; } /* <--- UPDATED */
 .admin-table td input[type=text], .admin-table td input[type=number], .admin-table td input[type=date], .admin-table td select {
   width: 100%; min-width: 90px; padding: 6px 8px; border: 1px solid transparent; border-radius: 8px; background: transparent;
 }
@@ -376,10 +376,10 @@ input[type=checkbox] { width: 17px; height: 17px; accent-color: var(--gold); cur
 }
 
 /* ---------- Pricing table editor (builder) ---------- */
-.b-ptable { margin-top: 10px; display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
+.b-ptable { margin-top: 10px; display: flex; flex-direction: column; gap: 10px; align-items: stretch; width: 100%; } /* <--- UPDATED */
 .b-ptable .grid-table { width: 100%; max-width: none; }
 .b-ptable .grid-table input { width: 100%; }
-.b-ptable .grid-table textarea.pr-hotels { width: 100%; min-width: 300px; min-height: 92px; padding: 8px 10px; font-size: 13px; }
+.b-ptable .grid-table textarea.pr-hotels { width: 100%; min-width: 180px; min-height: 92px; padding: 8px 10px; font-size: 13px; resize: vertical; } /* <--- UPDATED */
 
 /* ---------- Most-requested sites (wizard) ---------- */
 .popular-sites { border: 1px solid var(--gold); background: #fffdf5; border-radius: 10px; padding: 12px 14px; }
