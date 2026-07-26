@@ -52,6 +52,8 @@ export interface PackageState {
   priceTableOn: boolean; priceRows: PriceRow[]; priceColumns?: PriceColumnsMode
 
   flights: FlightInsert[]
+  
+  roomBasis?: string // <-- Added here
 
 }
 
@@ -233,6 +235,8 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
 
   const [flights, setFlights] = useState<FlightInsert[]>(saved?.flights ?? [])
 
+  const [roomBasis, setRoomBasis] = useState(saved?.roomBasis ?? 'double') // <-- State added here
+
   const [manifest, setManifest] = useState<Record<string, string[]>>({})
   const [uploads, setUploads] = useState<Record<string, { name: string; url: string }[]>>({})
   const [uploadArea, setUploadArea] = useState('my-uploads')
@@ -318,7 +322,8 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
 
       const inc: string[] = []
 
-      if (totalNights > 0) inc.push(`${totalNights} nights hotel accommodation on double room basis`)
+      // <-- Replaced "double room basis" with the roomBasis state variable
+      if (totalNights > 0) inc.push(`${totalNights} nights hotel accommodation on ${roomBasis} room basis`) 
 
       inc.push('Private air-conditioned vehicle for all transfers and excursions')
 
@@ -603,9 +608,11 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
 
       contact: CONTACT,
 
+      roomBasis, // <-- Added here
+
     }
 
-  }, [title, intro, hero, days, arrival, departure, pp, sgl, showPrice, priceTableOn, priceRows, priceColumnsMode, included, excluded, draft, saved, hotels, totalNights, ref, meta, flights])
+  }, [title, intro, hero, days, arrival, departure, pp, sgl, showPrice, priceTableOn, priceRows, priceColumnsMode, included, excluded, draft, saved, hotels, totalNights, ref, meta, flights, roomBasis]) // <-- Added roomBasis to dependencies
 
 
 
@@ -620,6 +627,8 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
       hotels, days, arrival, departure,
 
       pp, sgl, showPrice, included, excluded, priceTableOn, priceRows, priceColumns: priceColumnsMode, flights,
+      
+      roomBasis, // <-- Added here so it saves and reloads correctly
 
     }
 
@@ -845,6 +854,17 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
             </div>
             <div className="b-trip-accom">
               <b>Accommodation nights</b>
+              
+              {/* <-- ADDED: Dropdown for Room Basis --> */}
+              <label style={{ display: 'block', marginBottom: '8px', fontSize: '13px' }}>
+                Room Basis: <select value={roomBasis} onChange={(e) => setRoomBasis(e.target.value)}>
+                  <option value="single">Single</option>
+                  <option value="double">Double</option>
+                  <option value="triple">Triple</option>
+                  <option value="quadruple">Quadruple</option>
+                </select>
+              </label>
+
               {hotels.map((h, i) => (
                 <div className="b-accom-row" key={i}>
                   <input type="number" min={0} value={h.nights} onChange={(e) => setHotels((hs) => hs.map((x, j) => (j === i ? { ...x, nights: Math.max(0, Number(e.target.value) || 0) } : x)))} />

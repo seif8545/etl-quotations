@@ -14,6 +14,7 @@ export interface ItineraryData {
   price: { pp: number; sgl: number; show: boolean }
   pricing: { show: boolean; refPp: number; refSgl: number; rows: { category: string; dbl: number; single: number; triple: number; quad: number; hotels: string }[]; columns?: 'all' | 'dbl' | 'single' | 'triple' | 'quad' }
   contact: { phone: string; email: string; website: string; social: string }
+  roomBasis?: string // <-- Added here
 }
 
 const CSS = `
@@ -241,7 +242,11 @@ const ItineraryDoc = forwardRef<HTMLDivElement, { data: ItineraryData }>(({ data
               {d.hotels.map((h, i) => (
                 <div className="hotel-card" key={i}>
                   <div className="hotel-badge"><b>{h.nights}</b><span>{h.nights > 1 ? 'nights' : 'night'}</span></div>
-                  <div><div className="hotel-name fr">{h.destination}</div><div className="hotel-sub">{h.nights} night{h.nights > 1 ? 's' : ''} · double room basis</div></div>
+                  <div>
+                    <div className="hotel-name fr">{h.destination}</div>
+                    {/* Updated this line to use the dynamic room basis state */}
+                    <div className="hotel-sub">{h.nights} night{h.nights > 1 ? 's' : ''} · {d.roomBasis || 'double'} room basis</div>
+                  </div>
                 </div>
               ))}
             </div>
@@ -250,7 +255,8 @@ const ItineraryDoc = forwardRef<HTMLDivElement, { data: ItineraryData }>(({ data
             <div className="price-box">
               <div className="price-eyebrow">Package Price</div>
               <div className="fr price-big">${d.price.pp.toLocaleString()}</div>
-              <div className="price-unit">per person · sharing double room</div>
+              {/* Also updated this to match the basis for consistency */}
+              <div className="price-unit">per person · sharing {d.roomBasis || 'double'} room</div>
               {d.price.sgl > 0 && <div className="price-sgl">Single room supplement: ${d.price.sgl.toLocaleString()} per person</div>}
             </div>
           )}
