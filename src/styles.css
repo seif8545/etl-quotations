@@ -416,3 +416,27 @@ input[type=checkbox] { width: 17px; height: 17px; accent-color: var(--gold); cur
 .share-person input { accent-color: var(--navy); width: 16px; height: 16px; flex: 0 0 auto; }
 .share-name { font-weight: 600; color: var(--navy); }
 .share-tag { font-size: 11px; text-transform: uppercase; letter-spacing: .6px; color: var(--gold-ink); background: var(--cream-2); border: 1px solid var(--border); border-radius: 999px; padding: 3px 10px; white-space: nowrap; }
+
+/* ---------- Compact one-page sheet: block editor ---------- */
+.b-compact .b-day-head { flex-wrap: wrap; }
+.b-compact .b-day-head h4 { margin: 0; }
+.b-compact .b-day-head .muted { margin-right: auto; }
+
+.cseg-list { display: flex; flex-direction: column; gap: 10px; }
+.cseg-list > p { margin: 0 0 2px; }
+
+.cseg-row { display: flex; align-items: flex-start; gap: 12px; border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; background: #fff; }
+.cseg-row.off { opacity: .5; }
+
+.cseg-thumb { display: flex; flex-direction: column; gap: 4px; width: 120px; flex-shrink: 0; }
+.cseg-thumb img { width: 120px; height: 78px; object-fit: cover; border-radius: 8px; }
+.cseg-thumb .b-nophoto { width: 120px; height: 78px; font-size: 11px; text-align: center; padding: 0 6px; }
+.cseg-thumb .link { align-self: flex-start; font-size: 12px; }
+
+.cseg-fields { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.cseg-fields input { width: 100%; }
+.cseg-line { display: flex; align-items: center; gap: 8px; }
+.cseg-line > input { flex: 1; min-width: 0; }
+.cseg-dur { max-width: 110px; flex: 0 0 auto !important; }
+.cseg-range { white-space: nowrap; flex-shrink: 0; }
+.cseg-dest { font-weight: 600; }

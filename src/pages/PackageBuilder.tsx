@@ -12,6 +12,14 @@ import type { ItineraryData } from './ItineraryDoc'
 
 import type { QuotationDraft, RefData, DayPreset } from '../lib/types'
 
+import CompactDoc from './CompactDoc'
+
+import type { CompactData } from './CompactDoc'
+
+import { deriveSegments, applyOverrides } from '../lib/segments'
+
+import type { Segment, SegmentOverride, SegSourceDay } from '../lib/segments'
+
 
 
 
@@ -54,6 +62,9 @@ export interface PackageState {
   flights: FlightInsert[]
   
   roomBasis?: string // <-- Added here
+
+  /** Per-block edits for the compact one-page sheet. Optional: older saved packages auto-derive. */
+  compactSegments?: SegmentOverride[]
 
 }
 
@@ -253,6 +264,17 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
   const [currentId, setCurrentId] = useState<number | undefined>(savedId)
 
   const docRef = useRef<HTMLDivElement>(null)
+
+  const compactRef = useRef<HTMLDivElement>(null)
+
+  const [segOverrides, setSegOverrides] = useState<SegmentOverride[]>(saved?.compactSegments ?? [])
+
+  const [compactOpen, setCompactOpen] = useState(false)
+
+  // Fit-to-page state for the compact sheet, driven by the measurement effect below.
+  const [density, setDensity] = useState(0)
+
+  const [twoPage, setTwoPage] = useState(false)
 
 
 
@@ -471,6 +493,8 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
 
     if (!picker) return
 
+    if (picker.target.startsWith('seg:')) { setSegOv(Number(picker.target.slice(4)), { photo }); setPicker(null); return }
+
     if (picker.target === 'hero') setHero(photo)
 
     else if (picker.target === 'arrival') setArrival((a) => ({ ...a, photo }))
@@ -629,6 +653,8 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
       pp, sgl, showPrice, included, excluded, priceTableOn, priceRows, priceColumns: priceColumnsMode, flights,
       
       roomBasis, // <-- Added here so it saves and reloads correctly
+
+      compactSegments: segOverrides,
 
     }
 
@@ -799,6 +825,169 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
 
 
 
+  // ---------------------------------------------------------------------------
+  // Compact one-page sheet
+  // ---------------------------------------------------------------------------
+
+  const setSegOv = (i: number, patch: Partial<SegmentOverride>) =>
+    setSegOverrides((os) => {
+      const next = os.slice()
+      while (next.length <= i) next.push({})
+      next[i] = { ...next[i], ...patch }
+      return next
+    })
+
+  /** The day sequence fed to the segment deriver — same order the detailed PDF renders. */
+  const segSource: SegSourceDay[] = useMemo(() => [
+    ...(arrival.on ? [{ uid: '__arrival', title: arrival.title, photo: arrival.photo, sites: ['Meet & assist', 'Hotel check-in'], meals: arrival.meals, hotel: arrival.hotel }] : []),
+    ...days.map((d) => ({
+      uid: d.uid, title: d.title, photo: d.photo,
+      sites: [...d.sites.map((x) => x.trim()).filter(Boolean), ...(d.guide ? ['Private guide'] : [])],
+      meals: d.meals, hotel: d.hotel,
+    })),
+    ...(departure.on ? [{ uid: '__departure', title: departure.title, photo: departure.photo, sites: ['Airport transfer'], meals: departure.meals, hotel: departure.hotel }] : []),
+  ], [arrival, days, departure])
+
+  /** Flight / transfer text keyed by the day it was slotted into. */
+  const notesByUid = useMemo(() => {
+    const out: Record<string, string[]> = {}
+    for (const f of flights) {
+      if (!f.targetUid) continue
+      if (!out[f.targetUid]) out[f.targetUid] = []
+      out[f.targetUid].push(f.text)
+    }
+    return out
+  }, [flights])
+
+  const segmentsAll: Segment[] = useMemo(
+    () => applyOverrides(deriveSegments(segSource, hotels, { notesByUid }), segOverrides),
+    [segSource, hotels, notesByUid, segOverrides],
+  )
+
+  const compactData: CompactData = useMemo(() => ({
+    title, intro,
+    heroUrl: photoSrc(hero),
+    logoUrl: '/images/logo.png',
+    meta,
+    overview: data.overview,
+    segments: segmentsAll.filter((s) => !s.hidden).map((s) => ({ ...s, photoUrl: s.photo ? photoSrc(s.photo) : '' })),
+    included: data.included,
+    excluded: data.excluded,
+    price: { pp, sgl, show: showPrice },
+    pricing: { show: priceTableOn, rows: priceRows, columns: priceColumnsMode },
+    contact: CONTACT,
+    roomBasis,
+    density,
+    twoPage,
+  }), [title, intro, hero, meta, data, segmentsAll, pp, sgl, showPrice, priceTableOn, priceRows, priceColumnsMode, roomBasis, density, twoPage])
+
+  /**
+   * Signature of everything that affects how much room the content needs.
+   * Deliberately excludes density/twoPage so the fit loop below can't feed itself.
+   */
+  const fitSig = useMemo(() => JSON.stringify([
+    compactData.segments.map((s) => [s.label, s.dayRange, s.destination, s.highlights, s.stay, s.meals, s.notes]),
+    compactData.included, compactData.excluded, compactData.intro, compactData.title,
+    compactData.pricing, compactData.price, compactData.meta, compactData.overview,
+  ]), [compactData])
+
+  // Content changed -> start roomy again, then let the loop below tighten as needed.
+  useEffect(() => { setDensity(0); setTwoPage(false) }, [fitSig])
+
+  /**
+   * Fit-to-page loop. Each .cpt-flow is a fixed-height box; its single child is the
+   * natural-height content. If the child is taller, step the density down; once the
+   * tightest step still overflows, spill onto a second page. Bounded to 4 steps, and
+   * the rAF is cancelled on re-render so a stale measurement can never win.
+   */
+  useEffect(() => {
+    const node = compactRef.current
+    if (!node) return
+    const id = window.requestAnimationFrame(() => {
+      const flows = Array.from(node.querySelectorAll('[data-cpt-flow]')) as HTMLElement[]
+      const over = flows.some((f) => {
+        const inner = f.firstElementChild as HTMLElement | null
+        return !!inner && inner.offsetHeight > f.clientHeight + 1
+      })
+      if (!over) return
+      if (density < 3) setDensity((x) => x + 1)
+      else if (!twoPage) setTwoPage(true)
+    })
+    return () => window.cancelAnimationFrame(id)
+  }, [fitSig, density, twoPage])
+
+  /**
+   * Compact sheet export. Same guards as exportPdf: asset preloading, scroll-zeroing
+   * before capture (handoff 8I) and the left/right canvas seam crop (handoff 8D).
+   * Deliberately does NOT call savePackage() — auto-saving on export is what filled
+   * q_package_docs with duplicate rows.
+   */
+  async function exportCompact(kind: 'png' | 'pdf') {
+    setBusy(true); setError('')
+    const scrolled: Array<[HTMLElement, number, number]> = []
+    const winX = window.scrollX, winY = window.scrollY
+    try {
+      const node = compactRef.current
+      if (!node) throw new Error('Document not ready')
+      await waitForAssets(node)
+
+      for (let el: HTMLElement | null = node.parentElement; el; el = el.parentElement) {
+        if (el.scrollTop || el.scrollLeft) { scrolled.push([el, el.scrollTop, el.scrollLeft]); el.scrollTop = 0; el.scrollLeft = 0 }
+      }
+      window.scrollTo(0, 0)
+
+      const safe = (title || 'package').replace(/[^\w\-]+/g, '_') + '_compact'
+      const PAGE_W = 794, PAGE_H = 1123, SCALE = 2, CUT = 18
+
+      const crop = (src: HTMLCanvasElement) => {
+        const out = document.createElement('canvas')
+        out.width = src.width
+        out.height = src.height
+        const ctx = out.getContext('2d')
+        if (!ctx) return src
+        ctx.fillStyle = '#fffefa'
+        ctx.fillRect(0, 0, out.width, out.height)
+        ctx.drawImage(src, CUT, 0, src.width - CUT * 2, src.height, 0, 0, out.width, out.height)
+        return out
+      }
+
+      const { default: html2canvas } = await import('html2canvas')
+      const pages = Array.from(node.children) as HTMLElement[]
+      if (pages.length === 0) throw new Error('No pages to export')
+
+      const canvases: HTMLCanvasElement[] = []
+      for (const p of pages) {
+        canvases.push(crop(await html2canvas(p, { scale: SCALE, useCORS: true, backgroundColor: '#fffefa', logging: false })))
+      }
+
+      if (kind === 'png') {
+        for (let i = 0; i < canvases.length; i++) {
+          const a = document.createElement('a')
+          a.href = canvases[i].toDataURL('image/png')
+          a.download = canvases.length > 1 ? safe + '_p' + (i + 1) + '.png' : safe + '.png'
+          document.body.appendChild(a); a.click(); a.remove()
+          // Browsers throttle back-to-back programmatic downloads.
+          if (i < canvases.length - 1) await new Promise((r) => setTimeout(r, 500))
+        }
+      } else {
+        const { jsPDF } = await import('jspdf')
+        const pdf = new jsPDF({ unit: 'px', format: [PAGE_W, PAGE_H], orientation: 'portrait', hotfixes: ['px_scaling'] })
+        canvases.forEach((c, i) => {
+          if (i > 0) pdf.addPage([PAGE_W, PAGE_H], 'portrait')
+          pdf.addImage(c.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, PAGE_W, PAGE_H)
+        })
+        pdf.save(safe + '.pdf')
+      }
+    } catch (e: any) {
+      setError(e.message ?? String(e))
+    } finally {
+      window.scrollTo(winX, winY)
+      scrolled.forEach(([el, t, l]) => { el.scrollTop = t; el.scrollLeft = l })
+      setBusy(false)
+    }
+  }
+
+
   const daySlots = [
 
     ...(arrival.on ? [{ uid: '__arrival', title: arrival.title }] : []),
@@ -810,6 +999,8 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
   ]
 
 
+
+  const visibleSegCount = segmentsAll.filter((x) => !x.hidden).length
 
   if (!ref) return (
 
@@ -839,6 +1030,10 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
           <button onClick={onClose}>Close</button>
 
           <button className="primary" disabled={busy} onClick={exportPdf}>{busy ? 'Building…' : 'Export PDF'}</button>
+
+          <button disabled={busy} title="One-page compact sheet as a PNG image" onClick={() => exportCompact('png')}>Compact PNG</button>
+
+          <button disabled={busy} title="One-page compact sheet as a printable PDF" onClick={() => exportCompact('pdf')}>Compact PDF</button>
 
         </div>
 
@@ -876,6 +1071,76 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
               <button onClick={() => setHotels((hs) => [...hs, { nights: 1, destination: '' }])}>+ Add accommodation</button>
             </div>
           </div>
+
+          <section className="b-sec b-compact">
+
+            <div className="b-day-head">
+
+              <h4>Compact one-page sheet</h4>
+
+              <span className="muted small">{visibleSegCount} block{visibleSegCount === 1 ? '' : 's'} · {twoPage ? '2 pages' : '1 page'}{density > 0 ? ' · condensed ×' + density : ''}</span>
+
+              <button className="link" onClick={() => setCompactOpen((o) => !o)}>{compactOpen ? 'Hide blocks' : 'Edit blocks'}</button>
+
+              {segOverrides.length > 0 && <button className="link danger" onClick={() => setSegOverrides([])}>Re-derive from days</button>}
+
+            </div>
+
+            {compactOpen && (
+
+              <div className="cseg-list">
+
+                <p className="muted small">Blocks are built from your accommodation nights and the days they cover. Edits here only affect the Compact PNG / PDF — the detailed itinerary PDF is untouched.</p>
+
+                {segmentsAll.map((s, i) => (
+
+                  <div className={`cseg-row${s.hidden ? ' off' : ''}`} key={s.key}>
+
+                    <div className="cseg-thumb">
+
+                      {s.photo ? <img src={photoSrc(s.photo)} alt="" /> : <div className="b-nophoto">No photo</div>}
+
+                      <button className="link" onClick={() => setPicker({ target: `seg:${i}` })}>Change</button>
+
+                    </div>
+
+                    <div className="cseg-fields">
+
+                      <div className="cseg-line">
+
+                        <input className="cseg-dur" value={s.label} placeholder="3 Nights" onChange={(e) => setSegOv(i, { label: e.target.value })} />
+
+                        <span className="muted small cseg-range">{s.dayRange}</span>
+
+                        <input className="cseg-dest" value={s.destination} placeholder="Destination" onChange={(e) => setSegOv(i, { destination: e.target.value })} />
+
+                      </div>
+
+                      <input value={s.highlights.join(', ')} placeholder="Highlights (comma-separated)" onChange={(e) => setSegOv(i, { highlights: e.target.value.split(',').map((x) => x.replace(/^\s+/, '')) })} />
+
+                      <div className="cseg-line">
+
+                        <input value={s.stay} placeholder="Stay (hotel / cruise)" onChange={(e) => setSegOv(i, { stay: e.target.value })} />
+
+                        <input value={s.meals} placeholder="Meals (e.g. Full board)" onChange={(e) => setSegOv(i, { meals: e.target.value })} />
+
+                      </div>
+
+                    </div>
+
+                    <button className="link danger" onClick={() => setSegOv(i, { hidden: !s.hidden })}>{s.hidden ? 'Show' : 'Hide'}</button>
+
+                  </div>
+
+                ))}
+
+                {segmentsAll.length === 0 && <p className="muted">No blocks yet — add accommodation nights or itinerary days.</p>}
+
+              </div>
+
+            )}
+
+          </section>
 
           <section className="b-cover">
 
@@ -1164,6 +1429,8 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
       <div style={{ position: 'absolute', left: -99999, top: 0 }}>
 
         <ItineraryDoc ref={docRef} data={data} />
+
+        <CompactDoc ref={compactRef} data={compactData} />
 
       </div>
 
