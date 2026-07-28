@@ -58,7 +58,11 @@ const CSS = `
 .cpt-hero-ov { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(14,42,71,0.22) 0%, rgba(14,42,71,0.42) 48%, rgba(8,26,48,0.93) 100%); }
 .cpt-hero-top { position: relative; z-index: 2; padding: 20px 34px 0; }
 .cpt-logo { background: #ffffff; border-radius: 999px; padding: 8px 18px; display: inline-block; box-shadow: 0 5px 18px rgba(0,0,0,0.25); }
-.cpt-logo img { height: 30px; display: block; }
+/* Both dimensions are explicit on purpose. logo.png is 1600x298; sizing by height
+   alone leaves width:auto for html2canvas to resolve from intrinsic size, and it
+   reserves the right space but paints nothing — the pill came out empty on the
+   first real export. Never size a captured <img> in one dimension only. */
+.cpt-logo img { width: 161px; height: 30px; display: block; }
 .cpt-hero-bottom { position: absolute; left: 46px; right: 46px; bottom: 24px; z-index: 2; color: #fff; }
 .cpt-eyebrow { color: #f0c53a; font-weight: 600; font-size: 11px; letter-spacing: 3.4px; text-transform: uppercase; margin-bottom: 7px; }
 .cpt-title { font-size: 38px; font-weight: 600; line-height: 1.06; margin: 0; color: #fff; text-shadow: 0 2px 18px rgba(0,0,0,0.4); }
@@ -139,7 +143,7 @@ const CSS = `
 /* Page 2 header */
 .cpt-slim { flex-shrink: 0; height: 74px; background: linear-gradient(135deg,#0e2a47,#163d6b); color: #fff; display: flex; align-items: center; gap: 16px; padding: 0 40px; }
 .cpt-slim-logo { background: #fff; border-radius: 999px; padding: 6px 14px; display: inline-flex; }
-.cpt-slim-logo img { height: 24px; display: block; }
+.cpt-slim-logo img { width: 129px; height: 24px; display: block; }
 .cpt-slim-t { font-size: 19px; font-weight: 600; color: #fff; }
 .cpt-slim-e { margin-left: auto; font-size: 10px; letter-spacing: 2.6px; text-transform: uppercase; color: #f0c53a; }
 

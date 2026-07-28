@@ -839,13 +839,16 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
 
   /** The day sequence fed to the segment deriver — same order the detailed PDF renders. */
   const segSource: SegSourceDay[] = useMemo(() => [
-    ...(arrival.on ? [{ uid: '__arrival', title: arrival.title, photo: arrival.photo, sites: ['Meet & assist', 'Hotel check-in'], meals: arrival.meals, hotel: arrival.hotel }] : []),
+    // No synthetic 'Meet & assist' / 'Airport transfer' highlights here: on the
+    // compact sheet they crowd out real selling points, and a block whose only
+    // highlight is "Airport transfer" reads worse than one with none at all.
+    ...(arrival.on ? [{ uid: '__arrival', title: arrival.title, photo: arrival.photo, sites: [] as string[], meals: arrival.meals, hotel: arrival.hotel }] : []),
     ...days.map((d) => ({
       uid: d.uid, title: d.title, photo: d.photo,
       sites: [...d.sites.map((x) => x.trim()).filter(Boolean), ...(d.guide ? ['Private guide'] : [])],
       meals: d.meals, hotel: d.hotel,
     })),
-    ...(departure.on ? [{ uid: '__departure', title: departure.title, photo: departure.photo, sites: ['Airport transfer'], meals: departure.meals, hotel: departure.hotel }] : []),
+    ...(departure.on ? [{ uid: '__departure', title: departure.title, photo: departure.photo, sites: [] as string[], meals: departure.meals, hotel: departure.hotel }] : []),
   ], [arrival, days, departure])
 
   /** Flight / transfer text keyed by the day it was slotted into. */
@@ -897,13 +900,26 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
   /**
    * Fit-to-page loop. Each .cpt-flow is a fixed-height box; its single child is the
    * natural-height content. If the child is taller, step the density down; once the
-   * tightest step still overflows, spill onto a second page. Bounded to 4 steps, and
-   * the rAF is cancelled on re-render so a stale measurement can never win.
+   * tightest step still overflows, spill onto a second page.
+   *
+   * Measuring only once on mount is NOT enough, and getting this wrong is silent:
+   * Fraunces/Inter arrive after first paint, so the first measurement runs against
+   * fallback-font metrics, frequently reports "it fits", and the sheet then clips
+   * with no warning (this is exactly what happened on the first real export — the
+   * pricing block was cut off entirely at density 0). So we re-measure on
+   * document.fonts.ready AND whenever the content box actually changes size.
+   *
+   * Termination: escalation is monotonic and capped — density only ever increases to
+   * 3, then twoPage flips true once — so repeated observer callbacks converge.
    */
   useEffect(() => {
     const node = compactRef.current
     if (!node) return
-    const id = window.requestAnimationFrame(() => {
+    let cancelled = false
+    let raf = 0
+
+    const measure = () => {
+      if (cancelled) return
       const flows = Array.from(node.querySelectorAll('[data-cpt-flow]')) as HTMLElement[]
       const over = flows.some((f) => {
         const inner = f.firstElementChild as HTMLElement | null
@@ -912,8 +928,25 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
       if (!over) return
       if (density < 3) setDensity((x) => x + 1)
       else if (!twoPage) setTwoPage(true)
-    })
-    return () => window.cancelAnimationFrame(id)
+    }
+
+    const schedule = () => {
+      window.cancelAnimationFrame(raf)
+      raf = window.requestAnimationFrame(measure)
+    }
+
+    schedule()
+
+    const fonts = (document as any).fonts
+    if (fonts?.ready?.then) fonts.ready.then(schedule).catch(() => {})
+
+    let ro: ResizeObserver | undefined
+    if (typeof ResizeObserver !== 'undefined') {
+      ro = new ResizeObserver(schedule)
+      node.querySelectorAll('[data-cpt-flow] > *').forEach((el) => ro!.observe(el))
+    }
+
+    return () => { cancelled = true; window.cancelAnimationFrame(raf); ro?.disconnect() }
   }, [fitSig, density, twoPage])
 
   /**
