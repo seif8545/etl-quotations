@@ -53,8 +53,11 @@ const CSS = `
 .cpt-page { width: 794px; height: 1123px; overflow: hidden; display: flex; flex-direction: column; background: #fffefa; }
 
 /* Hero band */
-.cpt-hero-wrap { position: relative; height: 300px; flex-shrink: 0; overflow: hidden; }
-.cpt-hero { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.cpt-hero-wrap { position: relative; height: 300px; flex-shrink: 0; overflow: hidden; background: #0e2a47; }
+/* background-size:cover, NOT an <img> with object-fit. html2canvas does not honour
+   object-fit dependably and stretched the hero to the 794x300 box; the segment
+   thumbs below use this same background technique and came out correctly. */
+.cpt-hero { position: absolute; inset: 0; background-size: cover; background-position: center; }
 .cpt-hero-ov { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(14,42,71,0.22) 0%, rgba(14,42,71,0.42) 48%, rgba(8,26,48,0.93) 100%); }
 .cpt-hero-top { position: relative; z-index: 2; padding: 20px 34px 0; }
 .cpt-logo { background: #ffffff; border-radius: 999px; padding: 8px 18px; display: inline-block; box-shadow: 0 5px 18px rgba(0,0,0,0.25); }
@@ -78,10 +81,13 @@ const CSS = `
 .cpt-glance span { display: block; margin-top: 4px; font-size: 9.5px; letter-spacing: 2px; text-transform: uppercase; color: #8a7a5c; }
 
 /* Flowing content area — the fit loop measures .cpt-inner against .cpt-flow.
-   min-height:0 is load-bearing: column flex items default to min-height:auto, so
-   without it .cpt-flow would grow to its content instead of clipping — pushing the
-   contact strip off the page AND making clientHeight == content height, which would
-   stop the fit loop from ever seeing an overflow. */
+   Keep BOTH min-height:0 and overflow:hidden. A column flex item defaults to
+   min-height:auto and would grow to its content rather than clip, which would push
+   the contact strip off the page and make clientHeight == content height, blinding
+   the fit loop. overflow:hidden alone already zeroes that automatic minimum (per the
+   flexbox spec it only applies when overflow is visible), so min-height:0 is really
+   belt-and-braces — but it also documents the intent and survives someone later
+   changing the overflow value. */
 .cpt-flow { flex: 1; min-height: 0; overflow: hidden; }
 .cpt-inner { padding: 20px 46px 22px; }
 
@@ -238,10 +244,10 @@ const CompactDoc = forwardRef<HTMLDivElement, { data: CompactData }>(({ data }, 
 
   const heroBand = (
     <div className="cpt-hero-wrap">
-      {d.heroUrl ? <img className="cpt-hero" src={d.heroUrl} crossOrigin="anonymous" alt="" /> : null}
+      {d.heroUrl ? <div className="cpt-hero" style={{ backgroundImage: `url("${d.heroUrl}")` }} /> : null}
       <div className="cpt-hero-ov" />
       <div className="cpt-hero-top">
-        <div className="cpt-logo"><img src={d.logoUrl} crossOrigin="anonymous" alt="Egypt Top Light" /></div>
+        <div className="cpt-logo"><img src={d.logoUrl} alt="Egypt Top Light" /></div>
       </div>
       <div className="cpt-hero-bottom">
         <div className="cpt-eyebrow">Tailor-Made Egypt Itinerary</div>
@@ -422,7 +428,7 @@ const CompactDoc = forwardRef<HTMLDivElement, { data: CompactData }>(({ data }, 
       </div>
       <div className="cpt-page">
         <div className="cpt-slim">
-          <div className="cpt-slim-logo"><img src={d.logoUrl} crossOrigin="anonymous" alt="Egypt Top Light" /></div>
+          <div className="cpt-slim-logo"><img src={d.logoUrl} alt="Egypt Top Light" /></div>
           <div className="fr cpt-slim-t">{d.title}</div>
           <div className="cpt-slim-e">Inclusions &amp; Pricing</div>
         </div>

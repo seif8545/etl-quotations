@@ -265,7 +265,41 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
 
   const docRef = useRef<HTMLDivElement>(null)
 
-  const compactRef = useRef<HTMLDivElement>(null)
+  /*
+   * The compact doc is held as STATE, not a ref, and attached with a callback ref.
+   *
+   * PackageBuilder early-returns a "Loading..." card until RefData arrives, so
+   * <CompactDoc> is not in the tree during the first renders. With a plain ref the
+   * fit effect ran once against a null node, bailed, and never ran again — for a
+   * saved package none of its other deps change when RefData lands, so nothing
+   * re-triggered it and the sheet silently exported at density 0 and clipped.
+   * A state node changes identity exactly when the element mounts, which is the
+   * signal the effect actually needs.
+   */
+  const [compactNode, setCompactNode] = useState<HTMLDivElement | null>(null)
+
+  /*
+   * The logo is inlined as a data URL before capture. As a plain <img src="/images/
+   * logo.png"> html2canvas laid out the correct box and painted nothing — the pill
+   * came out empty twice. Data URLs need no second fetch and no CORS negotiation
+   * inside the cloned document, so they always draw.
+   */
+  const [logoUrl, setLogoUrl] = useState('/images/logo.png')
+
+  useEffect(() => {
+    let dead = false
+    fetch('/images/logo.png')
+      .then((r) => (r.ok ? r.blob() : Promise.reject(new Error('logo ' + r.status))))
+      .then((b) => new Promise<string>((res, rej) => {
+        const fr = new FileReader()
+        fr.onload = () => res(String(fr.result))
+        fr.onerror = () => rej(fr.error)
+        fr.readAsDataURL(b)
+      }))
+      .then((u) => { if (!dead) setLogoUrl(u) })
+      .catch(() => { /* fall back to the path — no worse than before */ })
+    return () => { dead = true }
+  }, [])
 
   const [segOverrides, setSegOverrides] = useState<SegmentOverride[]>(saved?.compactSegments ?? [])
 
@@ -870,7 +904,7 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
   const compactData: CompactData = useMemo(() => ({
     title, intro,
     heroUrl: photoSrc(hero),
-    logoUrl: '/images/logo.png',
+    logoUrl,
     meta,
     overview: data.overview,
     segments: segmentsAll.filter((s) => !s.hidden).map((s) => ({ ...s, photoUrl: s.photo ? photoSrc(s.photo) : '' })),
@@ -882,7 +916,7 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
     roomBasis,
     density,
     twoPage,
-  }), [title, intro, hero, meta, data, segmentsAll, pp, sgl, showPrice, priceTableOn, priceRows, priceColumnsMode, roomBasis, density, twoPage])
+  }), [title, intro, hero, logoUrl, meta, data, segmentsAll, pp, sgl, showPrice, priceTableOn, priceRows, priceColumnsMode, roomBasis, density, twoPage])
 
   /**
    * Signature of everything that affects how much room the content needs.
@@ -913,7 +947,7 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
    * 3, then twoPage flips true once — so repeated observer callbacks converge.
    */
   useEffect(() => {
-    const node = compactRef.current
+    const node = compactNode
     if (!node) return
     let cancelled = false
     let raf = 0
@@ -947,7 +981,7 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
     }
 
     return () => { cancelled = true; window.cancelAnimationFrame(raf); ro?.disconnect() }
-  }, [fitSig, density, twoPage])
+  }, [compactNode, fitSig, density, twoPage])
 
   /**
    * Compact sheet export. Same guards as exportPdf: asset preloading, scroll-zeroing
@@ -960,7 +994,7 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
     const scrolled: Array<[HTMLElement, number, number]> = []
     const winX = window.scrollX, winY = window.scrollY
     try {
-      const node = compactRef.current
+      const node = compactNode
       if (!node) throw new Error('Document not ready')
       await waitForAssets(node)
 
@@ -994,14 +1028,29 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
       }
 
       if (kind === 'png') {
-        for (let i = 0; i < canvases.length; i++) {
-          const a = document.createElement('a')
-          a.href = canvases[i].toDataURL('image/png')
-          a.download = canvases.length > 1 ? safe + '_p' + (i + 1) + '.png' : safe + '.png'
-          document.body.appendChild(a); a.click(); a.remove()
-          // Browsers throttle back-to-back programmatic downloads.
-          if (i < canvases.length - 1) await new Promise((r) => setTimeout(r, 500))
+        // One file, always — the point of the compact sheet is a single shareable
+        // image. Two pages are stacked into one tall PNG rather than fired as two
+        // downloads, which Chrome gates behind a "Download multiple files?" prompt
+        // that silently drops the second file when dismissed. The PDF path below
+        // keeps them as proper separate pages for printing.
+        let out = canvases[0]
+        if (canvases.length > 1) {
+          const stacked = document.createElement('canvas')
+          stacked.width = canvases[0].width
+          stacked.height = canvases.reduce((h, c) => h + c.height, 0)
+          const ctx = stacked.getContext('2d')
+          if (ctx) {
+            ctx.fillStyle = '#fffefa'
+            ctx.fillRect(0, 0, stacked.width, stacked.height)
+            let y = 0
+            for (const c of canvases) { ctx.drawImage(c, 0, y); y += c.height }
+            out = stacked
+          }
         }
+        const a = document.createElement('a')
+        a.href = out.toDataURL('image/png')
+        a.download = safe + '.png'
+        document.body.appendChild(a); a.click(); a.remove()
       } else {
         const { jsPDF } = await import('jspdf')
         const pdf = new jsPDF({ unit: 'px', format: [PAGE_W, PAGE_H], orientation: 'portrait', hotfixes: ['px_scaling'] })
@@ -1463,7 +1512,7 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
 
         <ItineraryDoc ref={docRef} data={data} />
 
-        <CompactDoc ref={compactRef} data={compactData} />
+        <CompactDoc ref={setCompactNode} data={compactData} />
 
       </div>
 
