@@ -22,6 +22,8 @@ export interface SegMeals {
 export interface SegSourceDay {
   uid: string
   title: string
+  /** Newline-separated bullets — first bullet of each day composes the block blurb. */
+  description: string
   photo: string
   sites: string[]
   meals: SegMeals
@@ -44,6 +46,8 @@ export interface Segment {
   dayFrom: number
   dayTo: number
   destination: string
+  /** Prose summary of the stay, composed from the days' opening lines. */
+  blurb: string
   highlights: string[]
   /** Hotel / cruise name for this block. */
   stay: string
@@ -60,6 +64,7 @@ export interface Segment {
 export interface SegmentOverride {
   label?: string
   destination?: string
+  blurb?: string
   highlights?: string[]
   stay?: string
   meals?: string
@@ -124,6 +129,34 @@ function mergeHighlights(block: SegSourceDay[], cap: number): string[] {
     return [...ordered.slice(0, cap), `+${extra} more`]
   }
   return ordered
+}
+
+/**
+ * Compose a readable paragraph for a stay from the days it covers.
+ *
+ * Takes the opening line of each day — already a full sentence in practice — and
+ * runs them together. Purely a re-arrangement of what the agent wrote: nothing is
+ * invented, so the sheet can never claim something the itinerary does not say.
+ */
+function composeBlurb(block: SegSourceDay[], maxSentences: number, maxChars: number): string {
+  const out: string[] = []
+  for (const d of block) {
+    const first = (d.description ?? '').split('\n').map((l) => l.trim()).filter(Boolean)[0]
+    if (!first) continue
+    const clean = first.replace(/\s+/g, ' ').replace(/[.;:,\s]+$/, '')
+    if (!clean) continue
+    if (out.some((x) => x.toLowerCase() === clean.toLowerCase())) continue
+    out.push(clean)
+    if (out.length >= maxSentences) break
+  }
+  let text = out.join('. ')
+  if (text) text += '.'
+  if (text.length > maxChars) {
+    const cut = text.slice(0, maxChars)
+    const stop = Math.max(cut.lastIndexOf('. '), cut.lastIndexOf(' '))
+    text = (stop > 60 ? cut.slice(0, stop) : cut).replace(/[.,;\s]+$/, '') + '…'
+  }
+  return text
 }
 
 const firstNonEmpty = (block: SegSourceDay[], pick: (d: SegSourceDay) => string): string => {
@@ -212,8 +245,12 @@ function groupByHotelRows(seq: SegSourceDay[], hotels: SegHotel[]): number[][] {
 }
 
 export interface DeriveOptions {
-  /** Max highlights per block before collapsing into "+N more". Default 8. */
+  /** Max highlights per block before collapsing into "+N more". Default 12. */
   highlightCap?: number
+  /** Max sentences pulled into a block's blurb. Default 4. */
+  blurbSentences?: number
+  /** Hard character cap on a blurb before it is trimmed. Default 340. */
+  blurbChars?: number
   /** Flight / transfer text keyed by day uid, folded into the block that owns the day. */
   notesByUid?: Record<string, string[]>
 }
@@ -225,8 +262,10 @@ export function deriveSegments(
   opts: DeriveOptions = {},
 ): Segment[] {
   if (!seq.length) return []
-  const cap = opts.highlightCap ?? 8
+  const cap = opts.highlightCap ?? 12
   const notesByUid = opts.notesByUid ?? {}
+  const blurbSentences = opts.blurbSentences ?? 4
+  const blurbChars = opts.blurbChars ?? 340
 
   const rows = (hotels ?? []).filter((h) => (h?.nights ?? 0) > 0)
   const byStay = shouldUseStayRuns(seq, rows)
@@ -303,6 +342,7 @@ export function deriveSegments(
       dayFrom: from,
       dayTo: to,
       destination,
+      blurb: composeBlurb(block, blurbSentences, blurbChars),
       highlights: mergeHighlights(block, cap),
       stay: stay || destination,
       meals: summariseMeals(block),
@@ -321,6 +361,7 @@ export function applyOverrides(auto: Segment[], overrides?: SegmentOverride[]): 
     const out: Segment = { ...s }
     if (o.label !== undefined) out.label = o.label
     if (o.destination !== undefined) out.destination = o.destination
+    if (o.blurb !== undefined) out.blurb = o.blurb
     if (o.highlights !== undefined) out.highlights = o.highlights
     if (o.stay !== undefined) out.stay = o.stay
     if (o.meals !== undefined) out.meals = o.meals

@@ -440,3 +440,4 @@ input[type=checkbox] { width: 17px; height: 17px; accent-color: var(--gold); cur
 .cseg-dur { max-width: 110px; flex: 0 0 auto !important; }
 .cseg-range { white-space: nowrap; flex-shrink: 0; }
 .cseg-dest { font-weight: 600; }
+.cseg-blurb { width: 100%; resize: vertical; font: inherit; }

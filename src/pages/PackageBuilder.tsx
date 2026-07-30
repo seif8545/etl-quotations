@@ -16,6 +16,8 @@ import CompactDoc from './CompactDoc'
 
 import type { CompactData } from './CompactDoc'
 
+import { sitePhoto } from '../lib/sitePhotos'
+
 import { deriveSegments, applyOverrides } from '../lib/segments'
 
 import type { Segment, SegmentOverride, SegSourceDay } from '../lib/segments'
@@ -305,10 +307,8 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
 
   const [compactOpen, setCompactOpen] = useState(false)
 
-  // Fit-to-page state for the compact sheet, driven by the measurement effect below.
+  // Fit state for the compact sheet, driven by the measurement effect below.
   const [density, setDensity] = useState(0)
-
-  const [twoPage, setTwoPage] = useState(false)
 
 
 
@@ -863,6 +863,10 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
   // Compact one-page sheet
   // ---------------------------------------------------------------------------
 
+  /** Target height for the sheet. Density steps down until it fits; never clips. */
+  const MAX_SHEET_H = 1500
+  const MAX_DENSITY = 4
+
   const setSegOv = (i: number, patch: Partial<SegmentOverride>) =>
     setSegOverrides((os) => {
       const next = os.slice()
@@ -874,15 +878,15 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
   /** The day sequence fed to the segment deriver — same order the detailed PDF renders. */
   const segSource: SegSourceDay[] = useMemo(() => [
     // No synthetic 'Meet & assist' / 'Airport transfer' highlights here: on the
-    // compact sheet they crowd out real selling points, and a block whose only
-    // highlight is "Airport transfer" reads worse than one with none at all.
-    ...(arrival.on ? [{ uid: '__arrival', title: arrival.title, photo: arrival.photo, sites: [] as string[], meals: arrival.meals, hotel: arrival.hotel }] : []),
+    // compact sheet they crowd out real sights, and a block whose only tile is
+    // "Airport transfer" reads worse than one with none at all.
+    ...(arrival.on ? [{ uid: '__arrival', title: arrival.title, description: arrival.description, photo: arrival.photo, sites: [] as string[], meals: arrival.meals, hotel: arrival.hotel }] : []),
     ...days.map((d) => ({
-      uid: d.uid, title: d.title, photo: d.photo,
+      uid: d.uid, title: d.title, description: d.description, photo: d.photo,
       sites: [...d.sites.map((x) => x.trim()).filter(Boolean), ...(d.guide ? ['Private guide'] : [])],
       meals: d.meals, hotel: d.hotel,
     })),
-    ...(departure.on ? [{ uid: '__departure', title: departure.title, photo: departure.photo, sites: [] as string[], meals: departure.meals, hotel: departure.hotel }] : []),
+    ...(departure.on ? [{ uid: '__departure', title: departure.title, description: departure.description, photo: departure.photo, sites: [] as string[], meals: departure.meals, hotel: departure.hotel }] : []),
   ], [arrival, days, departure])
 
   /** Flight / transfer text keyed by the day it was slotted into. */
@@ -901,50 +905,57 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
     [segSource, hotels, notesByUid, segOverrides],
   )
 
-  const compactData: CompactData = useMemo(() => ({
-    title, intro,
-    heroUrl: photoSrc(hero),
-    logoUrl,
-    meta,
-    overview: data.overview,
-    segments: segmentsAll.filter((s) => !s.hidden).map((s) => ({ ...s, photoUrl: s.photo ? photoSrc(s.photo) : '' })),
-    included: data.included,
-    excluded: data.excluded,
-    price: { pp, sgl, show: showPrice },
-    pricing: { show: priceTableOn, rows: priceRows, columns: priceColumnsMode },
-    contact: CONTACT,
-    roomBasis,
-    density,
-    twoPage,
-  }), [title, intro, hero, logoUrl, meta, data, segmentsAll, pp, sgl, showPrice, priceTableOn, priceRows, priceColumnsMode, roomBasis, density, twoPage])
+  const compactData: CompactData = useMemo(() => {
+    const visible = segmentsAll.filter((s) => !s.hidden)
+    return {
+      title, intro,
+      logoUrl,
+      meta,
+      overview: data.overview,
+      cities: visible.map((s) => s.destination),
+      segments: visible.map((s) => ({
+        ...s,
+        // Every site gets its own photo. 'Private guide' is a service, not a place —
+        // it stays in the highlight list but earns no tile.
+        tiles: s.highlights
+          .map((n) => (n ?? '').trim())
+          .filter((n) => n && !/^private guide$/i.test(n) && !/^\+\d+ more$/.test(n))
+          .map((n) => ({ name: n, photoUrl: photoSrc(sitePhoto(n, manifest, s.photo)) }))
+          .filter((t) => t.photoUrl),
+      })),
+      included: data.included,
+      excluded: data.excluded,
+      price: { pp, sgl, show: showPrice },
+      pricing: { show: priceTableOn, rows: priceRows, columns: priceColumnsMode },
+      contact: CONTACT,
+      roomBasis,
+      density,
+    }
+  }, [title, intro, logoUrl, meta, data, segmentsAll, manifest, pp, sgl, showPrice, priceTableOn, priceRows, priceColumnsMode, roomBasis, density])
 
   /**
    * Signature of everything that affects how much room the content needs.
-   * Deliberately excludes density/twoPage so the fit loop below can't feed itself.
+   * Deliberately excludes density so the fit loop below cannot feed itself.
    */
   const fitSig = useMemo(() => JSON.stringify([
-    compactData.segments.map((s) => [s.label, s.dayRange, s.destination, s.highlights, s.stay, s.meals, s.notes]),
+    compactData.segments.map((s) => [s.label, s.dayRange, s.destination, s.blurb, s.stay, s.meals, s.notes, s.tiles.length]),
     compactData.included, compactData.excluded, compactData.intro, compactData.title,
-    compactData.pricing, compactData.price, compactData.meta, compactData.overview,
+    compactData.pricing, compactData.price, compactData.meta, compactData.overview, compactData.cities,
   ]), [compactData])
 
   // Content changed -> start roomy again, then let the loop below tighten as needed.
-  useEffect(() => { setDensity(0); setTwoPage(false) }, [fitSig])
+  useEffect(() => { setDensity(0) }, [fitSig])
 
   /**
-   * Fit-to-page loop. Each .cpt-flow is a fixed-height box; its single child is the
-   * natural-height content. If the child is taller, step the density down; once the
-   * tightest step still overflows, spill onto a second page.
+   * Fit loop. The sheet has no fixed height, so this only decides how DENSE it is:
+   * measure the whole node and step the density down while it overshoots the target.
+   * Because nothing is clipped, the worst case is a slightly taller image rather
+   * than missing content — which is why this is safe to bound at MAX_DENSITY.
    *
-   * Measuring only once on mount is NOT enough, and getting this wrong is silent:
-   * Fraunces/Inter arrive after first paint, so the first measurement runs against
-   * fallback-font metrics, frequently reports "it fits", and the sheet then clips
-   * with no warning (this is exactly what happened on the first real export — the
-   * pricing block was cut off entirely at density 0). So we re-measure on
-   * document.fonts.ready AND whenever the content box actually changes size.
-   *
-   * Termination: escalation is monotonic and capped — density only ever increases to
-   * 3, then twoPage flips true once — so repeated observer callbacks converge.
+   * Measuring once on mount is not enough and fails silently: Fraunces/Inter land
+   * after first paint and the tile photos settle later still, so the first
+   * measurement runs against the wrong metrics. Re-measure on fonts.ready and on any
+   * resize of the node.
    */
   useEffect(() => {
     const node = compactNode
@@ -954,14 +965,7 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
 
     const measure = () => {
       if (cancelled) return
-      const flows = Array.from(node.querySelectorAll('[data-cpt-flow]')) as HTMLElement[]
-      const over = flows.some((f) => {
-        const inner = f.firstElementChild as HTMLElement | null
-        return !!inner && inner.offsetHeight > f.clientHeight + 1
-      })
-      if (!over) return
-      if (density < 3) setDensity((x) => x + 1)
-      else if (!twoPage) setTwoPage(true)
+      if (node.offsetHeight > MAX_SHEET_H && density < MAX_DENSITY) setDensity((x) => x + 1)
     }
 
     const schedule = () => {
@@ -977,17 +981,19 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
     let ro: ResizeObserver | undefined
     if (typeof ResizeObserver !== 'undefined') {
       ro = new ResizeObserver(schedule)
-      node.querySelectorAll('[data-cpt-flow] > *').forEach((el) => ro!.observe(el))
+      ro.observe(node)
     }
 
     return () => { cancelled = true; window.cancelAnimationFrame(raf); ro?.disconnect() }
-  }, [compactNode, fitSig, density, twoPage])
+  }, [compactNode, fitSig, density])
 
   /**
-   * Compact sheet export. Same guards as exportPdf: asset preloading, scroll-zeroing
-   * before capture (handoff 8I) and the left/right canvas seam crop (handoff 8D).
-   * Deliberately does NOT call savePackage() — auto-saving on export is what filled
-   * q_package_docs with duplicate rows.
+   * Compact sheet export — ONE image, always.
+   *
+   * Same guards as exportPdf: asset preloading, scroll-zeroing before capture
+   * (handoff 8I) and the left/right canvas seam crop (handoff 8D). Deliberately does
+   * NOT call savePackage() — auto-saving on export is what filled q_package_docs
+   * with duplicate rows.
    */
   async function exportCompact(kind: 'png' | 'pdf') {
     setBusy(true); setError('')
@@ -1004,60 +1010,33 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
       window.scrollTo(0, 0)
 
       const safe = (title || 'package').replace(/[^\w\-]+/g, '_') + '_compact'
-      const PAGE_W = 794, PAGE_H = 1123, SCALE = 2, CUT = 18
-
-      const crop = (src: HTMLCanvasElement) => {
-        const out = document.createElement('canvas')
-        out.width = src.width
-        out.height = src.height
-        const ctx = out.getContext('2d')
-        if (!ctx) return src
-        ctx.fillStyle = '#fffefa'
-        ctx.fillRect(0, 0, out.width, out.height)
-        ctx.drawImage(src, CUT, 0, src.width - CUT * 2, src.height, 0, 0, out.width, out.height)
-        return out
-      }
+      const SCALE = 2, CUT = 18
 
       const { default: html2canvas } = await import('html2canvas')
-      const pages = Array.from(node.children) as HTMLElement[]
-      if (pages.length === 0) throw new Error('No pages to export')
+      const raw = await html2canvas(node, { scale: SCALE, useCORS: true, backgroundColor: '#fffefa', logging: false })
 
-      const canvases: HTMLCanvasElement[] = []
-      for (const p of pages) {
-        canvases.push(crop(await html2canvas(p, { scale: SCALE, useCORS: true, backgroundColor: '#fffefa', logging: false })))
+      // Trim html2canvas's left/right capture seam, then stretch back to full width.
+      const out = document.createElement('canvas')
+      out.width = raw.width
+      out.height = raw.height
+      const ctx = out.getContext('2d')
+      if (ctx) {
+        ctx.fillStyle = '#fffefa'
+        ctx.fillRect(0, 0, out.width, out.height)
+        ctx.drawImage(raw, CUT, 0, raw.width - CUT * 2, raw.height, 0, 0, out.width, out.height)
       }
+      const canvas = ctx ? out : raw
 
       if (kind === 'png') {
-        // One file, always — the point of the compact sheet is a single shareable
-        // image. Two pages are stacked into one tall PNG rather than fired as two
-        // downloads, which Chrome gates behind a "Download multiple files?" prompt
-        // that silently drops the second file when dismissed. The PDF path below
-        // keeps them as proper separate pages for printing.
-        let out = canvases[0]
-        if (canvases.length > 1) {
-          const stacked = document.createElement('canvas')
-          stacked.width = canvases[0].width
-          stacked.height = canvases.reduce((h, c) => h + c.height, 0)
-          const ctx = stacked.getContext('2d')
-          if (ctx) {
-            ctx.fillStyle = '#fffefa'
-            ctx.fillRect(0, 0, stacked.width, stacked.height)
-            let y = 0
-            for (const c of canvases) { ctx.drawImage(c, 0, y); y += c.height }
-            out = stacked
-          }
-        }
         const a = document.createElement('a')
-        a.href = out.toDataURL('image/png')
+        a.href = canvas.toDataURL('image/png')
         a.download = safe + '.png'
         document.body.appendChild(a); a.click(); a.remove()
       } else {
         const { jsPDF } = await import('jspdf')
-        const pdf = new jsPDF({ unit: 'px', format: [PAGE_W, PAGE_H], orientation: 'portrait', hotfixes: ['px_scaling'] })
-        canvases.forEach((c, i) => {
-          if (i > 0) pdf.addPage([PAGE_W, PAGE_H], 'portrait')
-          pdf.addImage(c.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, PAGE_W, PAGE_H)
-        })
+        const w = node.offsetWidth, h = node.offsetHeight
+        const pdf = new jsPDF({ unit: 'px', format: [w, h], orientation: h >= w ? 'portrait' : 'landscape', hotfixes: ['px_scaling'] })
+        pdf.addImage(canvas.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, w, h)
         pdf.save(safe + '.pdf')
       }
     } catch (e: any) {
@@ -1160,7 +1139,7 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
 
               <h4>Compact one-page sheet</h4>
 
-              <span className="muted small">{visibleSegCount} block{visibleSegCount === 1 ? '' : 's'} · {twoPage ? '2 pages' : '1 page'}{density > 0 ? ' · condensed ×' + density : ''}</span>
+              <span className="muted small">{visibleSegCount} block{visibleSegCount === 1 ? '' : 's'} · one image{density > 0 ? ' · condensed ×' + density : ''}</span>
 
               <button className="link" onClick={() => setCompactOpen((o) => !o)}>{compactOpen ? 'Hide blocks' : 'Edit blocks'}</button>
 
@@ -1172,7 +1151,7 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
 
               <div className="cseg-list">
 
-                <p className="muted small">Blocks are built from your accommodation nights and the days they cover. Edits here only affect the Compact PNG / PDF — the detailed itinerary PDF is untouched.</p>
+                <p className="muted small">Blocks are built from your accommodation nights and the days they cover. The summary is drawn from each day's opening line, and every highlight becomes a photo tile. Edits here only affect the Compact PNG / PDF — the detailed itinerary PDF is untouched.</p>
 
                 {segmentsAll.map((s, i) => (
 
@@ -1198,7 +1177,9 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
 
                       </div>
 
-                      <input value={s.highlights.join(', ')} placeholder="Highlights (comma-separated)" onChange={(e) => setSegOv(i, { highlights: e.target.value.split(',').map((x) => x.replace(/^\s+/, '')) })} />
+                      <textarea rows={2} className="cseg-blurb" placeholder="Summary paragraph shown under the city name" value={s.blurb} onChange={(e) => setSegOv(i, { blurb: e.target.value })} />
+
+                      <input value={s.highlights.join(', ')} placeholder="Sites (comma-separated — each becomes a photo tile)" onChange={(e) => setSegOv(i, { highlights: e.target.value.split(',').map((x) => x.replace(/^\s+/, '')) })} />
 
                       <div className="cseg-line">
 
