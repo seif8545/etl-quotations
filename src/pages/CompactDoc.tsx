@@ -21,7 +21,7 @@ export interface SiteTile {
  * Both dimensions are always written inline: never leave a captured element sized in
  * one dimension only (handoff.md section 8C).
  */
-export const SHOT_W = [128, 118, 108, 98, 88]
+export const SHOT_W = [136, 124, 112, 100, 90]
 export const TILE_AR = 0.75
 
 /**
@@ -30,12 +30,15 @@ export const TILE_AR = 0.75
  */
 export const fitFor = (aspect: number) => (aspect > 1.05 || aspect < 0.52 ? 'contain' : 'cover')
 
-/** A city and everything the guest sees there. */
+/** A city, what happens there, and one or two photos of it. */
 export interface CityGroup {
   city: string
-  tiles: SiteTile[]
-  /** Sites with no photo of their own — listed as names rather than given a wrong one. */
-  more: string[]
+  /** Prose drawn from the days spent in this city. */
+  blurb: string
+  /** One or two photos, placed either side of the paragraph. */
+  photos: SiteTile[]
+  /** Every site visited in this city, listed as names. */
+  sites: string[]
 }
 
 /** One accommodation line. Deliberately subordinate to the sightseeing. */
@@ -82,6 +85,17 @@ export interface CompactData {
  */
 export const SHEET_W = 860
 
+/**
+ * Design height, chosen so the sheet is exactly 4:5 — 860 x 1075 scales to a
+ * 1080 x 1350 PNG, the standard Instagram portrait post.
+ *
+ * The layout is authored at 860 wide because that is what the two-photo city rows
+ * and the pricing table need to breathe; the exporter then resamples the whole
+ * capture down to 1080 wide. Supersampling from a 3x capture means the downscale
+ * sharpens rather than softens.
+ */
+export const SHEET_H = 1075
+
 /*
  * A single, continuous sheet — NOT paginated, and NOT organised by day.
  *
@@ -105,12 +119,14 @@ export const SHEET_W = 860
  *   - the logo <img> is sized in BOTH dimensions and fed a data URL by the caller
  */
 const CSS = `
-.cptx { width: ${SHEET_W}px; background: #fffefa; color: #0e2a47; font-family: 'Inter', system-ui, sans-serif; line-height: 1.5; }
+/* min-height + a flexing body: short itineraries stretch to fill the 4:5 box so the
+   PNG is exactly 1080x1350, and long ones grow past it rather than clipping. */
+.cptx { width: ${SHEET_W}px; min-height: ${SHEET_H}px; display: flex; flex-direction: column; background: #fffefa; color: #0e2a47; font-family: 'Inter', system-ui, sans-serif; line-height: 1.5; }
 .cptx * { box-sizing: border-box; }
 .cptx .fr { font-family: 'Fraunces', Georgia, serif; }
 
 /* ---------- Header (no cover photo: solid brand block) ---------- */
-.cx-head { background: linear-gradient(135deg,#0e2a47 0%,#14375e 55%,#081a30 100%); color: #fff; padding: 26px 36px 22px; }
+.cx-head { flex-shrink: 0; background: linear-gradient(135deg,#0e2a47 0%,#14375e 55%,#081a30 100%); color: #fff; padding: 26px 36px 22px; }
 .cx-head-top { display: flex; align-items: center; gap: 16px; margin-bottom: 18px; }
 .cx-logo { background: #fff; border-radius: 999px; padding: 8px 18px; display: inline-block; flex-shrink: 0; }
 .cx-logo img { width: 150px; height: 28px; display: block; }
@@ -129,7 +145,7 @@ const CSS = `
 .cx-cities u { text-decoration: none; color: #7d93ad; margin: 0 7px; }
 
 /* ---------- Body ---------- */
-.cx-body { padding: 20px 30px 22px; }
+.cx-body { flex: 1; padding: 20px 30px 22px; }
 
 .cx-sec-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 13px; }
 .cx-sec-head h3 { font-size: 20px; font-weight: 600; color: #0e2a47; margin: 0; white-space: nowrap; }
@@ -137,19 +153,18 @@ const CSS = `
 .cx-sec { margin-bottom: 20px; }
 
 /* ---------- City groups ---------- */
-.cx-city { padding: 0 0 15px; margin-bottom: 15px; border-bottom: 1px solid #ece0c4; }
+.cx-city { padding: 0 0 13px; margin-bottom: 13px; border-bottom: 1px solid #ece0c4; }
 .cx-city:last-child { border-bottom: none; padding-bottom: 0; margin-bottom: 0; }
-.cx-city-name { font-size: 25px; font-weight: 600; color: #0e2a47; margin: 0 0 10px; line-height: 1.12; }
+.cx-city-name { font-size: 23px; font-weight: 600; color: #0e2a47; margin: 0 0 8px; line-height: 1.12; }
 
-/* Site photos with the name burned on, so there are no caption rows eating height
-   and the label survives being scaled down to phone size. flex-wrap with a flexible
-   basis means each row fills the width whatever the site count is. */
-.cx-shots { display: flex; flex-wrap: wrap; gap: 8px; }
-.cx-shot { position: relative; overflow: hidden; border-radius: 9px; background-color: #16304d; background-repeat: no-repeat; background-position: center; flex: 0 0 auto; }
-.cx-shot-grad { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(8,26,48,0) 40%, rgba(8,26,48,0.9) 100%); }
-.cx-shot-name { position: absolute; left: 8px; right: 8px; bottom: 6px; color: #fff; font-size: 11.5px; font-weight: 600; line-height: 1.15; text-shadow: 0 1px 5px rgba(0,0,0,0.6); }
-.cx-more { margin-top: 8px; font-size: 12px; color: #55677d; line-height: 1.4; }
-.cx-more b { color: #b08a1e; font-weight: 600; font-size: 9.5px; letter-spacing: 1.5px; text-transform: uppercase; margin-right: 7px; }
+/* A paragraph with a photo either side. Photos are portrait because the library is
+   (see SHOT_W); both dimensions are set inline so html2canvas never has to resolve
+   an intrinsic size. */
+.cx-row { display: flex; align-items: stretch; gap: 14px; }
+.cx-photo { flex: 0 0 auto; border-radius: 9px; overflow: hidden; background-color: #16304d; background-repeat: no-repeat; background-position: center; }
+.cx-text { flex: 1; min-width: 0; font-size: 12.5px; line-height: 1.55; color: #45566b; }
+.cx-sites { margin-top: 8px; font-size: 11px; color: #6a7789; line-height: 1.4; }
+.cx-sites b { color: #b08a1e; font-weight: 600; font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase; margin-right: 7px; }
 
 /* ---------- Accommodation: small, subordinate ---------- */
 .cx-stays { margin-top: 4px; font-size: 11.5px; color: #6a7789; line-height: 1.5; }
@@ -182,7 +197,7 @@ const CSS = `
 .cx-pnote { font-size: 9.5px; color: #8a7a5c; margin-top: 5px; }
 
 /* ---------- Footer ---------- */
-.cx-foot { background: linear-gradient(180deg,#0e2a47,#081a30); color: #fff; padding: 15px 36px; display: flex; align-items: center; justify-content: space-between; }
+.cx-foot { flex-shrink: 0; background: linear-gradient(180deg,#0e2a47,#081a30); color: #fff; padding: 15px 36px; display: flex; align-items: center; justify-content: space-between; }
 .cx-foot-brand { font-size: 15px; font-weight: 600; color: #e8b015; letter-spacing: 2px; }
 .cx-foot-brand span { display: block; font-size: 7.5px; letter-spacing: 5px; color: #c8960a; margin-top: 1px; }
 .cx-foot-rows { display: flex; gap: 22px; font-size: 11px; }
@@ -195,7 +210,9 @@ const CSS = `
 .cptx.k1 .cx-body { padding: 17px 28px 19px; }
 .cptx.k1 .cx-head { padding: 22px 28px 18px; }
 .cptx.k1 .cx-city { padding-bottom: 13px; margin-bottom: 13px; }
-.cptx.k1 .cx-city-name { font-size: 23px; margin-bottom: 9px; }
+.cptx.k1 .cx-city-name { font-size: 21px; margin-bottom: 7px; }
+.cptx.k1 .cx-text { font-size: 12px; line-height: 1.5; }
+.cptx.k1 .cx-row { gap: 12px; }
 .cptx.k1 .cx-inc-item { font-size: 11.5px; margin-bottom: 4px; }
 .cptx.k1 .cx-sec { margin-bottom: 16px; }
 
@@ -204,9 +221,10 @@ const CSS = `
 .cptx.k2 .cx-title { font-size: 29px; }
 .cptx.k2 .cx-stats b { font-size: 24px; }
 .cptx.k2 .cx-city { padding-bottom: 11px; margin-bottom: 11px; }
-.cptx.k2 .cx-city-name { font-size: 21px; margin-bottom: 8px; }
-.cptx.k2 .cx-shots { gap: 7px; }
-.cptx.k2 .cx-more { font-size: 11.5px; margin-top: 7px; }
+.cptx.k2 .cx-city-name { font-size: 19px; margin-bottom: 6px; }
+.cptx.k2 .cx-text { font-size: 11.5px; line-height: 1.45; }
+.cptx.k2 .cx-sites { font-size: 10.5px; margin-top: 6px; }
+.cptx.k2 .cx-row { gap: 11px; }
 .cptx.k2 .cx-stays { font-size: 11px; }
 .cptx.k2 .cx-inc-item { font-size: 11px; margin-bottom: 3px; }
 .cptx.k2 .cx-sec { margin-bottom: 13px; }
@@ -221,9 +239,10 @@ const CSS = `
 .cptx.k3 .cx-stats { margin-top: 13px; padding-top: 11px; }
 .cptx.k3 .cx-stats b { font-size: 21px; }
 .cptx.k3 .cx-city { padding-bottom: 9px; margin-bottom: 9px; }
-.cptx.k3 .cx-city-name { font-size: 19px; margin-bottom: 7px; }
-.cptx.k3 .cx-shots { gap: 6px; }
-.cptx.k3 .cx-more { font-size: 10.5px; margin-top: 6px; }
+.cptx.k3 .cx-city-name { font-size: 17px; margin-bottom: 5px; }
+.cptx.k3 .cx-text { font-size: 11px; line-height: 1.42; }
+.cptx.k3 .cx-sites { font-size: 10px; margin-top: 5px; }
+.cptx.k3 .cx-row { gap: 10px; }
 .cptx.k3 .cx-stays { font-size: 10.5px; }
 .cptx.k3 .cx-inc-item { font-size: 10.5px; margin-bottom: 2px; line-height: 1.35; gap: 6px; }
 .cptx.k3 .cx-inc-col h4 { font-size: 12px; margin-bottom: 6px; }
@@ -240,9 +259,10 @@ const CSS = `
 .cptx.k4 .cx-stats { margin-top: 11px; padding-top: 9px; }
 .cptx.k4 .cx-stats b { font-size: 19px; }
 .cptx.k4 .cx-city { padding-bottom: 8px; margin-bottom: 8px; }
-.cptx.k4 .cx-city-name { font-size: 17px; margin-bottom: 6px; }
-.cptx.k4 .cx-shots { gap: 5px; }
-.cptx.k4 .cx-more { font-size: 10px; margin-top: 5px; }
+.cptx.k4 .cx-city-name { font-size: 15.5px; margin-bottom: 4px; }
+.cptx.k4 .cx-text { font-size: 10.5px; line-height: 1.38; }
+.cptx.k4 .cx-sites { font-size: 9.5px; margin-top: 4px; }
+.cptx.k4 .cx-row { gap: 9px; }
 .cptx.k4 .cx-stays { font-size: 10px; }
 .cptx.k4 .cx-inc-item { font-size: 10px; margin-bottom: 2px; line-height: 1.3; gap: 5px; }
 .cptx.k4 .cx-inc-col h4 { font-size: 11.5px; margin-bottom: 5px; }
@@ -345,26 +365,36 @@ const CompactDoc = forwardRef<HTMLDivElement, { data: CompactData }>(({ data }, 
             {d.groups.map((g, gi) => (
               <div className="cx-city" key={gi}>
                 <h4 className="fr cx-city-name">{g.city}</h4>
-                {g.tiles.length > 0 && (
-                  <div className="cx-shots">
-                    {g.tiles.map((t, k) => (
-                      <div
-                        className="cx-shot"
-                        key={k}
-                        style={{
-                          backgroundImage: `url("${t.photoUrl}")`,
-                          width: shotW,
-                          height: shotH,
-                          backgroundSize: fitFor(t.aspect > 0 ? t.aspect : TILE_AR),
-                        }}
-                      >
-                        <div className="cx-shot-grad" />
-                        <div className="cx-shot-name">{t.name}</div>
-                      </div>
-                    ))}
+                <div className="cx-row">
+                  {g.photos[0] && (
+                    <div
+                      className="cx-photo"
+                      style={{
+                        backgroundImage: `url("${g.photos[0].photoUrl}")`,
+                        width: shotW,
+                        height: shotH,
+                        backgroundSize: fitFor(g.photos[0].aspect > 0 ? g.photos[0].aspect : TILE_AR),
+                      }}
+                    />
+                  )}
+                  <div className="cx-text">
+                    {g.blurb}
+                    {g.sites.length > 0 && (
+                      <div className="cx-sites"><b>Sites</b>{g.sites.join(' · ')}</div>
+                    )}
                   </div>
-                )}
-                {g.more.length > 0 && <div className="cx-more"><b>Also</b>{g.more.join(' · ')}</div>}
+                  {g.photos[1] && (
+                    <div
+                      className="cx-photo"
+                      style={{
+                        backgroundImage: `url("${g.photos[1].photoUrl}")`,
+                        width: shotW,
+                        height: shotH,
+                        backgroundSize: fitFor(g.photos[1].aspect > 0 ? g.photos[1].aspect : TILE_AR),
+                      }}
+                    />
+                  )}
+                </div>
               </div>
             ))}
           </div>

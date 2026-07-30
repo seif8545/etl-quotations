@@ -12,13 +12,13 @@ import type { ItineraryData } from './ItineraryDoc'
 
 import type { QuotationDraft, RefData, DayPreset } from '../lib/types'
 
-import CompactDoc from './CompactDoc'
+import CompactDoc, { SHEET_H } from './CompactDoc'
 
 import type { CompactData } from './CompactDoc'
 
 import { siteInfo } from '../lib/sitePhotos'
 
-import { deriveSegments, applyOverrides } from '../lib/segments'
+import { deriveSegments, applyOverrides, summarise } from '../lib/segments'
 
 import type { Segment, SegmentOverride, SegSourceDay } from '../lib/segments'
 
@@ -864,12 +864,12 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
   // ---------------------------------------------------------------------------
 
   /**
-   * Target height. Roughly A4 proportions at the sheet's width — a very tall, narrow
-   * image is awkward to read in a chat thread, so density steps down until the card
-   * is close to page-shaped. Nothing is ever clipped; overshooting just means a
-   * slightly taller image.
+   * The 4:5 design height. Density steps down until the content fits it, at which
+   * point the export is exactly 1080x1350. Nothing is ever clipped: if even the
+   * tightest step overshoots, the image simply comes out taller than 4:5 and the
+   * builder says so rather than silently cropping a client's quote.
    */
-  const MAX_SHEET_H = 1300
+  const MAX_SHEET_H = SHEET_H
   const MAX_DENSITY = 4
 
   const setSegOv = (i: number, patch: Partial<SegmentOverride>) =>
@@ -924,56 +924,66 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
     const visible = segmentsAll.filter((s) => !s.hidden)
 
     /*
-     * Group every site by the CITY IT IS IN, not by the stay it fell under.
+     * Group by the CITY EACH SITE IS IN, walking the days so every city also gets
+     * the prose that belongs to it.
      *
      * Grouping by stay put the Valley of the Kings under "Hurghada", because that
-     * morning's tour was in Luxor but the night was at a Red Sea resort. Sites carry
-     * their own city, so the card now says what it means. A site visited twice is
-     * listed once, and cities appear in the order the trip first reaches them.
+     * morning toured Luxor but the night was at a Red Sea resort. Sites carry their
+     * own city, so the card now says what it means. A day contributes its text to
+     * every city it touches, which is what lets a city paragraph describe the whole
+     * of what happens there rather than one day of it.
      */
+    type Bucket = { sites: string[]; lines: string[]; photos: { name: string; photoUrl: string; aspect: number }[]; used: Set<string> }
     const order: string[] = []
-    const byCity = new Map<string, { tiles: { name: string; photoUrl: string; aspect: number }[]; more: string[]; used: Set<string> }>()
+    const byCity = new Map<string, Bucket>()
     const seenSite = new Set<string>()
 
+    // Which stay each day sits in, so a site with no known city can fall back to it.
+    const dayFallback: string[] = []
     for (const seg of visible) {
-      for (const raw of seg.highlights) {
-        const name = (raw ?? '').trim()
-        // 'Private guide' is a service and '+N more' is a truncation marker —
-        // neither is a place, so neither earns a photo.
-        if (!name || /^private guide$/i.test(name) || /^\+\d+ more$/.test(name)) continue
-        const key = name.toLowerCase()
-        if (seenSite.has(key)) continue
-        seenSite.add(key)
-
-        const info = siteInfo(name, manifest)
-        const city = info.city || seg.destination || 'Egypt'
-        if (!byCity.has(city)) { byCity.set(city, { tiles: [], more: [], used: new Set() }); order.push(city) }
-        const g = byCity.get(city)!
-
-        /*
-         * One distinct photo per site, and NO substitutes.
-         *
-         * Several sites legitimately share a file (Hatshepsut and the Valley of the
-         * Kings both point at the Colossi shot) and two identical images side by
-         * side reads as a bug. An earlier version borrowed another file from the
-         * same folder — but luxor-aswan mixes two cities, so Hatshepsut came out
-         * illustrated with Abu Simbel. Captioning the wrong monument is worse than
-         * showing none, so a site whose photo is taken is listed by name instead.
-         */
-        const photo = info.photo
-        if (photo && !g.used.has(photo)) {
-          g.used.add(photo)
-          const url = photoSrc(photo)
-          g.tiles.push({ name, photoUrl: url, aspect: aspects[url] ?? 0 })
-        } else {
-          g.more.push(name)
-        }
-      }
+      for (let i = seg.dayFrom; i <= seg.dayTo; i++) dayFallback[i] = seg.destination
     }
 
+    segSource.forEach((day, di) => {
+      const lines = (day.description ?? '').split('\n').map((l) => l.trim()).filter(Boolean)
+      const touched = new Set<string>()
+
+      for (const raw of day.sites) {
+        const name = (raw ?? '').trim()
+        // 'Private guide' is a service, not a place.
+        if (!name || /^private guide$/i.test(name) || /^\+\d+ more$/.test(name)) continue
+        const info = siteInfo(name, manifest)
+        const city = info.city || dayFallback[di] || 'Egypt'
+        if (!byCity.has(city)) { byCity.set(city, { sites: [], lines: [], photos: [], used: new Set() }); order.push(city) }
+        const b = byCity.get(city)!
+        touched.add(city)
+
+        const key = name.toLowerCase()
+        if (!seenSite.has(key)) {
+          seenSite.add(key)
+          b.sites.push(name)
+          // Two photos per city, each a different file. No substitutes: an earlier
+          // version borrowed a neighbour and illustrated Hatshepsut with Abu Simbel.
+          if (info.photo && b.photos.length < 2 && !b.used.has(info.photo)) {
+            b.used.add(info.photo)
+            const url = photoSrc(info.photo)
+            b.photos.push({ name, photoUrl: url, aspect: aspects[url] ?? 0 })
+          }
+        }
+      }
+
+      for (const city of touched) byCity.get(city)!.lines.push(...lines)
+    })
+
     const groups = order.map((city) => {
-      const g = byCity.get(city)!
-      return { city, tiles: g.tiles, more: g.more }
+      const b = byCity.get(city)!
+      // A city with sites but no matched photo still deserves one — fall back to a
+      // shot of the city itself rather than leaving the row lopsided.
+      if (!b.photos.length) {
+        const p = siteInfo(city, manifest).photo
+        if (p) { const url = photoSrc(p); b.photos.push({ name: city, photoUrl: url, aspect: aspects[url] ?? 0 }) }
+      }
+      return { city, blurb: summarise(b.lines, b.sites, 3, 430), photos: b.photos, sites: b.sites }
     })
 
     // Accommodation, merged per destination so a trip that returns to a city shows
@@ -1010,7 +1020,7 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
   /** Stable key for "which photos are on the sheet", so the measure effect below
    *  re-runs when the set changes but not when an unrelated bit of state moves. */
   const tileUrls = useMemo(
-    () => compactData.groups.flatMap((g) => g.tiles.map((t) => t.photoUrl)).join('|'),
+    () => compactData.groups.flatMap((g) => g.photos.map((p) => p.photoUrl)).join('|'),
     [compactData.groups],
   )
 
@@ -1040,7 +1050,7 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
    * Deliberately excludes density so the fit loop below cannot feed itself.
    */
   const fitSig = useMemo(() => JSON.stringify([
-    compactData.groups.map((g) => [g.city, g.tiles.map((t) => [t.name, t.aspect]), g.more]),
+    compactData.groups.map((g) => [g.city, g.blurb, g.sites, g.photos.map((p) => [p.name, p.aspect])]),
     compactData.stays, compactData.included, compactData.excluded, compactData.title,
     compactData.pricing, compactData.price, compactData.meta, compactData.overview,
   ]), [compactData])
@@ -1112,22 +1122,38 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
       window.scrollTo(0, 0)
 
       const safe = (title || 'package').replace(/[^\w\-]+/g, '_') + '_compact'
-      const SCALE = 2, CUT = 18
+      // 3x, not 2x: the sheet is read by zooming in on a phone, where 2x went soft.
+      const SCALE = 3, CUT = 27
 
       const { default: html2canvas } = await import('html2canvas')
       const raw = await html2canvas(node, { scale: SCALE, useCORS: true, backgroundColor: '#fffefa', logging: false })
 
-      // Trim html2canvas's left/right capture seam, then stretch back to full width.
-      const out = document.createElement('canvas')
-      out.width = raw.width
-      out.height = raw.height
-      const ctx = out.getContext('2d')
-      if (ctx) {
-        ctx.fillStyle = '#fffefa'
-        ctx.fillRect(0, 0, out.width, out.height)
-        ctx.drawImage(raw, CUT, 0, raw.width - CUT * 2, raw.height, 0, 0, out.width, out.height)
+      /*
+       * Two steps: trim html2canvas's left/right capture seam, then resample the
+       * whole thing to a standard 1080-wide portrait post.
+       *
+       * Capturing at 3x and downsampling to 1080 is deliberate supersampling — it
+       * comes out sharper than rendering at 1080 directly, which is what made the
+       * earlier exports look soft under zoom. Height follows the node's real
+       * proportions, so a sheet that fits the 4:5 box lands on exactly 1080x1350.
+       */
+      const OUT_W = 1080
+      const outH = Math.max(1, Math.round(OUT_W * node.offsetHeight / node.offsetWidth))
+
+      const canvas = document.createElement('canvas')
+      canvas.width = OUT_W
+      canvas.height = outH
+      const ctx = canvas.getContext('2d')
+      if (!ctx) throw new Error('Canvas not available')
+      ctx.fillStyle = '#fffefa'
+      ctx.fillRect(0, 0, OUT_W, outH)
+      ctx.imageSmoothingEnabled = true
+      ctx.imageSmoothingQuality = 'high'
+      ctx.drawImage(raw, CUT, 0, raw.width - CUT * 2, raw.height, 0, 0, OUT_W, outH)
+
+      if (node.offsetHeight > MAX_SHEET_H + 2) {
+        setError(`Sheet is ${outH}px tall instead of 1350 — trim a few inclusions or sites to bring it back to a standard 4:5 post.`)
       }
-      const canvas = ctx ? out : raw
 
       if (kind === 'png') {
         const a = document.createElement('a')
@@ -1136,7 +1162,7 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
         document.body.appendChild(a); a.click(); a.remove()
       } else {
         const { jsPDF } = await import('jspdf')
-        const w = node.offsetWidth, h = node.offsetHeight
+        const w = OUT_W, h = outH
         const pdf = new jsPDF({ unit: 'px', format: [w, h], orientation: h >= w ? 'portrait' : 'landscape', hotfixes: ['px_scaling'] })
         pdf.addImage(canvas.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, w, h)
         pdf.save(safe + '.pdf')

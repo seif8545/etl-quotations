@@ -189,27 +189,29 @@ function scoreLine(line: string, siteWords: string[]): number {
  * stay that is genuinely all logistics scores nothing and renders no paragraph at
  * all, which reads better than filler.
  */
-function composeBlurb(block: SegSourceDay[], maxSentences: number, maxChars: number): string {
-  const siteWords = block
-    .flatMap((d) => d.sites ?? [])
+export function summarise(
+  lines: string[],
+  siteNames: string[],
+  maxSentences = 3,
+  maxChars = 420,
+): string {
+  const siteWords = siteNames
     .map((x) => (x ?? '').trim().toLowerCase())
     .filter((x) => x.length > 3)
 
   type Cand = { text: string; score: number; order: number }
   const cands: Cand[] = []
   let order = 0
-  for (const d of block) {
-    for (const raw of (d.description ?? '').split('\n')) {
-      const line = raw.trim()
-      order++
-      if (!line) continue
-      const score = scoreLine(line, siteWords)
-      if (score <= 0) continue
-      const text = line.replace(/\s+/g, ' ').replace(/[.;:,\s]+$/, '')
-      if (!text) continue
-      if (cands.some((c) => c.text.toLowerCase() === text.toLowerCase())) continue
-      cands.push({ text, score, order })
-    }
+  for (const raw of lines) {
+    const line = (raw ?? '').trim()
+    order++
+    if (!line) continue
+    const score = scoreLine(line, siteWords)
+    if (score <= 0) continue
+    const text = line.replace(/\s+/g, ' ').replace(/[.;:,\s]+$/, '')
+    if (!text) continue
+    if (cands.some((c) => c.text.toLowerCase() === text.toLowerCase())) continue
+    cands.push({ text, score, order })
   }
 
   const best = cands
@@ -226,6 +228,16 @@ function composeBlurb(block: SegSourceDay[], maxSentences: number, maxChars: num
     text = (stop > 60 ? cut.slice(0, stop) : cut).replace(/[.,;\s]+$/, '') + '…'
   }
   return text
+}
+
+/** Stay-block summary — kept for the Segment model; the sheet summarises by city. */
+function composeBlurb(block: SegSourceDay[], maxSentences: number, maxChars: number): string {
+  return summarise(
+    block.flatMap((d) => (d.description ?? '').split('\n')),
+    block.flatMap((d) => d.sites ?? []),
+    maxSentences,
+    maxChars,
+  )
 }
 
 const firstNonEmpty = (block: SegSourceDay[], pick: (d: SegSourceDay) => string): string => {
