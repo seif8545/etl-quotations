@@ -8,25 +8,12 @@ export interface SiteTile {
   aspect: number
 }
 
-/**
- * City row height per density step. The photo IS the row height, and its width
- * follows its own aspect ratio, so nothing is ever cropped.
- *
- * This is the constraint that sets photo size: a fixed 4:5 card leaves roughly 560px
- * for the city rows once the header, info and pricing have taken their share, so five
- * cities means about 112px of height each. With a portrait library (0.56-0.84 wide
- * over tall) that is a photo around 85px wide. Bigger photos are only available by
- * spending height elsewhere — dropping the pricing table's hotel column, or showing
- * fewer cities.
- */
-export const ROW_H = [196, 178, 160, 142, 124]
-
 /** A city, what happens there, and its photo. */
 export interface CityGroup {
   city: string
   /** Highlights as bullets, drawn from the days spent here or typed by the agent. */
   bullets: string[]
-  /** One photo, alternating side by row. */
+  /** One photo — rendered full-bleed behind the band. */
   photos: SiteTile[]
 }
 
@@ -63,181 +50,148 @@ export interface CompactData {
   density: number
 }
 
-/**
- * Sheet width in CSS px (exported at 2x → a 1600px PNG).
- *
- * Deliberately narrow. This card is read on a phone inside a chat thread, where the
- * image is scaled to ~380px: at 900px wide with 11px type the body text landed at
- * roughly 4.6 device px and was simply unreadable. Fewer words at a larger relative
- * size beats more words shrunk down — so the sheet is narrower, the type is bigger,
- * and the content is cut rather than compressed.
- */
+/** Design box. 860 x 1075 is exactly 4:5, and exports to a 1080 x 1350 PNG. */
 export const SHEET_W = 860
-
-/**
- * Design height, chosen so the sheet is exactly 4:5 — 860 x 1075 scales to a
- * 1080 x 1350 PNG, the standard Instagram portrait post.
- *
- * The layout is authored at 860 wide because that is what the two-photo city rows
- * and the pricing table need to breathe; the exporter then resamples the whole
- * capture down to 1080 wide. Supersampling from a 3x capture means the downscale
- * sharpens rather than softens.
- */
 export const SHEET_H = 1075
 
+/**
+ * Height of each destination band per density step.
+ *
+ * The band is the whole point of this layout, so it gets the space first and
+ * everything else is trimmed around it.
+ */
+export const BAND_H = [232, 210, 190, 172, 156]
+
 /*
- * A single, continuous sheet — NOT paginated, and NOT organised by day.
+ * A destination poster, not a document.
  *
- * Grouping is by PLACE: each city lists what the guest sees there, with a photo per
- * site. Days, day ranges and per-day prose are all gone — on a phone they were noise,
- * and day-based grouping also put sights in the wrong city whenever a guest slept
- * somewhere other than where they toured. Accommodation is deliberately demoted to
- * one small line at the end: it is a detail, not the pitch.
+ * Earlier versions set photos beside text at their natural aspect, which kept them
+ * uncropped but tiny — a portrait shot in a 112px row is 85px wide, and the card read
+ * as a spreadsheet. This version runs each destination as a full-bleed band with the
+ * photo behind it and the text knocked out in white over a scrim. The photo is then
+ * roughly four times the area, and white-on-dark at 30px is legible at thumbnail size.
  *
- * The first cut of this used fixed 794x1123 A4 pages and spilled onto a second one,
- * which is wrong for the actual use case: these get pasted into WhatsApp and
- * Instagram, where two stacked A4 pages means a wall of dead space between them and
- * a second "page" nobody scrolls to. So the sheet is one column of natural height:
- * short itineraries produce a short image with no trailing whitespace, long ones
- * step the density down until they fit the target height. Nothing is ever clipped —
- * worst case the image is a little taller than the target.
+ * The trade-off, stated plainly: a full-bleed band DOES crop, and this library is
+ * portrait (0.56-0.84 wide over tall), so a band shows the middle third of a tall
+ * photo. FOCUS biases that window upward because monuments sit above centre. Large
+ * and cropped, or small and whole — this file chooses large.
  *
  * Rendering rules carried over from ItineraryDoc (handoff.md section 8):
  *   - CSS goes in document.head, never an inline <style> inside the captured node
  *   - photos are background-image on fixed-size boxes, never <img> + object-fit
  *   - the logo <img> is sized in BOTH dimensions and fed a data URL by the caller
  */
+export const FOCUS = 'center 34%'
+
 const CSS = `
-/* min-height + a flexing body: short itineraries stretch to fill the 4:5 box so the
-   PNG is exactly 1080x1350, and long ones grow past it rather than clipping. */
-.cptx { width: ${SHEET_W}px; height: ${SHEET_H}px; overflow: hidden; display: flex; flex-direction: column; background: #fffefa; color: #0e2a47; font-family: 'Inter', system-ui, sans-serif; line-height: 1.5; }
+.cptx { width: ${SHEET_W}px; height: ${SHEET_H}px; overflow: hidden; display: flex; flex-direction: column; background: #08172b; color: #0e2a47; font-family: 'Inter', system-ui, sans-serif; line-height: 1.5; }
 .cptx * { box-sizing: border-box; }
 .cptx .fr { font-family: 'Fraunces', Georgia, serif; }
 
-/* ---------- Header (no cover photo: solid brand block) ---------- */
-.cx-head { flex-shrink: 0; background: linear-gradient(135deg,#0e2a47 0%,#14375e 55%,#081a30 100%); color: #fff; padding: 18px 30px 14px; }
-.cx-head-top { display: flex; align-items: center; gap: 16px; margin-bottom: 12px; }
-.cx-logo { background: #fff; border-radius: 999px; padding: 8px 18px; display: inline-block; flex-shrink: 0; }
-.cx-logo img { width: 150px; height: 28px; display: block; }
-.cx-eyebrow { margin-left: auto; font-size: 10px; letter-spacing: 3.2px; text-transform: uppercase; color: #f0c53a; text-align: right; }
-.cx-title { font-size: 27px; font-weight: 600; line-height: 1.08; margin: 0; color: #fff; }
-.cx-rule { width: 64px; height: 3px; background: linear-gradient(135deg,#c8960a,#e8b015); border-radius: 3px; margin: 9px 0 8px; }
-.cx-meta { font-size: 11.5px; color: rgba(255,255,255,0.9); }
-.cx-meta i { font-style: normal; color: #f0c53a; margin: 0 8px; }
-.cx-stats { display: flex; margin-top: 12px; border-top: 1px solid rgba(255,255,255,0.16); padding-top: 10px; }
+/* ---------- Header ---------- */
+.cx-head { flex-shrink: 0; background: linear-gradient(135deg,#0e2a47 0%,#14375e 55%,#081a30 100%); color: #fff; padding: 16px 30px 13px; }
+.cx-head-top { display: flex; align-items: center; gap: 16px; margin-bottom: 10px; }
+.cx-logo { background: #fff; border-radius: 999px; padding: 7px 16px; display: inline-block; flex-shrink: 0; }
+.cx-logo img { width: 132px; height: 25px; display: block; }
+.cx-eyebrow { margin-left: auto; font-size: 9px; letter-spacing: 3px; text-transform: uppercase; color: #f0c53a; text-align: right; line-height: 1.5; }
+.cx-title { font-size: 31px; font-weight: 600; line-height: 1.04; margin: 0; color: #fff; }
+.cx-meta { font-size: 11px; color: rgba(255,255,255,0.82); margin-top: 7px; }
+.cx-meta i { font-style: normal; color: #f0c53a; margin: 0 7px; }
+.cx-stats { display: flex; margin-top: 11px; border-top: 1px solid rgba(255,255,255,0.16); padding-top: 9px; }
 .cx-stats > div { flex: 1; text-align: center; border-left: 1px solid rgba(255,255,255,0.13); }
 .cx-stats > div:first-child { border-left: none; }
-.cx-stats b { display: block; font-size: 21px; font-weight: 600; color: #e8b015; line-height: 1; }
-.cx-stats span { display: block; margin-top: 5px; font-size: 9px; letter-spacing: 2.2px; text-transform: uppercase; color: rgba(255,255,255,0.62); }
-.cx-cities { margin-top: 14px; font-size: 11.5px; color: rgba(255,255,255,0.82); }
-.cx-cities b { color: #f0c53a; font-weight: 600; font-size: 9px; letter-spacing: 2px; text-transform: uppercase; margin-right: 9px; }
-.cx-cities u { text-decoration: none; color: #7d93ad; margin: 0 7px; }
+.cx-stats b { display: block; font-size: 22px; font-weight: 600; color: #e8b015; line-height: 1; }
+.cx-stats span { display: block; margin-top: 4px; font-size: 8px; letter-spacing: 2px; text-transform: uppercase; color: rgba(255,255,255,0.6); }
 
-/* ---------- Body ---------- */
-.cx-body { flex: 1; min-height: 0; padding: 14px 26px 14px; }
-
-.cx-sec-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 9px; }
-.cx-sec-head h3 { font-size: 16px; font-weight: 600; color: #0e2a47; margin: 0; white-space: nowrap; }
-.cx-sec-head div { flex: 1; height: 2px; background: linear-gradient(90deg,#e8b015,rgba(232,176,21,0.10)); border-radius: 2px; }
-.cx-sec { margin-bottom: 12px; }
-
-/* ---------- City groups: one photo, alternating sides ---------- */
-.cx-city { border-bottom: 1px solid #ece0c4; }
-.cx-city:last-child { border-bottom: none; }
-.cx-row { display: flex; align-items: center; gap: 18px; padding: 0 10px; }
-/* Width is computed from the file's real aspect and written inline alongside the
-   height, so the box matches the image exactly: "cover" then crops nothing, and no
-   dimension is ever left for html2canvas to resolve (handoff.md section 8C). */
-.cx-photo { flex: 0 0 auto; border-radius: 8px; background-color: #16304d; background-repeat: no-repeat; background-size: cover; background-position: center; }
-.cx-text { flex: 1; min-width: 0; }
-.cx-city-name { font-size: 19px; font-weight: 600; color: #0e2a47; margin: 0 0 5px; line-height: 1.1; }
+/* ---------- Destination bands: the photo IS the row ---------- */
+.cx-bands { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.cx-band { position: relative; overflow: hidden; flex-shrink: 0; border-bottom: 2px solid rgba(232,176,21,0.55); }
+.cx-band:last-child { border-bottom: none; }
+.cx-band-img { position: absolute; inset: 0; background-size: cover; background-position: ${FOCUS}; background-repeat: no-repeat; background-color: #0e2a47; }
+/* Scrim flips side to side so the column of bands zig-zags instead of reading as a
+   stack of identical bars. */
+.cx-band-scrim { position: absolute; inset: 0; background: linear-gradient(90deg, rgba(5,17,32,0.94) 0%, rgba(5,17,32,0.86) 38%, rgba(5,17,32,0.30) 78%, rgba(5,17,32,0.12) 100%); }
+.cx-band.alt .cx-band-scrim { background: linear-gradient(270deg, rgba(5,17,32,0.94) 0%, rgba(5,17,32,0.86) 38%, rgba(5,17,32,0.30) 78%, rgba(5,17,32,0.12) 100%); }
+.cx-band-body { position: relative; z-index: 2; height: 100%; width: 66%; padding: 0 30px; display: flex; flex-direction: column; justify-content: center; }
+.cx-band.alt .cx-band-body { margin-left: auto; text-align: right; }
+.cx-band-kicker { font-size: 8.5px; letter-spacing: 3px; text-transform: uppercase; color: #f0c53a; margin-bottom: 5px; }
+.cx-band-name { font-size: 30px; font-weight: 600; line-height: 1.05; color: #fff; margin: 0 0 9px; text-shadow: 0 2px 14px rgba(0,0,0,0.55); }
+.cx-band-rule { width: 46px; height: 2px; background: linear-gradient(135deg,#c8960a,#e8b015); border-radius: 2px; margin-bottom: 9px; }
+.cx-band.alt .cx-band-rule { margin-left: auto; }
 .cx-bul { list-style: none; margin: 0; padding: 0; }
-.cx-bul li { position: relative; padding-left: 13px; margin-bottom: 3px; font-size: 10.5px; line-height: 1.4; color: #45566b; }
+.cx-bul li { position: relative; padding-left: 13px; margin-bottom: 4px; font-size: 12px; line-height: 1.4; color: rgba(255,255,255,0.94); text-shadow: 0 1px 6px rgba(0,0,0,0.5); }
+.cx-band.alt .cx-bul li { padding-left: 0; padding-right: 13px; }
 .cx-bul li:last-child { margin-bottom: 0; }
-.cx-bul li::before { content: '•'; position: absolute; left: 1px; top: -1px; color: #c8960a; font-weight: 700; }
+.cx-bul li::before { content: '▸'; position: absolute; left: 0; top: -1px; color: #e8b015; }
+.cx-band.alt .cx-bul li::before { left: auto; right: 0; content: '◂'; }
 
-/* ---------- Accommodation: small, subordinate ---------- */
-.cx-stays { font-size: 9px; color: #7a8798; line-height: 1.45; }
-.cx-stays b { color: #b08a1e; font-weight: 600; font-size: 7.5px; letter-spacing: 1.2px; text-transform: uppercase; margin-right: 6px; }
-.cx-stays u { text-decoration: none; color: #cbbfa4; margin: 0 8px; }
-
-/* ---------- Good to know: prose, not bullets ----------
-   Eleven ticked bullets in two columns ate a third of the card for information the
-   client skims. The same words set as two short paragraphs cost about a fifth of the
-   height and read faster. */
-.cx-info { font-size: 9.5px; line-height: 1.45; color: #55677d; margin: 0 0 5px; }
-.cx-info:last-child { margin-bottom: 0; }
-.cx-info b { font-weight: 600; margin-right: 6px; font-size: 8px; letter-spacing: 1.2px; text-transform: uppercase; }
-.cx-info.yes b { color: #1a6e2e; }
-.cx-info.no b { color: #a83828; }
+/* ---------- Facts strip: stays + inclusions, deliberately quiet ---------- */
+.cx-facts { flex-shrink: 0; background: #fffefa; padding: 9px 26px 8px; }
+.cx-fact { font-size: 8.5px; line-height: 1.42; color: #6a7789; margin: 0 0 3px; }
+.cx-fact:last-child { margin-bottom: 0; }
+.cx-fact b { font-weight: 600; margin-right: 6px; font-size: 7.5px; letter-spacing: 1.3px; text-transform: uppercase; color: #b08a1e; }
+.cx-fact.no b { color: #a83828; }
 
 /* ---------- Pricing ---------- */
-.cx-ptable { width: 100%; border-collapse: collapse; font-size: 9.5px; }
-.cx-ptable th { text-align: left; background: #0e2a47; color: #fff; font-weight: 600; padding: 4px 8px; font-size: 7.5px; letter-spacing: 0.4px; text-transform: uppercase; }
-.cx-ptable td { padding: 4px 8px; border-bottom: 1px solid #eee2c8; vertical-align: top; }
+.cx-price { flex-shrink: 0; background: #fffefa; padding: 0 26px 10px; }
+.cx-ptable { width: 100%; border-collapse: collapse; font-size: 10px; }
+.cx-ptable th { text-align: left; background: #0e2a47; color: #fff; font-weight: 600; padding: 5px 9px; font-size: 7.5px; letter-spacing: 0.5px; text-transform: uppercase; }
+.cx-ptable td { padding: 5px 9px; border-bottom: 1px solid #eee2c8; vertical-align: top; }
 .cx-ptable tr:last-child td { border-bottom: none; }
 .cx-pt-cat { color: #0e2a47; font-weight: 600; white-space: nowrap; }
-.cx-pt-price { color: #806000; font-weight: 600; white-space: nowrap; }
-.cx-pt-hotels { color: #6a7789; font-size: 8px; line-height: 1.28; }
-.cx-pbox { background: linear-gradient(135deg,#0e2a47,#163d6b); color: #fff; border-radius: 14px; padding: 16px 24px; display: flex; align-items: center; gap: 22px; }
-.cx-pbox-eyebrow { color: #f0c53a; font-size: 9.5px; letter-spacing: 2.6px; text-transform: uppercase; }
-.cx-pbox-big { font-size: 32px; font-weight: 600; margin: 3px 0 0; line-height: 1; }
-.cx-pbox-r { font-size: 11.5px; color: rgba(255,255,255,0.85); line-height: 1.55; }
-.cx-pbox-r b { color: #f0c53a; font-weight: 600; }
-.cx-pnote { font-size: 8px; color: #8a7a5c; margin-top: 4px; }
+.cx-pt-price { color: #806000; font-weight: 700; white-space: nowrap; font-size: 12px; }
+.cx-pt-hotels { color: #8a93a0; font-size: 8px; line-height: 1.3; }
+.cx-pbox { background: linear-gradient(135deg,#0e2a47,#163d6b); color: #fff; border-radius: 10px; padding: 10px 18px; display: flex; align-items: center; gap: 16px; }
+.cx-pbox-eyebrow { color: #f0c53a; font-size: 8px; letter-spacing: 2.4px; text-transform: uppercase; }
+.cx-pbox-big { font-size: 26px; font-weight: 600; margin: 2px 0 0; line-height: 1; }
+.cx-pbox-r { font-size: 10px; color: rgba(255,255,255,0.85); line-height: 1.45; }
+.cx-pnote { font-size: 7.5px; color: #a09880; margin-top: 3px; }
 
 /* ---------- Footer ---------- */
-.cx-foot { flex-shrink: 0; background: linear-gradient(180deg,#0e2a47,#081a30); color: #fff; padding: 10px 26px; display: flex; align-items: center; justify-content: space-between; }
+.cx-foot { flex-shrink: 0; background: linear-gradient(180deg,#0e2a47,#081a30); color: #fff; padding: 9px 26px; display: flex; align-items: center; justify-content: space-between; }
 .cx-foot-brand { font-size: 12px; font-weight: 600; color: #e8b015; letter-spacing: 2px; }
-.cx-foot-brand span { display: block; font-size: 7.5px; letter-spacing: 5px; color: #c8960a; margin-top: 1px; }
-.cx-foot-rows { display: flex; gap: 18px; font-size: 9px; }
-.cx-foot-rows b { color: #e8b015; font-weight: 600; margin-right: 5px; }
+.cx-foot-brand span { display: block; font-size: 6.5px; letter-spacing: 4px; color: #c8960a; margin-top: 1px; }
+.cx-foot-rows { display: flex; gap: 16px; font-size: 8.5px; }
+.cx-foot-rows b { color: #e8b015; font-weight: 600; margin-right: 4px; }
 
-/* ================= Density steps =================
-   Row height comes from ROW_H in JS; these trim the type and rhythm alongside it. */
-.cptx.k1 .cx-body { padding: 12px 24px; }
-.cptx.k1 .cx-city-name { font-size: 16px; }
-.cptx.k1 .cx-sec { margin-bottom: 10px; }
+/* ================= Density steps ================= */
+.cptx.k1 .cx-band-name { font-size: 27px; }
+.cptx.k1 .cx-bul li { font-size: 11.5px; }
+.cptx.k1 .cx-head { padding: 14px 28px 11px; }
+.cptx.k1 .cx-title { font-size: 29px; }
 
-.cptx.k2 .cx-body { padding: 10px 22px; }
-.cptx.k2 .cx-city-name { font-size: 15px; }
-.cptx.k2 .cx-bul li { font-size: 10px; }
-.cptx.k2 .cx-sec { margin-bottom: 9px; }
-.cptx.k2 .cx-sec-head { margin-bottom: 7px; }
-.cptx.k2 .cx-sec-head h3 { font-size: 15px; }
-.cptx.k2 .cx-info { font-size: 9px; }
-.cptx.k2 .cx-head { padding: 15px 24px 12px; }
-.cptx.k2 .cx-title { font-size: 25px; }
+.cptx.k2 .cx-band-name { font-size: 25px; margin-bottom: 7px; }
+.cptx.k2 .cx-bul li { font-size: 11px; margin-bottom: 3px; }
+.cptx.k2 .cx-band-body { padding: 0 26px; }
+.cptx.k2 .cx-head { padding: 12px 26px 10px; }
+.cptx.k2 .cx-title { font-size: 26px; }
+.cptx.k2 .cx-stats b { font-size: 20px; }
+.cptx.k2 .cx-ptable { font-size: 9.5px; }
 
-.cptx.k3 .cx-body { padding: 9px 20px; }
-.cptx.k3 .cx-city-name { font-size: 14px; }
-.cptx.k3 .cx-bul li { font-size: 9.5px; margin-bottom: 2px; }
-
-.cptx.k3 .cx-text { padding: 6px 10px; }
-.cptx.k3 .cx-sec { margin-bottom: 8px; }
-.cptx.k3 .cx-sec-head { margin-bottom: 6px; }
-.cptx.k3 .cx-sec-head h3 { font-size: 14px; }
-.cptx.k3 .cx-info { font-size: 8.5px; line-height: 1.4; }
-.cptx.k3 .cx-head { padding: 13px 22px 10px; }
-.cptx.k3 .cx-title { font-size: 23px; }
-.cptx.k3 .cx-stats b { font-size: 19px; }
+.cptx.k3 .cx-band-name { font-size: 22px; margin-bottom: 6px; }
+.cptx.k3 .cx-band-rule { margin-bottom: 7px; }
+.cptx.k3 .cx-bul li { font-size: 10.5px; margin-bottom: 3px; }
+.cptx.k3 .cx-band-body { padding: 0 22px; width: 70%; }
+.cptx.k3 .cx-head { padding: 11px 24px 9px; }
+.cptx.k3 .cx-title { font-size: 24px; }
+.cptx.k3 .cx-stats b { font-size: 18px; }
 .cptx.k3 .cx-ptable { font-size: 9px; }
+.cptx.k3 .cx-ptable td { padding: 4px 8px; }
+.cptx.k3 .cx-pt-price { font-size: 11px; }
 
-.cptx.k4 .cx-body { padding: 8px 18px; }
-.cptx.k4 .cx-city-name { font-size: 13px; }
-.cptx.k4 .cx-bul li { font-size: 9px; margin-bottom: 2px; line-height: 1.34; }
-
-.cptx.k4 .cx-text { padding: 5px 9px; }
-.cptx.k4 .cx-sec { margin-bottom: 7px; }
-.cptx.k4 .cx-sec-head { margin-bottom: 5px; }
-.cptx.k4 .cx-sec-head h3 { font-size: 13px; }
-.cptx.k4 .cx-info { font-size: 8px; line-height: 1.36; }
-.cptx.k4 .cx-head { padding: 11px 20px 9px; }
-.cptx.k4 .cx-title { font-size: 21px; }
+.cptx.k4 .cx-band-name { font-size: 20px; margin-bottom: 5px; }
+.cptx.k4 .cx-band-rule { margin-bottom: 6px; }
+.cptx.k4 .cx-bul li { font-size: 10px; margin-bottom: 2px; line-height: 1.34; }
+.cptx.k4 .cx-band-body { padding: 0 20px; width: 72%; }
+.cptx.k4 .cx-head { padding: 10px 22px 8px; }
+.cptx.k4 .cx-title { font-size: 22px; }
 .cptx.k4 .cx-stats b { font-size: 17px; }
+.cptx.k4 .cx-facts { padding: 7px 22px 6px; }
+.cptx.k4 .cx-price { padding: 0 22px 8px; }
 .cptx.k4 .cx-ptable { font-size: 8.5px; }
 .cptx.k4 .cx-ptable td { padding: 3px 7px; }
-.cptx.k4 .cx-foot { padding: 8px 20px; }
+.cptx.k4 .cx-pt-price { font-size: 10.5px; }
+.cptx.k4 .cx-foot { padding: 7px 22px; }
 `
 
 /** yyyy-mm-dd -> "26 Jul 2027". Parsed as UTC so the date never shifts a day. */
@@ -254,7 +208,7 @@ type PriceColKey = 'dbl' | 'single' | 'triple' | 'quad'
 
 const PRICE_COLS: { key: PriceColKey; label: string }[] = [
   { key: 'dbl', label: 'Per Person (Double)' },
-  { key: 'single', label: 'Single Supplement' },
+  { key: 'single', label: 'Single Supp.' },
   { key: 'triple', label: 'Per Person (Triple)' },
   { key: 'quad', label: 'Per Person (Quad)' },
 ]
@@ -269,10 +223,9 @@ const CompactDoc = forwardRef<HTMLDivElement, { data: CompactData }>(({ data }, 
     el.textContent = CSS
   }, [])
 
-  const rowH = ROW_H[Math.max(0, Math.min(ROW_H.length - 1, d.density))]
+  const bandH = BAND_H[Math.max(0, Math.min(BAND_H.length - 1, d.density))]
 
-  /* Inclusions as prose. Trailing full stops are stripped so the joined run reads as
-     one list rather than a string of sentences. */
+  /* Inclusions as prose: trailing full stops stripped so the run reads as one list. */
   const asProse = (items: string[]) =>
     items.map((t) => (t ?? '').trim().replace(/\.$/, '')).filter(Boolean).join(' · ')
 
@@ -298,7 +251,6 @@ const CompactDoc = forwardRef<HTMLDivElement, { data: CompactData }>(({ data }, 
           <div className="cx-eyebrow">Tailor-Made<br />Egypt Itinerary</div>
         </div>
         <h1 className="fr cx-title">{d.title}</h1>
-        <div className="cx-rule" />
         <div className="cx-meta">
           {d.meta.ref ? <>Ref {d.meta.ref}<i>·</i></> : null}
           {d.meta.pax} {d.meta.pax === 1 ? 'guest' : 'guests'}
@@ -307,123 +259,95 @@ const CompactDoc = forwardRef<HTMLDivElement, { data: CompactData }>(({ data }, 
         <div className="cx-stats">
           <div><b className="fr">{d.overview.days}</b><span>{d.overview.days === 1 ? 'Day' : 'Days'}</span></div>
           <div><b className="fr">{d.overview.nights}</b><span>{d.overview.nights === 1 ? 'Night' : 'Nights'}</span></div>
-          <div><b className="fr">{d.overview.cities}</b><span>{d.overview.cities === 1 ? 'City' : 'Cities'}</span></div>
+          <div><b className="fr">{d.overview.cities}</b><span>{d.overview.cities === 1 ? 'Destination' : 'Destinations'}</span></div>
           <div><b className="fr">{d.overview.pax}</b><span>{d.overview.pax === 1 ? 'Guest' : 'Guests'}</span></div>
         </div>
       </div>
 
-      {/* ---------- Body ---------- */}
-      {/* data-cx-body is the fit loop's measuring point: the sheet itself is a
-          fixed 4:5 box, so its own height can never reveal an overflow. */}
-      <div className="cx-body" data-cx-body="1">
+      {/* ---------- Destination bands ---------- */}
+      <div className="cx-bands" data-cx-body="1">
+        {d.groups.map((g, gi) => {
+          const photo = g.photos[0]
+          const alt = gi % 2 === 1
+          return (
+            <div className={`cx-band${alt ? ' alt' : ''}`} key={gi} style={{ height: bandH }}>
+              {photo ? <div className="cx-band-img" style={{ backgroundImage: `url("${photo.photoUrl}")` }} /> : <div className="cx-band-img" />}
+              <div className="cx-band-scrim" />
+              <div className="cx-band-body">
+                <div className="cx-band-kicker">Destination {gi + 1}</div>
+                <h2 className="fr cx-band-name">{g.city}</h2>
+                <div className="cx-band-rule" />
+                {g.bullets.length > 0 && (
+                  <ul className="cx-bul">
+                    {g.bullets.map((b, k) => <li key={k}>{b}</li>)}
+                  </ul>
+                )}
+              </div>
+            </div>
+          )
+        })}
+      </div>
 
-        {d.groups.length > 0 && (
-          <div className="cx-sec">
-            <div className="cx-sec-head"><h3 className="fr">Where You Go</h3><div /></div>
-            {d.groups.map((g, gi) => {
-              const photo = g.photos[0]
-              // Alternate which side the photo sits on so the column of rows reads as
-              // a zig-zag rather than a stack of identical bars.
-              const onRight = gi % 2 === 1
-              const shot = photo ? (
-                <div
-                  className="cx-photo"
-                  style={{
-                    backgroundImage: `url("${photo.photoUrl}")`,
-                    height: rowH,
-                    width: Math.round(rowH * (photo.aspect > 0 ? photo.aspect : 0.75)),
-                  }}
-                />
-              ) : null
-              return (
-                <div className="cx-city" key={gi}>
-                  <div className="cx-row" style={{ height: rowH }}>
-                    {!onRight && shot}
-                    <div className="cx-text">
-                      <h4 className="fr cx-city-name">{g.city}</h4>
-                      {g.bullets.length > 0 && (
-                        <ul className="cx-bul">
-                          {g.bullets.map((b, k) => <li key={k}>{b}</li>)}
-                        </ul>
-                      )}
-                    </div>
-                    {onRight && shot}
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        )}
-
+      {/* ---------- Quiet facts ---------- */}
+      <div className="cx-facts">
         {d.stays.length > 0 && (
-          <div className="cx-sec">
-            <div className="cx-stays">
-              <b>Accommodation</b>
-              {d.stays.map((st, i) => (
-                <span key={i}>
-                  {i > 0 ? <u>·</u> : null}
-                  {st.nights} {st.nights === 1 ? 'night' : 'nights'} {st.destination}
-                  {st.hotel ? ` (${st.hotel})` : ''}
-                </span>
-              ))}
-            </div>
-          </div>
+          <p className="cx-fact">
+            <b>Stays</b>
+            {d.stays.map((st, i) => (
+              <span key={i}>
+                {i > 0 ? ' · ' : ''}
+                {st.nights} {st.nights === 1 ? 'night' : 'nights'} {st.destination}
+                {st.hotel ? ` (${st.hotel})` : ''}
+              </span>
+            ))}
+          </p>
         )}
+        {d.included.length > 0 && <p className="cx-fact"><b>Included</b>{asProse(d.included)}.</p>}
+        {d.excluded.length > 0 && <p className="cx-fact no"><b>Not included</b>{asProse(d.excluded)}.</p>}
+      </div>
 
-        {(d.included.length > 0 || d.excluded.length > 0) && (
-          <div className="cx-sec">
-            <div className="cx-sec-head"><h3 className="fr">Good to Know</h3><div /></div>
-            {d.included.length > 0 && <p className="cx-info yes"><b>Included</b>{asProse(d.included)}.</p>}
-            {d.excluded.length > 0 && <p className="cx-info no"><b>Not included</b>{asProse(d.excluded)}.</p>}
-          </div>
-        )}
-
-        {/* Pricing is always present: tier table, else the per-person box, else an
-            explicit "on request" line — never a blank space where a price should be. */}
-        <div className="cx-sec" style={{ marginBottom: 0 }}>
-          <div className="cx-sec-head"><h3 className="fr">Pricing</h3><div /></div>
-          {showTable ? (
-            <>
-              <table className="cx-ptable">
-                <thead>
-                  <tr>
-                    <th>Category</th>
-                    {cols.map((c) => <th key={c.key}>{c.label}</th>)}
-                    {anyHotels ? <th>Offered Hotels</th> : null}
+      {/* ---------- Pricing: always present ---------- */}
+      <div className="cx-price">
+        {showTable ? (
+          <>
+            <table className="cx-ptable">
+              <thead>
+                <tr>
+                  <th>Category</th>
+                  {cols.map((c) => <th key={c.key}>{c.label}</th>)}
+                  {anyHotels ? <th>Offered Hotels</th> : null}
+                </tr>
+              </thead>
+              <tbody>
+                {tierRows.map((r, i) => (
+                  <tr key={i}>
+                    <td className="cx-pt-cat">{r.category}</td>
+                    {cols.map((c) => <td className="cx-pt-price" key={c.key}>{(r[c.key] || 0) > 0 ? `${(r[c.key] || 0).toLocaleString()} USD` : '—'}</td>)}
+                    {anyHotels ? (
+                      <td className="cx-pt-hotels">
+                        {(r.hotels ?? '').split('\n').map((l) => l.trim()).filter(Boolean).map((l, k) => <div key={k}>{l}</div>)}
+                      </td>
+                    ) : null}
                   </tr>
-                </thead>
-                <tbody>
-                  {tierRows.map((r, i) => (
-                    <tr key={i}>
-                      <td className="cx-pt-cat">{r.category}</td>
-                      {cols.map((c) => <td className="cx-pt-price" key={c.key}>{(r[c.key] || 0) > 0 ? `${(r[c.key] || 0).toLocaleString()} USD` : '—'}</td>)}
-                      {anyHotels ? (
-                        <td className="cx-pt-hotels">
-                          {(r.hotels ?? '').split('\n').map((l) => l.trim()).filter(Boolean).map((l, k) => <div key={k}>{l}</div>)}
-                        </td>
-                      ) : null}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              <div className="cx-pnote">Rates are per person in USD, based on {basis} room occupancy.</div>
-            </>
-          ) : d.price.pp > 0 ? (
-            <div className="cx-pbox">
-              <div>
-                <div className="cx-pbox-eyebrow">Package Price</div>
-                <div className="fr cx-pbox-big">${d.price.pp.toLocaleString()}</div>
-              </div>
-              <div className="cx-pbox-r">
-                <div>per person · {basis} room occupancy</div>
-                {d.price.sgl > 0 ? <div><b>Single supplement</b> ${d.price.sgl.toLocaleString()} per person</div> : null}
-                <div>{d.overview.days} {d.overview.days === 1 ? 'day' : 'days'} · {d.overview.nights} {d.overview.nights === 1 ? 'night' : 'nights'} · {d.meta.pax} {d.meta.pax === 1 ? 'guest' : 'guests'}</div>
-              </div>
+                ))}
+              </tbody>
+            </table>
+            <div className="cx-pnote">Rates are per person in USD, based on {basis} room occupancy.</div>
+          </>
+        ) : d.price.pp > 0 ? (
+          <div className="cx-pbox">
+            <div>
+              <div className="cx-pbox-eyebrow">Package Price</div>
+              <div className="fr cx-pbox-big">${d.price.pp.toLocaleString()}</div>
             </div>
-          ) : (
-            <div className="cx-pnote">Pricing on request — please contact us for a tailored quotation.</div>
-          )}
-        </div>
+            <div className="cx-pbox-r">
+              <div>per person · {basis} room occupancy</div>
+              {d.price.sgl > 0 ? <div>Single supplement ${d.price.sgl.toLocaleString()} per person</div> : null}
+            </div>
+          </div>
+        ) : (
+          <div className="cx-pnote">Pricing on request — please contact us for a tailored quotation.</div>
+        )}
       </div>
 
       {/* ---------- Footer ---------- */}
