@@ -9,26 +9,27 @@ export interface SiteTile {
 }
 
 /**
- * Tile width per density step. Height is width / TILE_AR.
+ * City row height per density step.
  *
- * The tiles are PORTRAIT because the photo library is: 14 of 15 shots used by a
- * typical package measure between 0.56 and 0.84 wide-over-tall (phone photos), and
- * several are exactly 3:4. Forcing those into a landscape frame is what made the
- * pictures unreadable — a 9:16 shot cropped to 16:9 discards about three quarters of
- * the image, which is how "Pyramids" ended up showing only a signboard. Matching the
- * frame to the source means the crop is near zero for almost every file.
- *
- * Both dimensions are always written inline: never leave a captured element sized in
- * one dimension only (handoff.md section 8C).
+ * Photos fill a 25% column at this height, so the frame is landscape while the
+ * library is portrait (14 of 15 shots measure 0.56-0.84 wide-over-tall). The crop is
+ * therefore real — biased upward by FOCUS so the subject survives it. Row height is
+ * the first thing the density ladder spends for exactly this reason.
  */
-export const SHOT_W = [136, 124, 112, 100, 90]
-export const TILE_AR = 0.75
+/**
+ * City row height per density step. Photos fill a 25% column at this height.
+ *
+ * NOTE the trade-off this forces: at 25% of an 860px sheet a photo is ~205px wide,
+ * so a 150px row makes it landscape — and this library is portrait, so it crops.
+ * Row height is therefore the first thing the density ladder spends.
+ */
+export const ROW_H = [156, 140, 126, 112, 100]
 
 /**
- * A photo whose shape is far from the tile's is letterboxed rather than sliced —
- * better a little empty space than a landscape panorama cropped to a keyhole.
+ * Portrait sources cropped to a landscape frame lose their subject if centred — the
+ * interesting part of a monument shot sits above the middle. Bias the crop upward.
  */
-export const fitFor = (aspect: number) => (aspect > 1.05 || aspect < 0.52 ? 'contain' : 'cover')
+export const FOCUS = 'center 32%'
 
 /** A city, what happens there, and one or two photos of it. */
 export interface CityGroup {
@@ -121,159 +122,130 @@ export const SHEET_H = 1075
 const CSS = `
 /* min-height + a flexing body: short itineraries stretch to fill the 4:5 box so the
    PNG is exactly 1080x1350, and long ones grow past it rather than clipping. */
-.cptx { width: ${SHEET_W}px; min-height: ${SHEET_H}px; display: flex; flex-direction: column; background: #fffefa; color: #0e2a47; font-family: 'Inter', system-ui, sans-serif; line-height: 1.5; }
+.cptx { width: ${SHEET_W}px; height: ${SHEET_H}px; overflow: hidden; display: flex; flex-direction: column; background: #fffefa; color: #0e2a47; font-family: 'Inter', system-ui, sans-serif; line-height: 1.5; }
 .cptx * { box-sizing: border-box; }
 .cptx .fr { font-family: 'Fraunces', Georgia, serif; }
 
 /* ---------- Header (no cover photo: solid brand block) ---------- */
-.cx-head { flex-shrink: 0; background: linear-gradient(135deg,#0e2a47 0%,#14375e 55%,#081a30 100%); color: #fff; padding: 26px 36px 22px; }
-.cx-head-top { display: flex; align-items: center; gap: 16px; margin-bottom: 18px; }
+.cx-head { flex-shrink: 0; background: linear-gradient(135deg,#0e2a47 0%,#14375e 55%,#081a30 100%); color: #fff; padding: 18px 30px 14px; }
+.cx-head-top { display: flex; align-items: center; gap: 16px; margin-bottom: 12px; }
 .cx-logo { background: #fff; border-radius: 999px; padding: 8px 18px; display: inline-block; flex-shrink: 0; }
 .cx-logo img { width: 150px; height: 28px; display: block; }
 .cx-eyebrow { margin-left: auto; font-size: 10px; letter-spacing: 3.2px; text-transform: uppercase; color: #f0c53a; text-align: right; }
-.cx-title { font-size: 33px; font-weight: 600; line-height: 1.08; margin: 0; color: #fff; }
-.cx-rule { width: 76px; height: 3px; background: linear-gradient(135deg,#c8960a,#e8b015); border-radius: 3px; margin: 13px 0 12px; }
-.cx-meta { font-size: 13px; color: rgba(255,255,255,0.9); }
+.cx-title { font-size: 27px; font-weight: 600; line-height: 1.08; margin: 0; color: #fff; }
+.cx-rule { width: 64px; height: 3px; background: linear-gradient(135deg,#c8960a,#e8b015); border-radius: 3px; margin: 9px 0 8px; }
+.cx-meta { font-size: 11.5px; color: rgba(255,255,255,0.9); }
 .cx-meta i { font-style: normal; color: #f0c53a; margin: 0 8px; }
-.cx-stats { display: flex; margin-top: 18px; border-top: 1px solid rgba(255,255,255,0.16); padding-top: 15px; }
+.cx-stats { display: flex; margin-top: 12px; border-top: 1px solid rgba(255,255,255,0.16); padding-top: 10px; }
 .cx-stats > div { flex: 1; text-align: center; border-left: 1px solid rgba(255,255,255,0.13); }
 .cx-stats > div:first-child { border-left: none; }
-.cx-stats b { display: block; font-size: 27px; font-weight: 600; color: #e8b015; line-height: 1; }
+.cx-stats b { display: block; font-size: 21px; font-weight: 600; color: #e8b015; line-height: 1; }
 .cx-stats span { display: block; margin-top: 5px; font-size: 9px; letter-spacing: 2.2px; text-transform: uppercase; color: rgba(255,255,255,0.62); }
 .cx-cities { margin-top: 14px; font-size: 11.5px; color: rgba(255,255,255,0.82); }
 .cx-cities b { color: #f0c53a; font-weight: 600; font-size: 9px; letter-spacing: 2px; text-transform: uppercase; margin-right: 9px; }
 .cx-cities u { text-decoration: none; color: #7d93ad; margin: 0 7px; }
 
 /* ---------- Body ---------- */
-.cx-body { flex: 1; padding: 20px 30px 22px; }
+.cx-body { flex: 1; min-height: 0; padding: 14px 26px 14px; }
 
-.cx-sec-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 13px; }
-.cx-sec-head h3 { font-size: 20px; font-weight: 600; color: #0e2a47; margin: 0; white-space: nowrap; }
+.cx-sec-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 9px; }
+.cx-sec-head h3 { font-size: 16px; font-weight: 600; color: #0e2a47; margin: 0; white-space: nowrap; }
 .cx-sec-head div { flex: 1; height: 2px; background: linear-gradient(90deg,#e8b015,rgba(232,176,21,0.10)); border-radius: 2px; }
-.cx-sec { margin-bottom: 20px; }
+.cx-sec { margin-bottom: 12px; }
 
-/* ---------- City groups ---------- */
-.cx-city { padding: 0 0 13px; margin-bottom: 13px; border-bottom: 1px solid #ece0c4; }
-.cx-city:last-child { border-bottom: none; padding-bottom: 0; margin-bottom: 0; }
-.cx-city-name { font-size: 23px; font-weight: 600; color: #0e2a47; margin: 0 0 8px; line-height: 1.12; }
-
-/* A paragraph with a photo either side. Photos are portrait because the library is
-   (see SHOT_W); both dimensions are set inline so html2canvas never has to resolve
-   an intrinsic size. */
-.cx-row { display: flex; align-items: stretch; gap: 14px; }
-.cx-photo { flex: 0 0 auto; border-radius: 9px; overflow: hidden; background-color: #16304d; background-repeat: no-repeat; background-position: center; }
-.cx-text { flex: 1; min-width: 0; font-size: 12.5px; line-height: 1.55; color: #45566b; }
-.cx-sites { margin-top: 8px; font-size: 11px; color: #6a7789; line-height: 1.4; }
-.cx-sites b { color: #b08a1e; font-weight: 600; font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase; margin-right: 7px; }
+/* ---------- City groups: photo 25% | text 50% | photo 25% ---------- */
+.cx-city { border-bottom: 1px solid #ece0c4; }
+.cx-city:last-child { border-bottom: none; }
+.cx-row { display: flex; align-items: stretch; }
+.cx-photo { flex: 0 0 25%; background-color: #16304d; background-repeat: no-repeat; background-size: cover; }
+.cx-text { flex: 1; min-width: 0; padding: 8px 12px; display: flex; flex-direction: column; justify-content: center; }
+.cx-city-name { font-size: 17px; font-weight: 600; color: #0e2a47; margin: 0 0 3px; line-height: 1.1; }
+.cx-blurb { font-size: 10px; line-height: 1.4; color: #45566b; margin: 0; }
+.cx-sites { margin-top: 4px; font-size: 9px; color: #7a8798; line-height: 1.35; }
+.cx-sites b { color: #b08a1e; font-weight: 600; font-size: 7.5px; letter-spacing: 1.2px; text-transform: uppercase; margin-right: 5px; }
 
 /* ---------- Accommodation: small, subordinate ---------- */
-.cx-stays { margin-top: 4px; font-size: 11.5px; color: #6a7789; line-height: 1.5; }
-.cx-stays b { color: #b08a1e; font-weight: 600; font-size: 9.5px; letter-spacing: 1.6px; text-transform: uppercase; margin-right: 8px; }
+.cx-stays { font-size: 9px; color: #7a8798; line-height: 1.45; }
+.cx-stays b { color: #b08a1e; font-weight: 600; font-size: 7.5px; letter-spacing: 1.2px; text-transform: uppercase; margin-right: 6px; }
 .cx-stays u { text-decoration: none; color: #cbbfa4; margin: 0 8px; }
 
-/* ---------- Included / excluded ---------- */
-.cx-inc { display: flex; gap: 26px; }
-.cx-inc-col { flex: 1; min-width: 0; }
-.cx-inc-col h4 { font-size: 11.5px; color: #0e2a47; margin: 0 0 6px; font-family: 'Fraunces', Georgia, serif; }
-.cx-inc-rest { font-size: 10px; color: #8a7a5c; margin-top: 5px; font-style: italic; }
-.cx-inc-item { display: flex; align-items: flex-start; gap: 6px; font-size: 10.5px; color: #3a495c; margin-bottom: 3px; line-height: 1.35; }
-.cx-mark { flex-shrink: 0; font-weight: 700; }
-.cx-mark.yes { color: #1a6e2e; }
-.cx-mark.no { color: #a83828; }
+/* ---------- Good to know: prose, not bullets ----------
+   Eleven ticked bullets in two columns ate a third of the card for information the
+   client skims. The same words set as two short paragraphs cost about a fifth of the
+   height and read faster. */
+.cx-info { font-size: 9.5px; line-height: 1.45; color: #55677d; margin: 0 0 5px; }
+.cx-info:last-child { margin-bottom: 0; }
+.cx-info b { font-weight: 600; margin-right: 6px; font-size: 8px; letter-spacing: 1.2px; text-transform: uppercase; }
+.cx-info.yes b { color: #1a6e2e; }
+.cx-info.no b { color: #a83828; }
 
 /* ---------- Pricing ---------- */
-.cx-ptable { width: 100%; border-collapse: collapse; font-size: 11px; }
-.cx-ptable th { text-align: left; background: #0e2a47; color: #fff; font-weight: 600; padding: 6px 10px; font-size: 8.5px; letter-spacing: 0.5px; text-transform: uppercase; }
-.cx-ptable td { padding: 6px 10px; border-bottom: 1px solid #eee2c8; vertical-align: top; }
+.cx-ptable { width: 100%; border-collapse: collapse; font-size: 9.5px; }
+.cx-ptable th { text-align: left; background: #0e2a47; color: #fff; font-weight: 600; padding: 4px 8px; font-size: 7.5px; letter-spacing: 0.4px; text-transform: uppercase; }
+.cx-ptable td { padding: 4px 8px; border-bottom: 1px solid #eee2c8; vertical-align: top; }
 .cx-ptable tr:last-child td { border-bottom: none; }
 .cx-pt-cat { color: #0e2a47; font-weight: 600; white-space: nowrap; }
 .cx-pt-price { color: #806000; font-weight: 600; white-space: nowrap; }
-.cx-pt-hotels { color: #6a7789; font-size: 9.5px; line-height: 1.32; }
+.cx-pt-hotels { color: #6a7789; font-size: 8px; line-height: 1.28; }
 .cx-pbox { background: linear-gradient(135deg,#0e2a47,#163d6b); color: #fff; border-radius: 14px; padding: 16px 24px; display: flex; align-items: center; gap: 22px; }
 .cx-pbox-eyebrow { color: #f0c53a; font-size: 9.5px; letter-spacing: 2.6px; text-transform: uppercase; }
 .cx-pbox-big { font-size: 32px; font-weight: 600; margin: 3px 0 0; line-height: 1; }
 .cx-pbox-r { font-size: 11.5px; color: rgba(255,255,255,0.85); line-height: 1.55; }
 .cx-pbox-r b { color: #f0c53a; font-weight: 600; }
-.cx-pnote { font-size: 9.5px; color: #8a7a5c; margin-top: 5px; }
+.cx-pnote { font-size: 8px; color: #8a7a5c; margin-top: 4px; }
 
 /* ---------- Footer ---------- */
-.cx-foot { flex-shrink: 0; background: linear-gradient(180deg,#0e2a47,#081a30); color: #fff; padding: 15px 36px; display: flex; align-items: center; justify-content: space-between; }
-.cx-foot-brand { font-size: 15px; font-weight: 600; color: #e8b015; letter-spacing: 2px; }
+.cx-foot { flex-shrink: 0; background: linear-gradient(180deg,#0e2a47,#081a30); color: #fff; padding: 10px 26px; display: flex; align-items: center; justify-content: space-between; }
+.cx-foot-brand { font-size: 12px; font-weight: 600; color: #e8b015; letter-spacing: 2px; }
 .cx-foot-brand span { display: block; font-size: 7.5px; letter-spacing: 5px; color: #c8960a; margin-top: 1px; }
-.cx-foot-rows { display: flex; gap: 22px; font-size: 11px; }
+.cx-foot-rows { display: flex; gap: 18px; font-size: 9px; }
 .cx-foot-rows b { color: #e8b015; font-weight: 600; margin-right: 5px; }
 
 /* ================= Density steps =================
-   Applied when the sheet runs past the target height. Each step trims type, shot
-   height and vertical rhythm together; nothing is ever removed, so a long itinerary
-   renders denser rather than losing content. */
-.cptx.k1 .cx-body { padding: 17px 28px 19px; }
-.cptx.k1 .cx-head { padding: 22px 28px 18px; }
-.cptx.k1 .cx-city { padding-bottom: 13px; margin-bottom: 13px; }
-.cptx.k1 .cx-city-name { font-size: 21px; margin-bottom: 7px; }
-.cptx.k1 .cx-text { font-size: 12px; line-height: 1.5; }
-.cptx.k1 .cx-row { gap: 12px; }
-.cptx.k1 .cx-inc-item { font-size: 11.5px; margin-bottom: 4px; }
-.cptx.k1 .cx-sec { margin-bottom: 16px; }
+   Row height comes from ROW_H in JS; these trim the type and rhythm alongside it. */
+.cptx.k1 .cx-body { padding: 12px 24px; }
+.cptx.k1 .cx-city-name { font-size: 16px; }
+.cptx.k1 .cx-sec { margin-bottom: 10px; }
 
-.cptx.k2 .cx-body { padding: 15px 26px 16px; }
-.cptx.k2 .cx-head { padding: 19px 26px 15px; }
-.cptx.k2 .cx-title { font-size: 29px; }
-.cptx.k2 .cx-stats b { font-size: 24px; }
-.cptx.k2 .cx-city { padding-bottom: 11px; margin-bottom: 11px; }
-.cptx.k2 .cx-city-name { font-size: 19px; margin-bottom: 6px; }
-.cptx.k2 .cx-text { font-size: 11.5px; line-height: 1.45; }
-.cptx.k2 .cx-sites { font-size: 10.5px; margin-top: 6px; }
-.cptx.k2 .cx-row { gap: 11px; }
-.cptx.k2 .cx-stays { font-size: 11px; }
-.cptx.k2 .cx-inc-item { font-size: 11px; margin-bottom: 3px; }
-.cptx.k2 .cx-sec { margin-bottom: 13px; }
-.cptx.k2 .cx-sec-head { margin-bottom: 10px; }
-.cptx.k2 .cx-sec-head h3 { font-size: 18px; }
-.cptx.k2 .cx-ptable { font-size: 11.5px; }
-.cptx.k2 .cx-ptable td { padding: 7px 10px; }
+.cptx.k2 .cx-body { padding: 10px 22px; }
+.cptx.k2 .cx-city-name { font-size: 15px; }
+.cptx.k2 .cx-blurb { font-size: 9.5px; line-height: 1.36; }
+.cptx.k2 .cx-sec { margin-bottom: 9px; }
+.cptx.k2 .cx-sec-head { margin-bottom: 7px; }
+.cptx.k2 .cx-sec-head h3 { font-size: 15px; }
+.cptx.k2 .cx-info { font-size: 9px; }
+.cptx.k2 .cx-head { padding: 15px 24px 12px; }
+.cptx.k2 .cx-title { font-size: 25px; }
 
-.cptx.k3 .cx-body { padding: 13px 24px 14px; }
-.cptx.k3 .cx-head { padding: 16px 24px 13px; }
-.cptx.k3 .cx-title { font-size: 26px; }
-.cptx.k3 .cx-stats { margin-top: 13px; padding-top: 11px; }
-.cptx.k3 .cx-stats b { font-size: 21px; }
-.cptx.k3 .cx-city { padding-bottom: 9px; margin-bottom: 9px; }
-.cptx.k3 .cx-city-name { font-size: 17px; margin-bottom: 5px; }
-.cptx.k3 .cx-text { font-size: 11px; line-height: 1.42; }
-.cptx.k3 .cx-sites { font-size: 10px; margin-top: 5px; }
-.cptx.k3 .cx-row { gap: 10px; }
-.cptx.k3 .cx-stays { font-size: 10.5px; }
-.cptx.k3 .cx-inc-item { font-size: 10.5px; margin-bottom: 2px; line-height: 1.35; gap: 6px; }
-.cptx.k3 .cx-inc-col h4 { font-size: 12px; margin-bottom: 6px; }
-.cptx.k3 .cx-sec { margin-bottom: 11px; }
-.cptx.k3 .cx-sec-head { margin-bottom: 8px; }
-.cptx.k3 .cx-sec-head h3 { font-size: 17px; }
-.cptx.k3 .cx-ptable { font-size: 11px; }
-.cptx.k3 .cx-ptable td { padding: 6px 9px; }
-.cptx.k3 .cx-pt-hotels { font-size: 10px; }
+.cptx.k3 .cx-body { padding: 9px 20px; }
+.cptx.k3 .cx-city-name { font-size: 14px; }
+.cptx.k3 .cx-blurb { font-size: 9px; line-height: 1.32; }
+.cptx.k3 .cx-sites { font-size: 8.5px; margin-top: 3px; }
+.cptx.k3 .cx-text { padding: 6px 10px; }
+.cptx.k3 .cx-sec { margin-bottom: 8px; }
+.cptx.k3 .cx-sec-head { margin-bottom: 6px; }
+.cptx.k3 .cx-sec-head h3 { font-size: 14px; }
+.cptx.k3 .cx-info { font-size: 8.5px; line-height: 1.4; }
+.cptx.k3 .cx-head { padding: 13px 22px 10px; }
+.cptx.k3 .cx-title { font-size: 23px; }
+.cptx.k3 .cx-stats b { font-size: 19px; }
+.cptx.k3 .cx-ptable { font-size: 9px; }
 
-.cptx.k4 .cx-body { padding: 11px 22px 12px; }
-.cptx.k4 .cx-head { padding: 14px 22px 11px; }
-.cptx.k4 .cx-title { font-size: 23px; }
-.cptx.k4 .cx-stats { margin-top: 11px; padding-top: 9px; }
-.cptx.k4 .cx-stats b { font-size: 19px; }
-.cptx.k4 .cx-city { padding-bottom: 8px; margin-bottom: 8px; }
-.cptx.k4 .cx-city-name { font-size: 15.5px; margin-bottom: 4px; }
-.cptx.k4 .cx-text { font-size: 10.5px; line-height: 1.38; }
-.cptx.k4 .cx-sites { font-size: 9.5px; margin-top: 4px; }
-.cptx.k4 .cx-row { gap: 9px; }
-.cptx.k4 .cx-stays { font-size: 10px; }
-.cptx.k4 .cx-inc-item { font-size: 10px; margin-bottom: 2px; line-height: 1.3; gap: 5px; }
-.cptx.k4 .cx-inc-col h4 { font-size: 11.5px; margin-bottom: 5px; }
-.cptx.k4 .cx-inc { gap: 22px; }
-.cptx.k4 .cx-sec { margin-bottom: 9px; }
-.cptx.k4 .cx-sec-head { margin-bottom: 6px; }
-.cptx.k4 .cx-sec-head h3 { font-size: 16px; }
-.cptx.k4 .cx-ptable { font-size: 10.5px; }
-.cptx.k4 .cx-ptable td { padding: 5px 8px; }
-.cptx.k4 .cx-pt-hotels { font-size: 9.5px; }
-.cptx.k4 .cx-foot { padding: 12px 22px; }
+.cptx.k4 .cx-body { padding: 8px 18px; }
+.cptx.k4 .cx-city-name { font-size: 13px; }
+.cptx.k4 .cx-blurb { font-size: 8.5px; line-height: 1.3; }
+.cptx.k4 .cx-sites { font-size: 8px; margin-top: 2px; }
+.cptx.k4 .cx-text { padding: 5px 9px; }
+.cptx.k4 .cx-sec { margin-bottom: 7px; }
+.cptx.k4 .cx-sec-head { margin-bottom: 5px; }
+.cptx.k4 .cx-sec-head h3 { font-size: 13px; }
+.cptx.k4 .cx-info { font-size: 8px; line-height: 1.36; }
+.cptx.k4 .cx-head { padding: 11px 20px 9px; }
+.cptx.k4 .cx-title { font-size: 21px; }
+.cptx.k4 .cx-stats b { font-size: 17px; }
+.cptx.k4 .cx-ptable { font-size: 8.5px; }
+.cptx.k4 .cx-ptable td { padding: 3px 7px; }
+.cptx.k4 .cx-foot { padding: 8px 20px; }
 `
 
 /** yyyy-mm-dd -> "26 Jul 2027". Parsed as UTC so the date never shifts a day. */
@@ -305,20 +277,12 @@ const CompactDoc = forwardRef<HTMLDivElement, { data: CompactData }>(({ data }, 
     el.textContent = CSS
   }, [])
 
-  const shotW = SHOT_W[Math.max(0, Math.min(SHOT_W.length - 1, d.density))]
-  const shotH = Math.round(shotW / TILE_AR)
+  const rowH = ROW_H[Math.max(0, Math.min(ROW_H.length - 1, d.density))]
 
-  /*
-   * The info section is a footnote, not the pitch: cap it so a 12-line inclusion
-   * list cannot dominate the card, and say plainly how many were left off rather
-   * than silently dropping them from a client-facing quote.
-   */
-  const INC_CAP = 8
-  const EXC_CAP = 6
-  const incShown = d.included.slice(0, INC_CAP)
-  const excShown = d.excluded.slice(0, EXC_CAP)
-  const incRest = d.included.length - incShown.length
-  const excRest = d.excluded.length - excShown.length
+  /* Inclusions as prose. Trailing full stops are stripped so the joined run reads as
+     one list rather than a string of sentences. */
+  const asProse = (items: string[]) =>
+    items.map((t) => (t ?? '').trim().replace(/\.$/, '')).filter(Boolean).join(' · ')
 
   const tierRows = d.pricing.rows.filter(
     (r) => (r.category ?? '').trim() && (r.dbl > 0 || r.single > 0 || r.triple > 0 || r.quad > 0),
@@ -357,42 +321,26 @@ const CompactDoc = forwardRef<HTMLDivElement, { data: CompactData }>(({ data }, 
       </div>
 
       {/* ---------- Body ---------- */}
-      <div className="cx-body">
+      {/* data-cx-body is the fit loop's measuring point: the sheet itself is a
+          fixed 4:5 box, so its own height can never reveal an overflow. */}
+      <div className="cx-body" data-cx-body="1">
 
         {d.groups.length > 0 && (
           <div className="cx-sec">
             <div className="cx-sec-head"><h3 className="fr">Where You Go</h3><div /></div>
             {d.groups.map((g, gi) => (
               <div className="cx-city" key={gi}>
-                <h4 className="fr cx-city-name">{g.city}</h4>
-                <div className="cx-row">
+                <div className="cx-row" style={{ height: rowH }}>
                   {g.photos[0] && (
-                    <div
-                      className="cx-photo"
-                      style={{
-                        backgroundImage: `url("${g.photos[0].photoUrl}")`,
-                        width: shotW,
-                        height: shotH,
-                        backgroundSize: fitFor(g.photos[0].aspect > 0 ? g.photos[0].aspect : TILE_AR),
-                      }}
-                    />
+                    <div className="cx-photo" style={{ backgroundImage: `url("${g.photos[0].photoUrl}")`, backgroundPosition: FOCUS }} />
                   )}
                   <div className="cx-text">
-                    {g.blurb}
-                    {g.sites.length > 0 && (
-                      <div className="cx-sites"><b>Sites</b>{g.sites.join(' · ')}</div>
-                    )}
+                    <h4 className="fr cx-city-name">{g.city}</h4>
+                    {g.blurb ? <p className="cx-blurb">{g.blurb}</p> : null}
+                    {g.sites.length > 0 && <div className="cx-sites"><b>Sites</b>{g.sites.join(' · ')}</div>}
                   </div>
                   {g.photos[1] && (
-                    <div
-                      className="cx-photo"
-                      style={{
-                        backgroundImage: `url("${g.photos[1].photoUrl}")`,
-                        width: shotW,
-                        height: shotH,
-                        backgroundSize: fitFor(g.photos[1].aspect > 0 ? g.photos[1].aspect : TILE_AR),
-                      }}
-                    />
+                    <div className="cx-photo" style={{ backgroundImage: `url("${g.photos[1].photoUrl}")`, backgroundPosition: FOCUS }} />
                   )}
                 </div>
               </div>
@@ -418,18 +366,8 @@ const CompactDoc = forwardRef<HTMLDivElement, { data: CompactData }>(({ data }, 
         {(d.included.length > 0 || d.excluded.length > 0) && (
           <div className="cx-sec">
             <div className="cx-sec-head"><h3 className="fr">Good to Know</h3><div /></div>
-            <div className="cx-inc">
-              <div className="cx-inc-col">
-                <h4>Included</h4>
-                {incShown.map((t, i) => <div className="cx-inc-item" key={i}><span className="cx-mark yes">✓</span>{t}</div>)}
-                {incRest > 0 && <div className="cx-inc-rest">+{incRest} more — full list in the detailed itinerary</div>}
-              </div>
-              <div className="cx-inc-col">
-                <h4>Not included</h4>
-                {excShown.map((t, i) => <div className="cx-inc-item" key={i}><span className="cx-mark no">✕</span>{t}</div>)}
-                {excRest > 0 && <div className="cx-inc-rest">+{excRest} more</div>}
-              </div>
-            </div>
+            {d.included.length > 0 && <p className="cx-info yes"><b>Included</b>{asProse(d.included)}.</p>}
+            {d.excluded.length > 0 && <p className="cx-info no"><b>Not included</b>{asProse(d.excluded)}.</p>}
           </div>
         )}
 

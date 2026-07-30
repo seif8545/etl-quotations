@@ -1075,9 +1075,19 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
     let cancelled = false
     let raf = 0
 
+    /*
+     * Measure the BODY's overflow, not the sheet's height.
+     *
+     * The sheet is a fixed 4:5 box with overflow:hidden so it can never extend — which
+     * means its own offsetHeight is always exactly SHEET_H and would report "fits"
+     * forever. The body is the flexing child; scrollHeight past clientHeight is the
+     * only honest signal that content is being cut off.
+     */
     const measure = () => {
       if (cancelled) return
-      if (node.offsetHeight > MAX_SHEET_H && density < MAX_DENSITY) setDensity((x) => x + 1)
+      const body = node.querySelector('[data-cx-body]') as HTMLElement | null
+      if (!body) return
+      if (body.scrollHeight > body.clientHeight + 1 && density < MAX_DENSITY) setDensity((x) => x + 1)
     }
 
     const schedule = () => {
@@ -1151,8 +1161,13 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
       ctx.imageSmoothingQuality = 'high'
       ctx.drawImage(raw, CUT, 0, raw.width - CUT * 2, raw.height, 0, 0, OUT_W, outH)
 
-      if (node.offsetHeight > MAX_SHEET_H + 2) {
-        setError(`Sheet is ${outH}px tall instead of 1350 — trim a few inclusions or sites to bring it back to a standard 4:5 post.`)
+      // The card is a fixed 4:5 box, so anything that still does not fit at the
+      // tightest density is CLIPPED rather than pushed past the edge. That must never
+      // pass silently on a client-facing quote.
+      const body = node.querySelector('[data-cx-body]') as HTMLElement | null
+      if (body && body.scrollHeight > body.clientHeight + 1) {
+        const over = body.scrollHeight - body.clientHeight
+        setError(`Content overflows the 4:5 card by ~${over}px and has been cut off. Trim some inclusions, sites or pricing rows.`)
       }
 
       if (kind === 'png') {
