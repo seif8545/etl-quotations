@@ -9,27 +9,17 @@ export interface SiteTile {
 }
 
 /**
- * City row height per density step.
+ * City row height per density step. The photo IS the row height, and its width
+ * follows its own aspect ratio, so nothing is ever cropped.
  *
- * Photos fill a 25% column at this height, so the frame is landscape while the
- * library is portrait (14 of 15 shots measure 0.56-0.84 wide-over-tall). The crop is
- * therefore real — biased upward by FOCUS so the subject survives it. Row height is
- * the first thing the density ladder spends for exactly this reason.
+ * This is the constraint that sets photo size: a fixed 4:5 card leaves roughly 560px
+ * for the city rows once the header, info and pricing have taken their share, so five
+ * cities means about 112px of height each. With a portrait library (0.56-0.84 wide
+ * over tall) that is a photo around 85px wide. Bigger photos are only available by
+ * spending height elsewhere — dropping the pricing table's hotel column, or showing
+ * fewer cities.
  */
-/**
- * City row height per density step. Photos fill a 25% column at this height.
- *
- * NOTE the trade-off this forces: at 25% of an 860px sheet a photo is ~205px wide,
- * so a 150px row makes it landscape — and this library is portrait, so it crops.
- * Row height is therefore the first thing the density ladder spends.
- */
-export const ROW_H = [156, 140, 126, 112, 100]
-
-/**
- * Portrait sources cropped to a landscape frame lose their subject if centred — the
- * interesting part of a monument shot sits above the middle. Bias the crop upward.
- */
-export const FOCUS = 'center 32%'
+export const ROW_H = [150, 136, 124, 112, 100]
 
 /** A city, what happens there, and one or two photos of it. */
 export interface CityGroup {
@@ -153,12 +143,15 @@ const CSS = `
 .cx-sec-head div { flex: 1; height: 2px; background: linear-gradient(90deg,#e8b015,rgba(232,176,21,0.10)); border-radius: 2px; }
 .cx-sec { margin-bottom: 12px; }
 
-/* ---------- City groups: photo 25% | text 50% | photo 25% ---------- */
+/* ---------- City groups: one photo, alternating sides ---------- */
 .cx-city { border-bottom: 1px solid #ece0c4; }
 .cx-city:last-child { border-bottom: none; }
-.cx-row { display: flex; align-items: stretch; }
-.cx-photo { flex: 0 0 25%; background-color: #16304d; background-repeat: no-repeat; background-size: cover; }
-.cx-text { flex: 1; min-width: 0; padding: 8px 12px; display: flex; flex-direction: column; justify-content: center; }
+.cx-row { display: flex; align-items: center; gap: 18px; padding: 0 10px; }
+/* Width is computed from the file's real aspect and written inline alongside the
+   height, so the box matches the image exactly: "cover" then crops nothing, and no
+   dimension is ever left for html2canvas to resolve (handoff.md section 8C). */
+.cx-photo { flex: 0 0 auto; border-radius: 8px; background-color: #16304d; background-repeat: no-repeat; background-size: cover; background-position: center; }
+.cx-text { flex: 1; min-width: 0; }
 .cx-city-name { font-size: 17px; font-weight: 600; color: #0e2a47; margin: 0 0 3px; line-height: 1.1; }
 .cx-blurb { font-size: 10px; line-height: 1.4; color: #45566b; margin: 0; }
 .cx-sites { margin-top: 4px; font-size: 9px; color: #7a8798; line-height: 1.35; }
@@ -328,23 +321,35 @@ const CompactDoc = forwardRef<HTMLDivElement, { data: CompactData }>(({ data }, 
         {d.groups.length > 0 && (
           <div className="cx-sec">
             <div className="cx-sec-head"><h3 className="fr">Where You Go</h3><div /></div>
-            {d.groups.map((g, gi) => (
-              <div className="cx-city" key={gi}>
-                <div className="cx-row" style={{ height: rowH }}>
-                  {g.photos[0] && (
-                    <div className="cx-photo" style={{ backgroundImage: `url("${g.photos[0].photoUrl}")`, backgroundPosition: FOCUS }} />
-                  )}
-                  <div className="cx-text">
-                    <h4 className="fr cx-city-name">{g.city}</h4>
-                    {g.blurb ? <p className="cx-blurb">{g.blurb}</p> : null}
-                    {g.sites.length > 0 && <div className="cx-sites"><b>Sites</b>{g.sites.join(' · ')}</div>}
+            {d.groups.map((g, gi) => {
+              const photo = g.photos[0]
+              // Alternate which side the photo sits on so the column of rows reads as
+              // a zig-zag rather than a stack of identical bars.
+              const onRight = gi % 2 === 1
+              const shot = photo ? (
+                <div
+                  className="cx-photo"
+                  style={{
+                    backgroundImage: `url("${photo.photoUrl}")`,
+                    height: rowH,
+                    width: Math.round(rowH * (photo.aspect > 0 ? photo.aspect : 0.75)),
+                  }}
+                />
+              ) : null
+              return (
+                <div className="cx-city" key={gi}>
+                  <div className="cx-row" style={{ height: rowH }}>
+                    {!onRight && shot}
+                    <div className="cx-text">
+                      <h4 className="fr cx-city-name">{g.city}</h4>
+                      {g.blurb ? <p className="cx-blurb">{g.blurb}</p> : null}
+                      {g.sites.length > 0 && <div className="cx-sites"><b>Sites</b>{g.sites.join(' · ')}</div>}
+                    </div>
+                    {onRight && shot}
                   </div>
-                  {g.photos[1] && (
-                    <div className="cx-photo" style={{ backgroundImage: `url("${g.photos[1].photoUrl}")`, backgroundPosition: FOCUS }} />
-                  )}
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         )}
 
