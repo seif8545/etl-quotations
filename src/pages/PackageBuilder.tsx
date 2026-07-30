@@ -18,7 +18,7 @@ import type { CompactData } from './CompactDoc'
 
 import { siteInfo } from '../lib/sitePhotos'
 
-import { deriveSegments, applyOverrides, summarise } from '../lib/segments'
+import { deriveSegments, applyOverrides, summariseLines } from '../lib/segments'
 
 import type { Segment, SegmentOverride, SegSourceDay } from '../lib/segments'
 
@@ -36,6 +36,14 @@ interface PriceRow { category: string; dbl: number; single: number; triple: numb
 type PriceColumnsMode = 'all' | 'dbl' | 'single' | 'triple' | 'quad'
 
 interface FlightInsert { id: number; label: string; text: string; targetUid: string; position: 'start' | 'end' }
+
+/** What the agent can change about a city on the compact sheet. */
+export interface CityOverride {
+  name?: string
+  bullets?: string[]
+  photo?: string
+  hidden?: boolean
+}
 
 
 
@@ -67,6 +75,9 @@ export interface PackageState {
 
   /** Per-block edits for the compact one-page sheet. Optional: older saved packages auto-derive. */
   compactSegments?: SegmentOverride[]
+
+  /** Per-city edits for the compact sheet, keyed by the derived city name. */
+  compactCities?: Record<string, CityOverride>
 
 }
 
@@ -305,6 +316,8 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
 
   const [segOverrides, setSegOverrides] = useState<SegmentOverride[]>(saved?.compactSegments ?? [])
 
+  const [cityOv, setCityOv] = useState<Record<string, CityOverride>>(saved?.compactCities ?? {})
+
   const [compactOpen, setCompactOpen] = useState(false)
 
   // Fit state for the compact sheet, driven by the measurement effect below.
@@ -527,6 +540,8 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
 
     if (!picker) return
 
+    if (picker.target.startsWith('city:')) { setCityOvFor(picker.target.slice(5), { photo }); setPicker(null); return }
+
     if (picker.target.startsWith('seg:')) { setSegOv(Number(picker.target.slice(4)), { photo }); setPicker(null); return }
 
     if (picker.target === 'hero') setHero(photo)
@@ -689,6 +704,8 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
       roomBasis, // <-- Added here so it saves and reloads correctly
 
       compactSegments: segOverrides,
+
+      compactCities: cityOv,
 
     }
 
@@ -872,6 +889,9 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
   const MAX_SHEET_H = SHEET_H
   const MAX_DENSITY = 4
 
+  const setCityOvFor = (key: string, patch: Partial<CityOverride>) =>
+    setCityOv((m) => ({ ...m, [key]: { ...m[key], ...patch } }))
+
   const setSegOv = (i: number, patch: Partial<SegmentOverride>) =>
     setSegOverrides((os) => {
       const next = os.slice()
@@ -977,14 +997,27 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
 
     const groups = order.map((city) => {
       const b = byCity.get(city)!
+      const ov = cityOv[city] ?? {}
+
       // A city with sites but no matched photo still deserves one — fall back to a
-      // shot of the city itself rather than leaving the row lopsided.
-      if (!b.photos.length) {
+      // shot of the city itself rather than leaving the row imageless.
+      let photos = b.photos
+      if (ov.photo) {
+        const url = photoSrc(ov.photo)
+        photos = [{ name: ov.name || city, photoUrl: url, aspect: aspects[url] ?? 0 }]
+      } else if (!photos.length) {
         const p = siteInfo(city, manifest).photo
-        if (p) { const url = photoSrc(p); b.photos.push({ name: city, photoUrl: url, aspect: aspects[url] ?? 0 }) }
+        if (p) { const url = photoSrc(p); photos = [{ name: city, photoUrl: url, aspect: aspects[url] ?? 0 }] }
       }
-      return { city, blurb: summarise(b.lines, b.sites, 3, 430), photos: b.photos, sites: b.sites }
-    })
+
+      return {
+        key: city,
+        city: ov.name ?? city,
+        bullets: ov.bullets ?? summariseLines(b.lines, b.sites, 3),
+        photos,
+        hidden: !!ov.hidden,
+      }
+    }).filter((g) => !g.hidden)
 
     // Accommodation, merged per destination so a trip that returns to a city shows
     // one combined line rather than two.
@@ -1015,7 +1048,7 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
       roomBasis,
       density,
     }
-  }, [title, logoUrl, meta, data, segmentsAll, manifest, aspects, pp, sgl, showPrice, priceTableOn, priceRows, priceColumnsMode, roomBasis, density])
+  }, [title, logoUrl, meta, data, segmentsAll, manifest, aspects, cityOv, pp, sgl, showPrice, priceTableOn, priceRows, priceColumnsMode, roomBasis, density])
 
   /** Stable key for "which photos are on the sheet", so the measure effect below
    *  re-runs when the set changes but not when an unrelated bit of state moves. */
@@ -1050,7 +1083,7 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
    * Deliberately excludes density so the fit loop below cannot feed itself.
    */
   const fitSig = useMemo(() => JSON.stringify([
-    compactData.groups.map((g) => [g.city, g.blurb, g.sites, g.photos.map((p) => [p.name, p.aspect])]),
+    compactData.groups.map((g) => [g.city, g.bullets, g.photos.map((p) => [p.name, p.aspect])]),
     compactData.stays, compactData.included, compactData.excluded, compactData.title,
     compactData.pricing, compactData.price, compactData.meta, compactData.overview,
   ]), [compactData])
@@ -1204,6 +1237,49 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
 
 
 
+  /*
+   * The automatic derivation for every city, independent of the overrides, so the
+   * editor can show what it WOULD say as placeholder text and fall back to it the
+   * moment a field is cleared.
+   */
+  const autoCity = useMemo(() => {
+    const out: Record<string, { bullets: string[]; photo: string; siteCount: number }> = {}
+    const order: string[] = []
+    const buckets = new Map<string, { sites: string[]; lines: string[]; photo: string }>()
+    const seen = new Set<string>()
+    const fallback: string[] = []
+    for (const seg of segmentsAll.filter((x) => !x.hidden)) {
+      for (let i = seg.dayFrom; i <= seg.dayTo; i++) fallback[i] = seg.destination
+    }
+    segSource.forEach((day, di) => {
+      const lines = (day.description ?? '').split('\n').map((l) => l.trim()).filter(Boolean)
+      const touched = new Set<string>()
+      for (const raw of day.sites) {
+        const name = (raw ?? '').trim()
+        if (!name || /^private guide$/i.test(name) || /^\+\d+ more$/.test(name)) continue
+        const info = siteInfo(name, manifest)
+        const city = info.city || fallback[di] || 'Egypt'
+        if (!buckets.has(city)) { buckets.set(city, { sites: [], lines: [], photo: '' }); order.push(city) }
+        const b2 = buckets.get(city)!
+        touched.add(city)
+        const k = name.toLowerCase()
+        if (!seen.has(k)) { seen.add(k); b2.sites.push(name); if (!b2.photo && info.photo) b2.photo = info.photo }
+      }
+      for (const c of touched) buckets.get(c)!.lines.push(...lines)
+    })
+    for (const city of order) {
+      const b2 = buckets.get(city)!
+      out[city] = {
+        bullets: summariseLines(b2.lines, b2.sites, 3),
+        photo: b2.photo || siteInfo(city, manifest).photo,
+        siteCount: b2.sites.length,
+      }
+    }
+    return out
+  }, [segSource, segmentsAll, manifest])
+
+  const compactCityKeys = useMemo(() => Object.keys(autoCity), [autoCity])
+
   const visibleSegCount = segmentsAll.filter((x) => !x.hidden).length
 
   if (!ref) return (
@@ -1280,13 +1356,13 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
 
             <div className="b-day-head">
 
-              <h4>Compact one-page sheet</h4>
+              <h4>Compact sheet (PNG / PDF)</h4>
 
-              <span className="muted small">{visibleSegCount} block{visibleSegCount === 1 ? '' : 's'} · one image{density > 0 ? ' · condensed ×' + density : ''}</span>
+              <span className="muted small">{compactData.groups.length} cit{compactData.groups.length === 1 ? 'y' : 'ies'} · 1080×1350{density > 0 ? ' · condensed ×' + density : ''}</span>
 
-              <button className="link" onClick={() => setCompactOpen((o) => !o)}>{compactOpen ? 'Hide blocks' : 'Edit blocks'}</button>
+              <button className="link" onClick={() => setCompactOpen((o) => !o)}>{compactOpen ? 'Hide' : 'Edit cities'}</button>
 
-              {segOverrides.length > 0 && <button className="link danger" onClick={() => setSegOverrides([])}>Re-derive from days</button>}
+              {Object.keys(cityOv).length > 0 && <button className="link danger" onClick={() => setCityOv({})}>Reset to auto</button>}
 
             </div>
 
@@ -1294,51 +1370,63 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
 
               <div className="cseg-list">
 
-                <p className="muted small">The compact sheet groups these sites by the city they are in and gives each one a photo; accommodation is listed underneath in small text. Edits here only affect the Compact PNG / PDF — the detailed itinerary PDF is untouched.</p>
+                <p className="muted small">One row per city on the shareable card. Everything here is yours to change — rename a city, rewrite its bullets, pick a different photo, or hide it. Blank bullets fall back to the auto-generated ones. Only affects the compact PNG / PDF.</p>
 
-                {segmentsAll.map((s, i) => (
+                {compactCityKeys.map((key) => {
 
-                  <div className={`cseg-row${s.hidden ? ' off' : ''}`} key={s.key}>
+                  const ov = cityOv[key] ?? {}
 
-                    <div className="cseg-thumb">
+                  const auto = autoCity[key]
 
-                      {s.photo ? <img src={photoSrc(s.photo)} alt="" /> : <div className="b-nophoto">No photo</div>}
+                  return (
 
-                      <button className="link" onClick={() => setPicker({ target: `seg:${i}` })}>Change</button>
+                    <div className={`cseg-row${ov.hidden ? ' off' : ''}`} key={key}>
 
-                    </div>
+                      <div className="cseg-thumb">
 
-                    <div className="cseg-fields">
+                        {(ov.photo ?? auto?.photo) ? <img src={photoSrc(ov.photo ?? auto!.photo)} alt="" /> : <div className="b-nophoto">No photo</div>}
 
-                      <div className="cseg-line">
-
-                        <input className="cseg-dur" value={s.label} placeholder="3 Nights" onChange={(e) => setSegOv(i, { label: e.target.value })} />
-
-                        <span className="muted small cseg-range">{s.dayRange}</span>
-
-                        <input className="cseg-dest" value={s.destination} placeholder="Destination" onChange={(e) => setSegOv(i, { destination: e.target.value })} />
+                        <button className="link" onClick={() => setPicker({ target: `city:${key}` })}>Change</button>
 
                       </div>
 
-                      <input value={s.highlights.join(', ')} placeholder="Sites (comma-separated — each becomes a photo on the compact sheet)" onChange={(e) => setSegOv(i, { highlights: e.target.value.split(',').map((x) => x.replace(/^\s+/, '')) })} />
+                      <div className="cseg-fields">
 
-                      <div className="cseg-line">
+                        <div className="cseg-line">
 
-                        <input value={s.stay} placeholder="Stay (hotel / cruise)" onChange={(e) => setSegOv(i, { stay: e.target.value })} />
+                          <input className="cseg-dest" value={ov.name ?? key} placeholder="City name" onChange={(e) => setCityOvFor(key, { name: e.target.value })} />
 
-                        <input value={s.meals} placeholder="Meals (e.g. Full board)" onChange={(e) => setSegOv(i, { meals: e.target.value })} />
+                          <span className="muted small cseg-range">{auto ? auto.siteCount + ' site' + (auto.siteCount === 1 ? '' : 's') : ''}</span>
+
+                        </div>
+
+                        <textarea
+                          rows={3}
+                          className="cseg-blurb"
+                          placeholder={'One highlight per line — these render as bullets'}
+                          value={(ov.bullets ?? auto?.bullets ?? []).join('\n')}
+                          onChange={(e) => {
+                            const lines = e.target.value.split('\n')
+                            // All blank -> drop the override so the automatic text returns.
+                            const hasText = lines.some((l) => l.trim())
+                            setCityOv((m) => {
+                              const next = { ...m, [key]: { ...m[key], bullets: hasText ? lines : undefined } }
+                              return next
+                            })
+                          }}
+                        />
 
                       </div>
 
+                      <button className="link danger" onClick={() => setCityOvFor(key, { hidden: !ov.hidden })}>{ov.hidden ? 'Show' : 'Hide'}</button>
+
                     </div>
 
-                    <button className="link danger" onClick={() => setSegOv(i, { hidden: !s.hidden })}>{s.hidden ? 'Show' : 'Hide'}</button>
+                  )
 
-                  </div>
+                })}
 
-                ))}
-
-                {segmentsAll.length === 0 && <p className="muted">No blocks yet — add accommodation nights or itinerary days.</p>}
+                {compactCityKeys.length === 0 && <p className="muted">No cities yet — add sites to your days and they'll group here.</p>}
 
               </div>
 

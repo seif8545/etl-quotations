@@ -19,17 +19,15 @@ export interface SiteTile {
  * spending height elsewhere — dropping the pricing table's hotel column, or showing
  * fewer cities.
  */
-export const ROW_H = [150, 136, 124, 112, 100]
+export const ROW_H = [196, 178, 160, 142, 124]
 
-/** A city, what happens there, and one or two photos of it. */
+/** A city, what happens there, and its photo. */
 export interface CityGroup {
   city: string
-  /** Prose drawn from the days spent in this city. */
-  blurb: string
-  /** One or two photos, placed either side of the paragraph. */
+  /** Highlights as bullets, drawn from the days spent here or typed by the agent. */
+  bullets: string[]
+  /** One photo, alternating side by row. */
   photos: SiteTile[]
-  /** Every site visited in this city, listed as names. */
-  sites: string[]
 }
 
 /** One accommodation line. Deliberately subordinate to the sightseeing. */
@@ -152,10 +150,11 @@ const CSS = `
    dimension is ever left for html2canvas to resolve (handoff.md section 8C). */
 .cx-photo { flex: 0 0 auto; border-radius: 8px; background-color: #16304d; background-repeat: no-repeat; background-size: cover; background-position: center; }
 .cx-text { flex: 1; min-width: 0; }
-.cx-city-name { font-size: 17px; font-weight: 600; color: #0e2a47; margin: 0 0 3px; line-height: 1.1; }
-.cx-blurb { font-size: 10px; line-height: 1.4; color: #45566b; margin: 0; }
-.cx-sites { margin-top: 4px; font-size: 9px; color: #7a8798; line-height: 1.35; }
-.cx-sites b { color: #b08a1e; font-weight: 600; font-size: 7.5px; letter-spacing: 1.2px; text-transform: uppercase; margin-right: 5px; }
+.cx-city-name { font-size: 19px; font-weight: 600; color: #0e2a47; margin: 0 0 5px; line-height: 1.1; }
+.cx-bul { list-style: none; margin: 0; padding: 0; }
+.cx-bul li { position: relative; padding-left: 13px; margin-bottom: 3px; font-size: 10.5px; line-height: 1.4; color: #45566b; }
+.cx-bul li:last-child { margin-bottom: 0; }
+.cx-bul li::before { content: '•'; position: absolute; left: 1px; top: -1px; color: #c8960a; font-weight: 700; }
 
 /* ---------- Accommodation: small, subordinate ---------- */
 .cx-stays { font-size: 9px; color: #7a8798; line-height: 1.45; }
@@ -202,7 +201,7 @@ const CSS = `
 
 .cptx.k2 .cx-body { padding: 10px 22px; }
 .cptx.k2 .cx-city-name { font-size: 15px; }
-.cptx.k2 .cx-blurb { font-size: 9.5px; line-height: 1.36; }
+.cptx.k2 .cx-bul li { font-size: 10px; }
 .cptx.k2 .cx-sec { margin-bottom: 9px; }
 .cptx.k2 .cx-sec-head { margin-bottom: 7px; }
 .cptx.k2 .cx-sec-head h3 { font-size: 15px; }
@@ -212,8 +211,8 @@ const CSS = `
 
 .cptx.k3 .cx-body { padding: 9px 20px; }
 .cptx.k3 .cx-city-name { font-size: 14px; }
-.cptx.k3 .cx-blurb { font-size: 9px; line-height: 1.32; }
-.cptx.k3 .cx-sites { font-size: 8.5px; margin-top: 3px; }
+.cptx.k3 .cx-bul li { font-size: 9.5px; margin-bottom: 2px; }
+
 .cptx.k3 .cx-text { padding: 6px 10px; }
 .cptx.k3 .cx-sec { margin-bottom: 8px; }
 .cptx.k3 .cx-sec-head { margin-bottom: 6px; }
@@ -226,8 +225,8 @@ const CSS = `
 
 .cptx.k4 .cx-body { padding: 8px 18px; }
 .cptx.k4 .cx-city-name { font-size: 13px; }
-.cptx.k4 .cx-blurb { font-size: 8.5px; line-height: 1.3; }
-.cptx.k4 .cx-sites { font-size: 8px; margin-top: 2px; }
+.cptx.k4 .cx-bul li { font-size: 9px; margin-bottom: 2px; line-height: 1.34; }
+
 .cptx.k4 .cx-text { padding: 5px 9px; }
 .cptx.k4 .cx-sec { margin-bottom: 7px; }
 .cptx.k4 .cx-sec-head { margin-bottom: 5px; }
@@ -342,8 +341,11 @@ const CompactDoc = forwardRef<HTMLDivElement, { data: CompactData }>(({ data }, 
                     {!onRight && shot}
                     <div className="cx-text">
                       <h4 className="fr cx-city-name">{g.city}</h4>
-                      {g.blurb ? <p className="cx-blurb">{g.blurb}</p> : null}
-                      {g.sites.length > 0 && <div className="cx-sites"><b>Sites</b>{g.sites.join(' · ')}</div>}
+                      {g.bullets.length > 0 && (
+                        <ul className="cx-bul">
+                          {g.bullets.map((b, k) => <li key={k}>{b}</li>)}
+                        </ul>
+                      )}
                     </div>
                     {onRight && shot}
                   </div>

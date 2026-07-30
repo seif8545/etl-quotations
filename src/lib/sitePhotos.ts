@@ -100,15 +100,16 @@ const ALIASES: [string, string, string][] = [
   ['nubian', 'luxor-aswan/sailing-nubian.jpeg', 'Aswan'],
   ['aswan', 'luxor-aswan/aswan-temple.jpeg', 'Aswan'],
 
-  // --- Between Luxor and Aswan: classic cruise stops ---
-  ['komombo', 'luxor-aswan/kom-ombo.jpeg', 'Nile Cruise'],
-  ['edfu', 'luxor-aswan/sunset-boat.jpeg', 'Nile Cruise'],
-  ['horus', 'luxor-aswan/sunset-boat.jpeg', 'Nile Cruise'],
-  ['esna', 'luxor-aswan/sailing.jpeg', 'Nile Cruise'],
-  ['felucca', 'luxor-aswan/sailing.jpeg', 'Nile Cruise'],
-  ['sailing', 'luxor-aswan/sailing.jpeg', 'Nile Cruise'],
-  ['nilecruise', 'luxor-aswan/boats.jpeg', 'Nile Cruise'],
-  ['dahabiya', 'dahabiya-philae/1.jpg', 'Nile Cruise'],
+  // --- Cruise stops: filed under Aswan, which is where the leg starts and how
+  //     these packages are sold. Rename per package in the compact-sheet editor. ---
+  ['komombo', 'luxor-aswan/kom-ombo.jpeg', 'Aswan'],
+  ['edfu', 'luxor-aswan/sunset-boat.jpeg', 'Aswan'],
+  ['horus', 'luxor-aswan/sunset-boat.jpeg', 'Aswan'],
+  ['esna', 'luxor-aswan/sailing.jpeg', 'Aswan'],
+  ['felucca', 'luxor-aswan/sailing.jpeg', 'Aswan'],
+  ['sailing', 'luxor-aswan/sailing.jpeg', 'Aswan'],
+  ['nilecruise', 'luxor-aswan/boats.jpeg', 'Aswan'],
+  ['dahabiya', 'dahabiya-philae/1.jpg', 'Aswan'],
 
   // --- Red Sea ---
   ['hurghada', 'red-sea/hurghada-signs.jpeg', 'Hurghada'],

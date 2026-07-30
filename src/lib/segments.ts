@@ -189,12 +189,11 @@ function scoreLine(line: string, siteWords: string[]): number {
  * stay that is genuinely all logistics scores nothing and renders no paragraph at
  * all, which reads better than filler.
  */
-export function summarise(
+export function summariseLines(
   lines: string[],
   siteNames: string[],
   maxSentences = 3,
-  maxChars = 420,
-): string {
+): string[] {
   const siteWords = siteNames
     .map((x) => (x ?? '').trim().toLowerCase())
     .filter((x) => x.length > 3)
@@ -220,7 +219,21 @@ export function summarise(
     .slice(0, maxSentences)
     .sort((a, b) => a.order - b.order)
 
-  let text = best.map((c) => c.text).join('. ')
+  return best.map((c) => c.text)
+}
+
+/**
+ * Same selection, joined into a paragraph. Kept for the Segment model; the compact
+ * sheet renders the lines as bullets instead.
+ */
+export function summarise(
+  lines: string[],
+  siteNames: string[],
+  maxSentences = 3,
+  maxChars = 420,
+): string {
+  const best = summariseLines(lines, siteNames, maxSentences)
+  let text = best.join('. ')
   if (text) text += '.'
   if (text.length > maxChars) {
     const cut = text.slice(0, maxChars)
