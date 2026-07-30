@@ -863,8 +863,13 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
   // Compact one-page sheet
   // ---------------------------------------------------------------------------
 
-  /** Target height for the sheet. Density steps down until it fits; never clips. */
-  const MAX_SHEET_H = 1800
+  /**
+   * Target height. Roughly A4 proportions at the sheet's width — a very tall, narrow
+   * image is awkward to read in a chat thread, so density steps down until the card
+   * is close to page-shaped. Nothing is ever clipped; overshooting just means a
+   * slightly taller image.
+   */
+  const MAX_SHEET_H = 1300
   const MAX_DENSITY = 4
 
   const setSegOv = (i: number, patch: Partial<SegmentOverride>) =>
@@ -905,6 +910,16 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
     [segSource, hotels, notesByUid, segOverrides],
   )
 
+  /*
+   * Real proportions of each photo, measured from the decoded image.
+   *
+   * The sheet draws every shot at its own aspect so nothing is cropped, and CSS
+   * cannot know a background-image's intrinsic size — so it is measured here and the
+   * width is computed in JS. Defaults to 3:2 until a file reports back, which only
+   * affects the first frame.
+   */
+  const [aspects, setAspects] = useState<Record<string, number>>({})
+
   const compactData: CompactData = useMemo(() => {
     const visible = segmentsAll.filter((s) => !s.hidden)
 
@@ -917,7 +932,7 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
      * listed once, and cities appear in the order the trip first reaches them.
      */
     const order: string[] = []
-    const byCity = new Map<string, { tiles: { name: string; photoUrl: string }[]; more: string[]; used: Set<string> }>()
+    const byCity = new Map<string, { tiles: { name: string; photoUrl: string; aspect: number }[]; more: string[]; used: Set<string> }>()
     const seenSite = new Set<string>()
 
     for (const seg of visible) {
@@ -948,7 +963,8 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
         const photo = info.photo
         if (photo && !g.used.has(photo)) {
           g.used.add(photo)
-          g.tiles.push({ name, photoUrl: photoSrc(photo) })
+          const url = photoSrc(photo)
+          g.tiles.push({ name, photoUrl: url, aspect: aspects[url] ?? 0 })
         } else {
           g.more.push(name)
         }
@@ -989,14 +1005,42 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
       roomBasis,
       density,
     }
-  }, [title, logoUrl, meta, data, segmentsAll, manifest, pp, sgl, showPrice, priceTableOn, priceRows, priceColumnsMode, roomBasis, density])
+  }, [title, logoUrl, meta, data, segmentsAll, manifest, aspects, pp, sgl, showPrice, priceTableOn, priceRows, priceColumnsMode, roomBasis, density])
+
+  /** Stable key for "which photos are on the sheet", so the measure effect below
+   *  re-runs when the set changes but not when an unrelated bit of state moves. */
+  const tileUrls = useMemo(
+    () => compactData.groups.flatMap((g) => g.tiles.map((t) => t.photoUrl)).join('|'),
+    [compactData.groups],
+  )
+
+  useEffect(() => {
+    const urls = tileUrls ? tileUrls.split('|') : []
+    const missing = Array.from(new Set(urls)).filter((u) => u && !(u in aspects))
+    if (!missing.length) return
+    let dead = false
+    Promise.all(missing.map((u) => new Promise<[string, number]>((res) => {
+      const im = new Image()
+      im.onload = () => res([u, im.naturalWidth > 0 && im.naturalHeight > 0 ? im.naturalWidth / im.naturalHeight : 1.5])
+      im.onerror = () => res([u, 1.5])
+      im.src = u
+    }))).then((pairs) => {
+      if (dead) return
+      setAspects((prev) => {
+        const next = { ...prev }
+        for (const [u, a] of pairs) next[u] = a
+        return next
+      })
+    })
+    return () => { dead = true }
+  }, [tileUrls, aspects])
 
   /**
    * Signature of everything that affects how much room the content needs.
    * Deliberately excludes density so the fit loop below cannot feed itself.
    */
   const fitSig = useMemo(() => JSON.stringify([
-    compactData.groups.map((g) => [g.city, g.tiles.map((t) => t.name), g.more]),
+    compactData.groups.map((g) => [g.city, g.tiles.map((t) => [t.name, t.aspect]), g.more]),
     compactData.stays, compactData.included, compactData.excluded, compactData.title,
     compactData.pricing, compactData.price, compactData.meta, compactData.overview,
   ]), [compactData])

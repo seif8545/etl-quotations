@@ -4,7 +4,31 @@ import { forwardRef, useEffect } from 'react'
 export interface SiteTile {
   name: string
   photoUrl: string
+  /** width / height of the real file, measured at runtime. 0 = not measured yet. */
+  aspect: number
 }
+
+/**
+ * Tile width per density step. Height is width / TILE_AR.
+ *
+ * The tiles are PORTRAIT because the photo library is: 14 of 15 shots used by a
+ * typical package measure between 0.56 and 0.84 wide-over-tall (phone photos), and
+ * several are exactly 3:4. Forcing those into a landscape frame is what made the
+ * pictures unreadable — a 9:16 shot cropped to 16:9 discards about three quarters of
+ * the image, which is how "Pyramids" ended up showing only a signboard. Matching the
+ * frame to the source means the crop is near zero for almost every file.
+ *
+ * Both dimensions are always written inline: never leave a captured element sized in
+ * one dimension only (handoff.md section 8C).
+ */
+export const SHOT_W = [128, 118, 108, 98, 88]
+export const TILE_AR = 0.75
+
+/**
+ * A photo whose shape is far from the tile's is letterboxed rather than sliced —
+ * better a little empty space than a landscape panorama cropped to a keyhole.
+ */
+export const fitFor = (aspect: number) => (aspect > 1.05 || aspect < 0.52 ? 'contain' : 'cover')
 
 /** A city and everything the guest sees there. */
 export interface CityGroup {
@@ -56,7 +80,7 @@ export interface CompactData {
  * size beats more words shrunk down — so the sheet is narrower, the type is bigger,
  * and the content is cut rather than compressed.
  */
-export const SHEET_W = 800
+export const SHEET_W = 860
 
 /*
  * A single, continuous sheet — NOT paginated, and NOT organised by day.
@@ -121,9 +145,9 @@ const CSS = `
    and the label survives being scaled down to phone size. flex-wrap with a flexible
    basis means each row fills the width whatever the site count is. */
 .cx-shots { display: flex; flex-wrap: wrap; gap: 8px; }
-.cx-shot { flex: 1 1 158px; min-width: 148px; height: 112px; position: relative; overflow: hidden; border-radius: 10px; background-color: #e9e2d2; background-size: cover; background-position: center; }
+.cx-shot { position: relative; overflow: hidden; border-radius: 9px; background-color: #16304d; background-repeat: no-repeat; background-position: center; flex: 0 0 auto; }
 .cx-shot-grad { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(8,26,48,0) 40%, rgba(8,26,48,0.9) 100%); }
-.cx-shot-name { position: absolute; left: 10px; right: 10px; bottom: 8px; color: #fff; font-size: 13px; font-weight: 600; line-height: 1.18; text-shadow: 0 1px 6px rgba(0,0,0,0.55); }
+.cx-shot-name { position: absolute; left: 8px; right: 8px; bottom: 6px; color: #fff; font-size: 11.5px; font-weight: 600; line-height: 1.15; text-shadow: 0 1px 5px rgba(0,0,0,0.6); }
 .cx-more { margin-top: 8px; font-size: 12px; color: #55677d; line-height: 1.4; }
 .cx-more b { color: #b08a1e; font-weight: 600; font-size: 9.5px; letter-spacing: 1.5px; text-transform: uppercase; margin-right: 7px; }
 
@@ -133,28 +157,29 @@ const CSS = `
 .cx-stays u { text-decoration: none; color: #cbbfa4; margin: 0 8px; }
 
 /* ---------- Included / excluded ---------- */
-.cx-inc { display: flex; gap: 30px; }
+.cx-inc { display: flex; gap: 26px; }
 .cx-inc-col { flex: 1; min-width: 0; }
-.cx-inc-col h4 { font-size: 13px; color: #0e2a47; margin: 0 0 8px; font-family: 'Fraunces', Georgia, serif; }
-.cx-inc-item { display: flex; align-items: flex-start; gap: 7px; font-size: 12px; color: #3a495c; margin-bottom: 5px; line-height: 1.4; }
+.cx-inc-col h4 { font-size: 11.5px; color: #0e2a47; margin: 0 0 6px; font-family: 'Fraunces', Georgia, serif; }
+.cx-inc-rest { font-size: 10px; color: #8a7a5c; margin-top: 5px; font-style: italic; }
+.cx-inc-item { display: flex; align-items: flex-start; gap: 6px; font-size: 10.5px; color: #3a495c; margin-bottom: 3px; line-height: 1.35; }
 .cx-mark { flex-shrink: 0; font-weight: 700; }
 .cx-mark.yes { color: #1a6e2e; }
 .cx-mark.no { color: #a83828; }
 
 /* ---------- Pricing ---------- */
-.cx-ptable { width: 100%; border-collapse: collapse; font-size: 12.5px; }
-.cx-ptable th { text-align: left; background: #0e2a47; color: #fff; font-weight: 600; padding: 8px 12px; font-size: 9.5px; letter-spacing: 0.6px; text-transform: uppercase; }
-.cx-ptable td { padding: 9px 12px; border-bottom: 1px solid #eee2c8; vertical-align: top; }
+.cx-ptable { width: 100%; border-collapse: collapse; font-size: 11px; }
+.cx-ptable th { text-align: left; background: #0e2a47; color: #fff; font-weight: 600; padding: 6px 10px; font-size: 8.5px; letter-spacing: 0.5px; text-transform: uppercase; }
+.cx-ptable td { padding: 6px 10px; border-bottom: 1px solid #eee2c8; vertical-align: top; }
 .cx-ptable tr:last-child td { border-bottom: none; }
 .cx-pt-cat { color: #0e2a47; font-weight: 600; white-space: nowrap; }
 .cx-pt-price { color: #806000; font-weight: 600; white-space: nowrap; }
-.cx-pt-hotels { color: #6a7789; font-size: 11px; line-height: 1.4; }
+.cx-pt-hotels { color: #6a7789; font-size: 9.5px; line-height: 1.32; }
 .cx-pbox { background: linear-gradient(135deg,#0e2a47,#163d6b); color: #fff; border-radius: 14px; padding: 16px 24px; display: flex; align-items: center; gap: 22px; }
 .cx-pbox-eyebrow { color: #f0c53a; font-size: 9.5px; letter-spacing: 2.6px; text-transform: uppercase; }
 .cx-pbox-big { font-size: 32px; font-weight: 600; margin: 3px 0 0; line-height: 1; }
 .cx-pbox-r { font-size: 11.5px; color: rgba(255,255,255,0.85); line-height: 1.55; }
 .cx-pbox-r b { color: #f0c53a; font-weight: 600; }
-.cx-pnote { font-size: 10.5px; color: #8a7a5c; margin-top: 7px; }
+.cx-pnote { font-size: 9.5px; color: #8a7a5c; margin-top: 5px; }
 
 /* ---------- Footer ---------- */
 .cx-foot { background: linear-gradient(180deg,#0e2a47,#081a30); color: #fff; padding: 15px 36px; display: flex; align-items: center; justify-content: space-between; }
@@ -171,8 +196,6 @@ const CSS = `
 .cptx.k1 .cx-head { padding: 22px 28px 18px; }
 .cptx.k1 .cx-city { padding-bottom: 13px; margin-bottom: 13px; }
 .cptx.k1 .cx-city-name { font-size: 23px; margin-bottom: 9px; }
-.cptx.k1 .cx-shot { height: 102px; flex-basis: 148px; min-width: 138px; }
-.cptx.k1 .cx-shot-name { font-size: 12.5px; }
 .cptx.k1 .cx-inc-item { font-size: 11.5px; margin-bottom: 4px; }
 .cptx.k1 .cx-sec { margin-bottom: 16px; }
 
@@ -183,8 +206,6 @@ const CSS = `
 .cptx.k2 .cx-city { padding-bottom: 11px; margin-bottom: 11px; }
 .cptx.k2 .cx-city-name { font-size: 21px; margin-bottom: 8px; }
 .cptx.k2 .cx-shots { gap: 7px; }
-.cptx.k2 .cx-shot { height: 92px; flex-basis: 136px; min-width: 126px; }
-.cptx.k2 .cx-shot-name { font-size: 12px; bottom: 7px; }
 .cptx.k2 .cx-more { font-size: 11.5px; margin-top: 7px; }
 .cptx.k2 .cx-stays { font-size: 11px; }
 .cptx.k2 .cx-inc-item { font-size: 11px; margin-bottom: 3px; }
@@ -202,8 +223,6 @@ const CSS = `
 .cptx.k3 .cx-city { padding-bottom: 9px; margin-bottom: 9px; }
 .cptx.k3 .cx-city-name { font-size: 19px; margin-bottom: 7px; }
 .cptx.k3 .cx-shots { gap: 6px; }
-.cptx.k3 .cx-shot { height: 80px; flex-basis: 122px; min-width: 112px; }
-.cptx.k3 .cx-shot-name { font-size: 11px; bottom: 6px; left: 8px; right: 8px; }
 .cptx.k3 .cx-more { font-size: 10.5px; margin-top: 6px; }
 .cptx.k3 .cx-stays { font-size: 10.5px; }
 .cptx.k3 .cx-inc-item { font-size: 10.5px; margin-bottom: 2px; line-height: 1.35; gap: 6px; }
@@ -223,8 +242,6 @@ const CSS = `
 .cptx.k4 .cx-city { padding-bottom: 8px; margin-bottom: 8px; }
 .cptx.k4 .cx-city-name { font-size: 17px; margin-bottom: 6px; }
 .cptx.k4 .cx-shots { gap: 5px; }
-.cptx.k4 .cx-shot { height: 68px; flex-basis: 108px; min-width: 100px; }
-.cptx.k4 .cx-shot-name { font-size: 10px; bottom: 5px; left: 7px; right: 7px; }
 .cptx.k4 .cx-more { font-size: 10px; margin-top: 5px; }
 .cptx.k4 .cx-stays { font-size: 10px; }
 .cptx.k4 .cx-inc-item { font-size: 10px; margin-bottom: 2px; line-height: 1.3; gap: 5px; }
@@ -267,6 +284,21 @@ const CompactDoc = forwardRef<HTMLDivElement, { data: CompactData }>(({ data }, 
     if (!el) { el = document.createElement('style'); el.id = 'cptx-doc-css'; document.head.appendChild(el) }
     el.textContent = CSS
   }, [])
+
+  const shotW = SHOT_W[Math.max(0, Math.min(SHOT_W.length - 1, d.density))]
+  const shotH = Math.round(shotW / TILE_AR)
+
+  /*
+   * The info section is a footnote, not the pitch: cap it so a 12-line inclusion
+   * list cannot dominate the card, and say plainly how many were left off rather
+   * than silently dropping them from a client-facing quote.
+   */
+  const INC_CAP = 8
+  const EXC_CAP = 6
+  const incShown = d.included.slice(0, INC_CAP)
+  const excShown = d.excluded.slice(0, EXC_CAP)
+  const incRest = d.included.length - incShown.length
+  const excRest = d.excluded.length - excShown.length
 
   const tierRows = d.pricing.rows.filter(
     (r) => (r.category ?? '').trim() && (r.dbl > 0 || r.single > 0 || r.triple > 0 || r.quad > 0),
@@ -316,7 +348,16 @@ const CompactDoc = forwardRef<HTMLDivElement, { data: CompactData }>(({ data }, 
                 {g.tiles.length > 0 && (
                   <div className="cx-shots">
                     {g.tiles.map((t, k) => (
-                      <div className="cx-shot" key={k} style={{ backgroundImage: `url("${t.photoUrl}")` }}>
+                      <div
+                        className="cx-shot"
+                        key={k}
+                        style={{
+                          backgroundImage: `url("${t.photoUrl}")`,
+                          width: shotW,
+                          height: shotH,
+                          backgroundSize: fitFor(t.aspect > 0 ? t.aspect : TILE_AR),
+                        }}
+                      >
                         <div className="cx-shot-grad" />
                         <div className="cx-shot-name">{t.name}</div>
                       </div>
@@ -346,15 +387,17 @@ const CompactDoc = forwardRef<HTMLDivElement, { data: CompactData }>(({ data }, 
 
         {(d.included.length > 0 || d.excluded.length > 0) && (
           <div className="cx-sec">
-            <div className="cx-sec-head"><h3 className="fr">What's Included</h3><div /></div>
+            <div className="cx-sec-head"><h3 className="fr">Good to Know</h3><div /></div>
             <div className="cx-inc">
               <div className="cx-inc-col">
                 <h4>Included</h4>
-                {d.included.map((t, i) => <div className="cx-inc-item" key={i}><span className="cx-mark yes">✓</span>{t}</div>)}
+                {incShown.map((t, i) => <div className="cx-inc-item" key={i}><span className="cx-mark yes">✓</span>{t}</div>)}
+                {incRest > 0 && <div className="cx-inc-rest">+{incRest} more — full list in the detailed itinerary</div>}
               </div>
               <div className="cx-inc-col">
                 <h4>Not included</h4>
-                {d.excluded.map((t, i) => <div className="cx-inc-item" key={i}><span className="cx-mark no">✕</span>{t}</div>)}
+                {excShown.map((t, i) => <div className="cx-inc-item" key={i}><span className="cx-mark no">✕</span>{t}</div>)}
+                {excRest > 0 && <div className="cx-inc-rest">+{excRest} more</div>}
               </div>
             </div>
           </div>
