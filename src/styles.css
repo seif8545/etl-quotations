@@ -441,3 +441,6 @@ input[type=checkbox] { width: 17px; height: 17px; accent-color: var(--gold); cur
 .cseg-range { white-space: nowrap; flex-shrink: 0; }
 .cseg-dest { font-weight: 600; }
 .cseg-blurb { width: 100%; resize: vertical; font: inherit; }
+
+.pkg-dur { white-space: nowrap; color: var(--muted); }
+.pkg-price { white-space: nowrap; font-weight: 600; color: var(--gold-ink); }

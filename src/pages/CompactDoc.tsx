@@ -110,14 +110,21 @@ const CSS = `
 .cx-sec-title { font-size: 17px; font-weight: 600; color: #0e2a47; margin: 0 0 10px; }
 
 /* ---------- Timeline of destinations ---------- */
-.cx-tl { flex: 1; }
-.cx-stop { display: flex; align-items: center; gap: 16px; }
+/* The stops SHARE the leftover space instead of stacking at a fixed height.
+   The previous layout gave each destination a fixed block, so a two-destination
+   package left a large empty void below the last one — the card has a fixed height,
+   so any space the content does not claim shows as bare background. Letting the
+   stops grow means two destinations breathe and five stay compact. */
+.cx-tl { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.cx-stop { flex: 1 1 0; min-height: 0; display: flex; align-items: center; gap: 16px; }
 .cx-rail { width: 12px; flex-shrink: 0; align-self: stretch; position: relative; }
 .cx-rail::before { content: ''; position: absolute; left: 5px; top: 0; bottom: 0; width: 2px; background: #eadfc4; }
 .cx-stop:first-child .cx-rail::before { top: 50%; }
 .cx-stop:last-child .cx-rail::before { bottom: 50%; }
 .cx-dot { position: absolute; left: 0; top: 50%; margin-top: -6px; width: 12px; height: 12px; border-radius: 50%; background: #e8b015; box-shadow: 0 0 0 3px #fffdf7; }
 .cx-stop-body { flex: 1; min-width: 0; padding: 11px 0; }
+/* Cap the breathing room so two destinations do not float absurdly far apart. */
+.cx-stop { max-height: 300px; }
 .cx-kicker { font-size: 8.5px; letter-spacing: 2.6px; text-transform: uppercase; color: #c08a12; margin-bottom: 3px; }
 .cx-stop-name { font-size: 25px; font-weight: 600; line-height: 1.08; color: #0e2a47; margin: 0 0 7px; }
 .cx-bul { list-style: none; margin: 0; padding: 0; }

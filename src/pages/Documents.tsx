@@ -11,6 +11,54 @@ import PackageBuilder from './PackageBuilder'
 import type { PackageState } from './PackageBuilder'
 import type { QuotationDraft } from '../lib/types'
 
+
+/**
+ * "10 days · 9 nights" for a package row.
+ *
+ * Prefers the stored overview, but a package saved before that was recomputed can
+ * carry a stale or missing value — so fall back to the arrival/departure dates,
+ * which are columns on the row and always current.
+ */
+function pkgDuration(r: any): string {
+  const ov = r?.data?.overview
+  let days = Number(ov?.days) || 0
+  let nights = Number(ov?.nights) || 0
+  if (!days && r?.arrival_date && r?.departure_date) {
+    const a = Date.parse(r.arrival_date), b = Date.parse(r.departure_date)
+    if (!isNaN(a) && !isNaN(b) && b >= a) {
+      nights = Math.round((b - a) / 86400000)
+      days = nights + 1
+    }
+  }
+  if (!days && !nights) return '—'
+  return `${days || nights + 1} days · ${nights || Math.max(0, days - 1)} nights`
+}
+
+/**
+ * The headline price, so the list answers "how much is this one?" without opening it.
+ *
+ * Reads the tier table when there is one, honouring the package's own column choice —
+ * a solo package priced on single occupancy would otherwise look free here. Falls back
+ * to the single per-person figure.
+ */
+function pkgPrice(r: any): string {
+  const d = r?.data
+  if (!d) return '—'
+  const rows: any[] = Array.isArray(d.priceRows) ? d.priceRows : []
+  const keys: string[] = d.priceColumns && d.priceColumns !== 'all'
+    ? [d.priceColumns]
+    : ['dbl', 'triple', 'quad']
+  const tiers = rows
+    .flatMap((x) => keys.map((k) => Number(x?.[k])))
+    .filter((n) => Number.isFinite(n) && n > 0)
+  if (d.priceTableOn && tiers.length) {
+    const low = Math.min(...tiers)
+    return tiers.length > 1 ? `from $${low.toLocaleString()}` : `$${low.toLocaleString()}`
+  }
+  const pp = Number(d.pp)
+  return Number.isFinite(pp) && pp > 0 ? `$${pp.toLocaleString()}` : '—'
+}
+
 const TABS = ['Quotations', 'Packages', 'Letters', 'Vouchers', 'Invoices'] as const
 type Tab = (typeof TABS)[number]
 
@@ -118,7 +166,7 @@ export default function Documents({ openQuotation, isAdmin, uid }: { openQuotati
             <thead>
               <tr>
                 {tab === 'Quotations' && <><th>Name</th><th>Ref</th><th>Pax</th><th>Arrival</th><th>Departure</th></>}
-                {tab === 'Packages' && <><th>Name</th><th>Ref</th><th>Pax</th><th>Arrival</th><th>Departure</th></>}
+                {tab === 'Packages' && <><th>Name</th><th>Duration</th><th>Price</th><th>Ref</th><th>Pax</th><th>Arrival</th><th>Departure</th></>}
                 {tab === 'Letters' && <><th>To</th><th>Arrival</th><th>Departure</th><th>Pax</th></>}
                 {tab === 'Vouchers' && <><th>Hotel</th><th>Group</th><th>From</th><th>To</th><th>Rooms</th></>}
                 {tab === 'Invoices' && <><th>Serial</th><th>Client</th><th>Issue date</th><th>Total</th><th>Balance</th></>}
@@ -129,7 +177,7 @@ export default function Documents({ openQuotation, isAdmin, uid }: { openQuotati
               {visible.map((r) => (
                 <tr key={r.id} className={busyId === r.id ? 'saving' : ''}>
                   {tab === 'Quotations' && <><td>{r.name}</td><td>{r.group_ref}</td><td>{r.pax}</td><td>{r.arrival_date}</td><td>{r.departure_date}</td></>}
-                  {tab === 'Packages' && <><td>{r.name}</td><td>{r.group_ref}</td><td>{r.pax}</td><td>{r.arrival_date}</td><td>{r.departure_date}</td></>}
+                  {tab === 'Packages' && <><td>{r.name}</td><td className="pkg-dur">{pkgDuration(r)}</td><td className="pkg-price">{pkgPrice(r)}</td><td>{r.group_ref}</td><td>{r.pax}</td><td>{r.arrival_date}</td><td>{r.departure_date}</td></>}
                   {tab === 'Letters' && <><td>{r.consignee}</td><td>{r.arrival_date}</td><td>{r.departure_date}</td><td>{r.pax}</td></>}
                   {tab === 'Vouchers' && <><td>{r.hotel_name}</td><td>{r.guest_or_group_name}</td><td>{r.from_date}</td><td>{r.to_date}</td><td>{r.singles + r.doubles + r.twins + r.triples}</td></>}
                   {tab === 'Invoices' && <><td>{r.serial}</td><td>{r.client_name}</td><td>{r.issue_date}</td><td>{r.total}</td><td>{r.balance ?? '—'}</td></>}
