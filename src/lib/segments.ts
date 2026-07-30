@@ -131,25 +131,94 @@ function mergeHighlights(block: SegSourceDay[], cap: number): string[] {
   return ordered
 }
 
-/**
- * Compose a readable paragraph for a stay from the days it covers.
+/*
+ * Choosing what a stay's summary says.
  *
- * Takes the opening line of each day — already a full sentence in practice — and
- * runs them together. Purely a re-arrangement of what the agent wrote: nothing is
- * invented, so the sheet can never claim something the itinerary does not say.
+ * Two earlier rules both failed on real data. "First bullet of each day" produced
+ * "Early breakfast at the hotel. Breakfast onboard. Breakfast onboard." — days open
+ * with logistics. "First non-boilerplate bullet" then produced "After breakfast,
+ * meet your private Egyptologist guide.", and missed the Pyramids entirely, because
+ * the interesting line is rarely the first survivor either.
+ *
+ * So lines are SCORED and the best ones win: a line that opens with a sightseeing
+ * verb and names somewhere the guest is actually going beats one about airports and
+ * meals, wherever it sits in the day.
+ */
+const ACTION = /^(visit|explore|discover|marvel|stand|walk|sail|witness|admire|cruise|experience|see|enjoy|board|stop at|photo stop)/i
+
+const DEAD = /\b(breakfast|lunch|dinner|check[- ]?in|check[- ]?out|transfer|airport|flight|luggage|formalit|overnight|hotel|meet\s*(&|and)\s*assist|representative)\b/i
+
+const NO_START = [
+  /^(early |late )?breakfast\b/i,
+  /^(after|before) (breakfast|lunch|dinner)\b/i,
+  /^(lunch|dinner|meals?)\b/i,
+  /^check[- ]?(in|out)\b/i,
+  /^(private\s+)?(air[- ]?conditioned\s+)?transfer\b/i,
+  /^(you will be )?transferred\b/i,
+  /^meet (and|&) (assist|greet)\b/i,
+  /^(our|a) representative\b/i,
+  /^(arrival at|upon (your )?arrival)\b/i,
+  /^overnight\b/i,
+  /^return\b/i,
+  /^continue by\b/i,
+  /^drive to\b/i,
+  /^itinerary review\b/i,
+  /^airport (greeting|greet)\b/i,
+  /^optional\b/i,
+]
+
+/** Higher is better. <= 0 means "not worth putting on a one-page card". */
+function scoreLine(line: string, siteWords: string[]): number {
+  const l = line.trim()
+  if (!l) return -99
+  if (NO_START.some((re) => re.test(l))) return -99
+  let score = 0
+  if (ACTION.test(l)) score += 3
+  if (siteWords.some((w) => l.toLowerCase().includes(w))) score += 2
+  if (DEAD.test(l)) score -= 3
+  if (l.length >= 40 && l.length <= 190) score += 1
+  return score
+}
+
+/**
+ * Compose a short, readable summary for a stay.
+ *
+ * Scores every line the agent wrote across the days in this block and keeps the best
+ * couple, in itinerary order. Purely a re-arrangement of their words: nothing is
+ * invented, so the sheet can never claim something the itinerary does not say. A
+ * stay that is genuinely all logistics scores nothing and renders no paragraph at
+ * all, which reads better than filler.
  */
 function composeBlurb(block: SegSourceDay[], maxSentences: number, maxChars: number): string {
-  const out: string[] = []
+  const siteWords = block
+    .flatMap((d) => d.sites ?? [])
+    .map((x) => (x ?? '').trim().toLowerCase())
+    .filter((x) => x.length > 3)
+
+  type Cand = { text: string; score: number; order: number }
+  const cands: Cand[] = []
+  let order = 0
   for (const d of block) {
-    const first = (d.description ?? '').split('\n').map((l) => l.trim()).filter(Boolean)[0]
-    if (!first) continue
-    const clean = first.replace(/\s+/g, ' ').replace(/[.;:,\s]+$/, '')
-    if (!clean) continue
-    if (out.some((x) => x.toLowerCase() === clean.toLowerCase())) continue
-    out.push(clean)
-    if (out.length >= maxSentences) break
+    for (const raw of (d.description ?? '').split('\n')) {
+      const line = raw.trim()
+      order++
+      if (!line) continue
+      const score = scoreLine(line, siteWords)
+      if (score <= 0) continue
+      const text = line.replace(/\s+/g, ' ').replace(/[.;:,\s]+$/, '')
+      if (!text) continue
+      if (cands.some((c) => c.text.toLowerCase() === text.toLowerCase())) continue
+      cands.push({ text, score, order })
+    }
   }
-  let text = out.join('. ')
+
+  const best = cands
+    .slice()
+    .sort((a, b) => (b.score - a.score) || (a.order - b.order))
+    .slice(0, maxSentences)
+    .sort((a, b) => a.order - b.order)
+
+  let text = best.map((c) => c.text).join('. ')
   if (text) text += '.'
   if (text.length > maxChars) {
     const cut = text.slice(0, maxChars)
@@ -247,9 +316,9 @@ function groupByHotelRows(seq: SegSourceDay[], hotels: SegHotel[]): number[][] {
 export interface DeriveOptions {
   /** Max highlights per block before collapsing into "+N more". Default 12. */
   highlightCap?: number
-  /** Max sentences pulled into a block's blurb. Default 4. */
+  /** Max sentences pulled into a block's blurb. Default 2. */
   blurbSentences?: number
-  /** Hard character cap on a blurb before it is trimmed. Default 340. */
+  /** Hard character cap on a blurb before it is trimmed. Default 210. */
   blurbChars?: number
   /** Flight / transfer text keyed by day uid, folded into the block that owns the day. */
   notesByUid?: Record<string, string[]>
@@ -264,8 +333,8 @@ export function deriveSegments(
   if (!seq.length) return []
   const cap = opts.highlightCap ?? 12
   const notesByUid = opts.notesByUid ?? {}
-  const blurbSentences = opts.blurbSentences ?? 4
-  const blurbChars = opts.blurbChars ?? 340
+  const blurbSentences = opts.blurbSentences ?? 2
+  const blurbChars = opts.blurbChars ?? 210
 
   const rows = (hotels ?? []).filter((h) => (h?.nights ?? 0) > 0)
   const byStay = shouldUseStayRuns(seq, rows)

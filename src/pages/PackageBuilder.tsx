@@ -16,7 +16,7 @@ import CompactDoc from './CompactDoc'
 
 import type { CompactData } from './CompactDoc'
 
-import { sitePhoto } from '../lib/sitePhotos'
+import { siteInfo } from '../lib/sitePhotos'
 
 import { deriveSegments, applyOverrides } from '../lib/segments'
 
@@ -864,7 +864,7 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
   // ---------------------------------------------------------------------------
 
   /** Target height for the sheet. Density steps down until it fits; never clips. */
-  const MAX_SHEET_H = 1500
+  const MAX_SHEET_H = 1800
   const MAX_DENSITY = 4
 
   const setSegOv = (i: number, patch: Partial<SegmentOverride>) =>
@@ -907,22 +907,80 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
 
   const compactData: CompactData = useMemo(() => {
     const visible = segmentsAll.filter((s) => !s.hidden)
+
+    /*
+     * Group every site by the CITY IT IS IN, not by the stay it fell under.
+     *
+     * Grouping by stay put the Valley of the Kings under "Hurghada", because that
+     * morning's tour was in Luxor but the night was at a Red Sea resort. Sites carry
+     * their own city, so the card now says what it means. A site visited twice is
+     * listed once, and cities appear in the order the trip first reaches them.
+     */
+    const order: string[] = []
+    const byCity = new Map<string, { tiles: { name: string; photoUrl: string }[]; more: string[]; used: Set<string> }>()
+    const seenSite = new Set<string>()
+
+    for (const seg of visible) {
+      for (const raw of seg.highlights) {
+        const name = (raw ?? '').trim()
+        // 'Private guide' is a service and '+N more' is a truncation marker —
+        // neither is a place, so neither earns a photo.
+        if (!name || /^private guide$/i.test(name) || /^\+\d+ more$/.test(name)) continue
+        const key = name.toLowerCase()
+        if (seenSite.has(key)) continue
+        seenSite.add(key)
+
+        const info = siteInfo(name, manifest)
+        const city = info.city || seg.destination || 'Egypt'
+        if (!byCity.has(city)) { byCity.set(city, { tiles: [], more: [], used: new Set() }); order.push(city) }
+        const g = byCity.get(city)!
+
+        /*
+         * One distinct photo per site, and NO substitutes.
+         *
+         * Several sites legitimately share a file (Hatshepsut and the Valley of the
+         * Kings both point at the Colossi shot) and two identical images side by
+         * side reads as a bug. An earlier version borrowed another file from the
+         * same folder — but luxor-aswan mixes two cities, so Hatshepsut came out
+         * illustrated with Abu Simbel. Captioning the wrong monument is worse than
+         * showing none, so a site whose photo is taken is listed by name instead.
+         */
+        const photo = info.photo
+        if (photo && !g.used.has(photo)) {
+          g.used.add(photo)
+          g.tiles.push({ name, photoUrl: photoSrc(photo) })
+        } else {
+          g.more.push(name)
+        }
+      }
+    }
+
+    const groups = order.map((city) => {
+      const g = byCity.get(city)!
+      return { city, tiles: g.tiles, more: g.more }
+    })
+
+    // Accommodation, merged per destination so a trip that returns to a city shows
+    // one combined line rather than two.
+    const stayOrder: string[] = []
+    const stayMap = new Map<string, { nights: number; destination: string; hotel: string }>()
+    for (const seg of visible) {
+      const dest = seg.destination || 'Egypt'
+      if (!stayMap.has(dest)) { stayMap.set(dest, { nights: 0, destination: dest, hotel: '' }); stayOrder.push(dest) }
+      const e = stayMap.get(dest)!
+      e.nights += seg.nights
+      if (!e.hotel && seg.stay && seg.stay !== dest) e.hotel = seg.stay
+    }
+
     return {
-      title, intro,
+      title,
       logoUrl,
       meta,
-      overview: data.overview,
-      cities: visible.map((s) => s.destination),
-      segments: visible.map((s) => ({
-        ...s,
-        // Every site gets its own photo. 'Private guide' is a service, not a place —
-        // it stays in the highlight list but earns no tile.
-        tiles: s.highlights
-          .map((n) => (n ?? '').trim())
-          .filter((n) => n && !/^private guide$/i.test(n) && !/^\+\d+ more$/.test(n))
-          .map((n) => ({ name: n, photoUrl: photoSrc(sitePhoto(n, manifest, s.photo)) }))
-          .filter((t) => t.photoUrl),
-      })),
+      // Cities counted from the groups actually shown, so the stat cannot disagree
+      // with the list underneath it.
+      overview: { ...data.overview, cities: groups.length || data.overview.cities },
+      groups,
+      stays: stayOrder.map((d) => stayMap.get(d)!),
       included: data.included,
       excluded: data.excluded,
       price: { pp, sgl, show: showPrice },
@@ -931,16 +989,16 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
       roomBasis,
       density,
     }
-  }, [title, intro, logoUrl, meta, data, segmentsAll, manifest, pp, sgl, showPrice, priceTableOn, priceRows, priceColumnsMode, roomBasis, density])
+  }, [title, logoUrl, meta, data, segmentsAll, manifest, pp, sgl, showPrice, priceTableOn, priceRows, priceColumnsMode, roomBasis, density])
 
   /**
    * Signature of everything that affects how much room the content needs.
    * Deliberately excludes density so the fit loop below cannot feed itself.
    */
   const fitSig = useMemo(() => JSON.stringify([
-    compactData.segments.map((s) => [s.label, s.dayRange, s.destination, s.blurb, s.stay, s.meals, s.notes, s.tiles.length]),
-    compactData.included, compactData.excluded, compactData.intro, compactData.title,
-    compactData.pricing, compactData.price, compactData.meta, compactData.overview, compactData.cities,
+    compactData.groups.map((g) => [g.city, g.tiles.map((t) => t.name), g.more]),
+    compactData.stays, compactData.included, compactData.excluded, compactData.title,
+    compactData.pricing, compactData.price, compactData.meta, compactData.overview,
   ]), [compactData])
 
   // Content changed -> start roomy again, then let the loop below tighten as needed.
@@ -1151,7 +1209,7 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
 
               <div className="cseg-list">
 
-                <p className="muted small">Blocks are built from your accommodation nights and the days they cover. The summary is drawn from each day's opening line, and every highlight becomes a photo tile. Edits here only affect the Compact PNG / PDF — the detailed itinerary PDF is untouched.</p>
+                <p className="muted small">The compact sheet groups these sites by the city they are in and gives each one a photo; accommodation is listed underneath in small text. Edits here only affect the Compact PNG / PDF — the detailed itinerary PDF is untouched.</p>
 
                 {segmentsAll.map((s, i) => (
 
@@ -1177,9 +1235,7 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
 
                       </div>
 
-                      <textarea rows={2} className="cseg-blurb" placeholder="Summary paragraph shown under the city name" value={s.blurb} onChange={(e) => setSegOv(i, { blurb: e.target.value })} />
-
-                      <input value={s.highlights.join(', ')} placeholder="Sites (comma-separated — each becomes a photo tile)" onChange={(e) => setSegOv(i, { highlights: e.target.value.split(',').map((x) => x.replace(/^\s+/, '')) })} />
+                      <input value={s.highlights.join(', ')} placeholder="Sites (comma-separated — each becomes a photo on the compact sheet)" onChange={(e) => setSegOv(i, { highlights: e.target.value.split(',').map((x) => x.replace(/^\s+/, '')) })} />
 
                       <div className="cseg-line">
 

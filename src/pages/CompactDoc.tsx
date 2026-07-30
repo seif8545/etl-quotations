@@ -1,16 +1,24 @@
 import { forwardRef, useEffect } from 'react'
 
-import type { Segment } from '../lib/segments'
-
-/** One site with its resolved thumbnail. */
+/** One site with its resolved photo. */
 export interface SiteTile {
   name: string
   photoUrl: string
 }
 
-/** A derived stay block, ready to render. */
-export interface CompactSegment extends Segment {
+/** A city and everything the guest sees there. */
+export interface CityGroup {
+  city: string
   tiles: SiteTile[]
+  /** Sites with no photo of their own — listed as names rather than given a wrong one. */
+  more: string[]
+}
+
+/** One accommodation line. Deliberately subordinate to the sightseeing. */
+export interface StayLine {
+  nights: number
+  destination: string
+  hotel: string
 }
 
 export interface CompactPricingRow {
@@ -24,13 +32,11 @@ export interface CompactPricingRow {
 
 export interface CompactData {
   title: string
-  intro: string
   logoUrl: string
   meta: { ref: string; pax: number; arrival: string; departure: string }
   overview: { days: number; nights: number; cities: number; pax: number }
-  /** Destination names in travel order, shown under the stats. */
-  cities: string[]
-  segments: CompactSegment[]
+  groups: CityGroup[]
+  stays: StayLine[]
   included: string[]
   excluded: string[]
   price: { pp: number; sgl: number; show: boolean }
@@ -41,11 +47,25 @@ export interface CompactData {
   density: number
 }
 
-/** Sheet width in CSS px. Exported at 2x, so the PNG is 1800px wide. */
-export const SHEET_W = 900
+/**
+ * Sheet width in CSS px (exported at 2x → a 1600px PNG).
+ *
+ * Deliberately narrow. This card is read on a phone inside a chat thread, where the
+ * image is scaled to ~380px: at 900px wide with 11px type the body text landed at
+ * roughly 4.6 device px and was simply unreadable. Fewer words at a larger relative
+ * size beats more words shrunk down — so the sheet is narrower, the type is bigger,
+ * and the content is cut rather than compressed.
+ */
+export const SHEET_W = 800
 
 /*
- * A single, continuous sheet — NOT paginated.
+ * A single, continuous sheet — NOT paginated, and NOT organised by day.
+ *
+ * Grouping is by PLACE: each city lists what the guest sees there, with a photo per
+ * site. Days, day ranges and per-day prose are all gone — on a phone they were noise,
+ * and day-based grouping also put sights in the wrong city whenever a guest slept
+ * somewhere other than where they toured. Accommodation is deliberately demoted to
+ * one small line at the end: it is a detail, not the pitch.
  *
  * The first cut of this used fixed 794x1123 A4 pages and spilled onto a second one,
  * which is wrong for the actual use case: these get pasted into WhatsApp and
@@ -71,7 +91,7 @@ const CSS = `
 .cx-logo { background: #fff; border-radius: 999px; padding: 8px 18px; display: inline-block; flex-shrink: 0; }
 .cx-logo img { width: 150px; height: 28px; display: block; }
 .cx-eyebrow { margin-left: auto; font-size: 10px; letter-spacing: 3.2px; text-transform: uppercase; color: #f0c53a; text-align: right; }
-.cx-title { font-size: 34px; font-weight: 600; line-height: 1.08; margin: 0; color: #fff; }
+.cx-title { font-size: 33px; font-weight: 600; line-height: 1.08; margin: 0; color: #fff; }
 .cx-rule { width: 76px; height: 3px; background: linear-gradient(135deg,#c8960a,#e8b015); border-radius: 3px; margin: 13px 0 12px; }
 .cx-meta { font-size: 13px; color: rgba(255,255,255,0.9); }
 .cx-meta i { font-style: normal; color: #f0c53a; margin: 0 8px; }
@@ -85,49 +105,50 @@ const CSS = `
 .cx-cities u { text-decoration: none; color: #7d93ad; margin: 0 7px; }
 
 /* ---------- Body ---------- */
-.cx-body { padding: 22px 36px 24px; }
-.cx-intro { font-size: 13px; line-height: 1.6; color: #45566b; margin: 0 0 18px; }
+.cx-body { padding: 20px 30px 22px; }
 
-.cx-sec-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 12px; }
-.cx-sec-head h3 { font-size: 19px; font-weight: 600; color: #0e2a47; margin: 0; white-space: nowrap; }
+.cx-sec-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 13px; }
+.cx-sec-head h3 { font-size: 20px; font-weight: 600; color: #0e2a47; margin: 0; white-space: nowrap; }
 .cx-sec-head div { flex: 1; height: 2px; background: linear-gradient(90deg,#e8b015,rgba(232,176,21,0.10)); border-radius: 2px; }
 .cx-sec { margin-bottom: 20px; }
 
-/* ---------- Stay blocks ---------- */
-.cx-blk { padding: 0 0 15px; margin-bottom: 15px; border-bottom: 1px solid #ece0c4; }
-.cx-blk:last-child { border-bottom: none; padding-bottom: 0; margin-bottom: 0; }
-.cx-blk-head { display: flex; align-items: baseline; gap: 12px; }
-.cx-blk-city { font-size: 22px; font-weight: 600; color: #0e2a47; margin: 0; line-height: 1.15; }
-.cx-blk-when { margin-left: auto; font-size: 10px; font-weight: 600; letter-spacing: 2.2px; text-transform: uppercase; color: #b08a1e; white-space: nowrap; }
-.cx-blk-blurb { font-size: 12.5px; line-height: 1.55; color: #45566b; margin: 7px 0 0; }
-.cx-blk-note { font-size: 11.5px; line-height: 1.45; color: #6a7789; font-style: italic; margin-top: 5px; }
+/* ---------- City groups ---------- */
+.cx-city { padding: 0 0 15px; margin-bottom: 15px; border-bottom: 1px solid #ece0c4; }
+.cx-city:last-child { border-bottom: none; padding-bottom: 0; margin-bottom: 0; }
+.cx-city-name { font-size: 25px; font-weight: 600; color: #0e2a47; margin: 0 0 10px; line-height: 1.12; }
 
-.cx-tiles { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 11px; }
-.cx-tile { width: 118px; }
-.cx-tile-img { width: 118px; height: 80px; border-radius: 8px; background-color: #e9e2d2; background-size: cover; background-position: center; }
-.cx-tile-cap { font-size: 9.5px; line-height: 1.25; color: #55677d; margin-top: 4px; text-align: center; }
+/* Site photos with the name burned on, so there are no caption rows eating height
+   and the label survives being scaled down to phone size. flex-wrap with a flexible
+   basis means each row fills the width whatever the site count is. */
+.cx-shots { display: flex; flex-wrap: wrap; gap: 8px; }
+.cx-shot { flex: 1 1 158px; min-width: 148px; height: 112px; position: relative; overflow: hidden; border-radius: 10px; background-color: #e9e2d2; background-size: cover; background-position: center; }
+.cx-shot-grad { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(8,26,48,0) 40%, rgba(8,26,48,0.9) 100%); }
+.cx-shot-name { position: absolute; left: 10px; right: 10px; bottom: 8px; color: #fff; font-size: 13px; font-weight: 600; line-height: 1.18; text-shadow: 0 1px 6px rgba(0,0,0,0.55); }
+.cx-more { margin-top: 8px; font-size: 12px; color: #55677d; line-height: 1.4; }
+.cx-more b { color: #b08a1e; font-weight: 600; font-size: 9.5px; letter-spacing: 1.5px; text-transform: uppercase; margin-right: 7px; }
 
-.cx-stay { margin-top: 11px; padding-top: 9px; border-top: 1px dashed #e7dcc2; font-size: 11.5px; color: #33465c; }
-.cx-stay b { color: #b08a1e; font-weight: 600; font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase; margin-right: 7px; }
-.cx-stay u { text-decoration: none; color: #cbbfa4; margin: 0 10px; }
+/* ---------- Accommodation: small, subordinate ---------- */
+.cx-stays { margin-top: 4px; font-size: 11.5px; color: #6a7789; line-height: 1.5; }
+.cx-stays b { color: #b08a1e; font-weight: 600; font-size: 9.5px; letter-spacing: 1.6px; text-transform: uppercase; margin-right: 8px; }
+.cx-stays u { text-decoration: none; color: #cbbfa4; margin: 0 8px; }
 
 /* ---------- Included / excluded ---------- */
 .cx-inc { display: flex; gap: 30px; }
 .cx-inc-col { flex: 1; min-width: 0; }
-.cx-inc-col h4 { font-size: 12.5px; color: #0e2a47; margin: 0 0 8px; font-family: 'Fraunces', Georgia, serif; }
-.cx-inc-item { display: flex; align-items: flex-start; gap: 7px; font-size: 11px; color: #3a495c; margin-bottom: 5px; line-height: 1.4; }
+.cx-inc-col h4 { font-size: 13px; color: #0e2a47; margin: 0 0 8px; font-family: 'Fraunces', Georgia, serif; }
+.cx-inc-item { display: flex; align-items: flex-start; gap: 7px; font-size: 12px; color: #3a495c; margin-bottom: 5px; line-height: 1.4; }
 .cx-mark { flex-shrink: 0; font-weight: 700; }
 .cx-mark.yes { color: #1a6e2e; }
 .cx-mark.no { color: #a83828; }
 
 /* ---------- Pricing ---------- */
-.cx-ptable { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+.cx-ptable { width: 100%; border-collapse: collapse; font-size: 12.5px; }
 .cx-ptable th { text-align: left; background: #0e2a47; color: #fff; font-weight: 600; padding: 8px 12px; font-size: 9.5px; letter-spacing: 0.6px; text-transform: uppercase; }
 .cx-ptable td { padding: 9px 12px; border-bottom: 1px solid #eee2c8; vertical-align: top; }
 .cx-ptable tr:last-child td { border-bottom: none; }
 .cx-pt-cat { color: #0e2a47; font-weight: 600; white-space: nowrap; }
 .cx-pt-price { color: #806000; font-weight: 600; white-space: nowrap; }
-.cx-pt-hotels { color: #6a7789; font-size: 10.5px; line-height: 1.4; }
+.cx-pt-hotels { color: #6a7789; font-size: 11px; line-height: 1.4; }
 .cx-pbox { background: linear-gradient(135deg,#0e2a47,#163d6b); color: #fff; border-radius: 14px; padding: 16px 24px; display: flex; align-items: center; gap: 22px; }
 .cx-pbox-eyebrow { color: #f0c53a; font-size: 9.5px; letter-spacing: 2.6px; text-transform: uppercase; }
 .cx-pbox-big { font-size: 32px; font-weight: 600; margin: 3px 0 0; line-height: 1; }
@@ -143,89 +164,79 @@ const CSS = `
 .cx-foot-rows b { color: #e8b015; font-weight: 600; margin-right: 5px; }
 
 /* ================= Density steps =================
-   Applied when the sheet is taller than the target. Each step trims type, tile
-   size and vertical rhythm; nothing is ever removed, so a 20-day itinerary just
+   Applied when the sheet runs past the target height. Each step trims type, shot
+   height and vertical rhythm together; nothing is ever removed, so a long itinerary
    renders denser rather than losing content. */
-.cptx.k1 .cx-body { padding: 18px 32px 20px; }
-.cptx.k1 .cx-intro { font-size: 12px; margin-bottom: 14px; }
-.cptx.k1 .cx-blk { padding-bottom: 12px; margin-bottom: 12px; }
-.cptx.k1 .cx-blk-city { font-size: 20px; }
-.cptx.k1 .cx-blk-blurb { font-size: 12px; line-height: 1.5; }
-.cptx.k1 .cx-tile, .cptx.k1 .cx-tile-img { width: 106px; }
-.cptx.k1 .cx-tile-img { height: 72px; }
-.cptx.k1 .cx-tiles { gap: 8px; margin-top: 9px; }
-.cptx.k1 .cx-inc-item { font-size: 10.5px; margin-bottom: 4px; }
+.cptx.k1 .cx-body { padding: 17px 28px 19px; }
+.cptx.k1 .cx-head { padding: 22px 28px 18px; }
+.cptx.k1 .cx-city { padding-bottom: 13px; margin-bottom: 13px; }
+.cptx.k1 .cx-city-name { font-size: 23px; margin-bottom: 9px; }
+.cptx.k1 .cx-shot { height: 102px; flex-basis: 148px; min-width: 138px; }
+.cptx.k1 .cx-shot-name { font-size: 12.5px; }
+.cptx.k1 .cx-inc-item { font-size: 11.5px; margin-bottom: 4px; }
 .cptx.k1 .cx-sec { margin-bottom: 16px; }
-.cptx.k1 .cx-head { padding: 22px 32px 19px; }
 
-.cptx.k2 .cx-body { padding: 15px 30px 17px; }
-.cptx.k2 .cx-intro { font-size: 11.5px; margin-bottom: 11px; line-height: 1.5; }
-.cptx.k2 .cx-blk { padding-bottom: 10px; margin-bottom: 10px; }
-.cptx.k2 .cx-blk-city { font-size: 18px; }
-.cptx.k2 .cx-blk-blurb { font-size: 11.5px; line-height: 1.45; margin-top: 5px; }
-.cptx.k2 .cx-tile, .cptx.k2 .cx-tile-img { width: 94px; }
-.cptx.k2 .cx-tile-img { height: 64px; }
-.cptx.k2 .cx-tiles { gap: 7px; margin-top: 8px; }
-.cptx.k2 .cx-tile-cap { font-size: 9px; }
-.cptx.k2 .cx-inc-item { font-size: 10px; margin-bottom: 3px; }
-.cptx.k2 .cx-sec { margin-bottom: 13px; }
-.cptx.k2 .cx-sec-head { margin-bottom: 9px; }
-.cptx.k2 .cx-sec-head h3 { font-size: 17px; }
-.cptx.k2 .cx-head { padding: 19px 30px 16px; }
-.cptx.k2 .cx-title { font-size: 30px; }
+.cptx.k2 .cx-body { padding: 15px 26px 16px; }
+.cptx.k2 .cx-head { padding: 19px 26px 15px; }
+.cptx.k2 .cx-title { font-size: 29px; }
 .cptx.k2 .cx-stats b { font-size: 24px; }
-.cptx.k2 .cx-stay { margin-top: 8px; padding-top: 7px; font-size: 11px; }
+.cptx.k2 .cx-city { padding-bottom: 11px; margin-bottom: 11px; }
+.cptx.k2 .cx-city-name { font-size: 21px; margin-bottom: 8px; }
+.cptx.k2 .cx-shots { gap: 7px; }
+.cptx.k2 .cx-shot { height: 92px; flex-basis: 136px; min-width: 126px; }
+.cptx.k2 .cx-shot-name { font-size: 12px; bottom: 7px; }
+.cptx.k2 .cx-more { font-size: 11.5px; margin-top: 7px; }
+.cptx.k2 .cx-stays { font-size: 11px; }
+.cptx.k2 .cx-inc-item { font-size: 11px; margin-bottom: 3px; }
+.cptx.k2 .cx-sec { margin-bottom: 13px; }
+.cptx.k2 .cx-sec-head { margin-bottom: 10px; }
+.cptx.k2 .cx-sec-head h3 { font-size: 18px; }
+.cptx.k2 .cx-ptable { font-size: 11.5px; }
 .cptx.k2 .cx-ptable td { padding: 7px 10px; }
 
-.cptx.k3 .cx-body { padding: 13px 28px 15px; }
-.cptx.k3 .cx-intro { font-size: 11px; margin-bottom: 9px; line-height: 1.45; }
-.cptx.k3 .cx-blk { padding-bottom: 8px; margin-bottom: 8px; }
-.cptx.k3 .cx-blk-city { font-size: 16.5px; }
-.cptx.k3 .cx-blk-blurb { font-size: 11px; line-height: 1.4; margin-top: 4px; }
-.cptx.k3 .cx-blk-note { font-size: 10.5px; }
-.cptx.k3 .cx-tile, .cptx.k3 .cx-tile-img { width: 84px; }
-.cptx.k3 .cx-tile-img { height: 56px; }
-.cptx.k3 .cx-tiles { gap: 6px; margin-top: 7px; }
-.cptx.k3 .cx-tile-cap { font-size: 8.5px; margin-top: 3px; }
-.cptx.k3 .cx-inc-item { font-size: 9.5px; margin-bottom: 2px; line-height: 1.35; gap: 5px; }
-.cptx.k3 .cx-inc-col h4 { font-size: 11.5px; margin-bottom: 6px; }
-.cptx.k3 .cx-sec { margin-bottom: 11px; }
-.cptx.k3 .cx-sec-head { margin-bottom: 8px; }
-.cptx.k3 .cx-sec-head h3 { font-size: 16px; }
-.cptx.k3 .cx-head { padding: 16px 28px 14px; }
-.cptx.k3 .cx-title { font-size: 27px; }
+.cptx.k3 .cx-body { padding: 13px 24px 14px; }
+.cptx.k3 .cx-head { padding: 16px 24px 13px; }
+.cptx.k3 .cx-title { font-size: 26px; }
 .cptx.k3 .cx-stats { margin-top: 13px; padding-top: 11px; }
 .cptx.k3 .cx-stats b { font-size: 21px; }
-.cptx.k3 .cx-stay { margin-top: 7px; padding-top: 6px; font-size: 10.5px; }
-.cptx.k3 .cx-ptable { font-size: 10.5px; }
+.cptx.k3 .cx-city { padding-bottom: 9px; margin-bottom: 9px; }
+.cptx.k3 .cx-city-name { font-size: 19px; margin-bottom: 7px; }
+.cptx.k3 .cx-shots { gap: 6px; }
+.cptx.k3 .cx-shot { height: 80px; flex-basis: 122px; min-width: 112px; }
+.cptx.k3 .cx-shot-name { font-size: 11px; bottom: 6px; left: 8px; right: 8px; }
+.cptx.k3 .cx-more { font-size: 10.5px; margin-top: 6px; }
+.cptx.k3 .cx-stays { font-size: 10.5px; }
+.cptx.k3 .cx-inc-item { font-size: 10.5px; margin-bottom: 2px; line-height: 1.35; gap: 6px; }
+.cptx.k3 .cx-inc-col h4 { font-size: 12px; margin-bottom: 6px; }
+.cptx.k3 .cx-sec { margin-bottom: 11px; }
+.cptx.k3 .cx-sec-head { margin-bottom: 8px; }
+.cptx.k3 .cx-sec-head h3 { font-size: 17px; }
+.cptx.k3 .cx-ptable { font-size: 11px; }
 .cptx.k3 .cx-ptable td { padding: 6px 9px; }
-.cptx.k3 .cx-pt-hotels { font-size: 9.5px; }
+.cptx.k3 .cx-pt-hotels { font-size: 10px; }
 
-.cptx.k4 .cx-body { padding: 11px 26px 13px; }
-.cptx.k4 .cx-intro { font-size: 10px; margin-bottom: 8px; line-height: 1.4; }
-.cptx.k4 .cx-blk { padding-bottom: 7px; margin-bottom: 7px; }
-.cptx.k4 .cx-blk-city { font-size: 15px; }
-.cptx.k4 .cx-blk-blurb { font-size: 10px; line-height: 1.38; margin-top: 3px; }
-.cptx.k4 .cx-blk-note { font-size: 9.5px; }
-.cptx.k4 .cx-tile, .cptx.k4 .cx-tile-img { width: 74px; }
-.cptx.k4 .cx-tile-img { height: 50px; }
-.cptx.k4 .cx-tiles { gap: 5px; margin-top: 6px; }
-.cptx.k4 .cx-tile-cap { font-size: 8px; margin-top: 2px; }
-.cptx.k4 .cx-inc-item { font-size: 9px; margin-bottom: 2px; line-height: 1.3; gap: 4px; }
-.cptx.k4 .cx-inc-col h4 { font-size: 11px; margin-bottom: 5px; }
+.cptx.k4 .cx-body { padding: 11px 22px 12px; }
+.cptx.k4 .cx-head { padding: 14px 22px 11px; }
+.cptx.k4 .cx-title { font-size: 23px; }
+.cptx.k4 .cx-stats { margin-top: 11px; padding-top: 9px; }
+.cptx.k4 .cx-stats b { font-size: 19px; }
+.cptx.k4 .cx-city { padding-bottom: 8px; margin-bottom: 8px; }
+.cptx.k4 .cx-city-name { font-size: 17px; margin-bottom: 6px; }
+.cptx.k4 .cx-shots { gap: 5px; }
+.cptx.k4 .cx-shot { height: 68px; flex-basis: 108px; min-width: 100px; }
+.cptx.k4 .cx-shot-name { font-size: 10px; bottom: 5px; left: 7px; right: 7px; }
+.cptx.k4 .cx-more { font-size: 10px; margin-top: 5px; }
+.cptx.k4 .cx-stays { font-size: 10px; }
+.cptx.k4 .cx-inc-item { font-size: 10px; margin-bottom: 2px; line-height: 1.3; gap: 5px; }
+.cptx.k4 .cx-inc-col h4 { font-size: 11.5px; margin-bottom: 5px; }
 .cptx.k4 .cx-inc { gap: 22px; }
 .cptx.k4 .cx-sec { margin-bottom: 9px; }
 .cptx.k4 .cx-sec-head { margin-bottom: 6px; }
-.cptx.k4 .cx-sec-head h3 { font-size: 15px; }
-.cptx.k4 .cx-head { padding: 14px 26px 12px; }
-.cptx.k4 .cx-title { font-size: 24px; }
-.cptx.k4 .cx-stats { margin-top: 11px; padding-top: 9px; }
-.cptx.k4 .cx-stats b { font-size: 19px; }
-.cptx.k4 .cx-stay { margin-top: 6px; padding-top: 5px; font-size: 10px; }
-.cptx.k4 .cx-ptable { font-size: 10px; }
+.cptx.k4 .cx-sec-head h3 { font-size: 16px; }
+.cptx.k4 .cx-ptable { font-size: 10.5px; }
 .cptx.k4 .cx-ptable td { padding: 5px 8px; }
-.cptx.k4 .cx-pt-hotels { font-size: 9px; }
-.cptx.k4 .cx-foot { padding: 12px 26px; }
+.cptx.k4 .cx-pt-hotels { font-size: 9.5px; }
+.cptx.k4 .cx-foot { padding: 12px 22px; }
 `
 
 /** yyyy-mm-dd -> "26 Jul 2027". Parsed as UTC so the date never shifts a day. */
@@ -256,8 +267,6 @@ const CompactDoc = forwardRef<HTMLDivElement, { data: CompactData }>(({ data }, 
     if (!el) { el = document.createElement('style'); el.id = 'cptx-doc-css'; document.head.appendChild(el) }
     el.textContent = CSS
   }, [])
-
-  const segments = d.segments.filter((s) => !s.hidden)
 
   const tierRows = d.pricing.rows.filter(
     (r) => (r.category ?? '').trim() && (r.dbl > 0 || r.single > 0 || r.triple > 0 || r.quad > 0),
@@ -293,49 +302,45 @@ const CompactDoc = forwardRef<HTMLDivElement, { data: CompactData }>(({ data }, 
           <div><b className="fr">{d.overview.cities}</b><span>{d.overview.cities === 1 ? 'City' : 'Cities'}</span></div>
           <div><b className="fr">{d.overview.pax}</b><span>{d.overview.pax === 1 ? 'Guest' : 'Guests'}</span></div>
         </div>
-        {d.cities.length > 0 && (
-          <div className="cx-cities">
-            <b>Covering</b>
-            {d.cities.map((c, i) => <span key={i}>{i > 0 ? <u>·</u> : null}{c}</span>)}
-          </div>
-        )}
       </div>
 
       {/* ---------- Body ---------- */}
       <div className="cx-body">
 
-        {d.intro ? <p className="cx-intro">{d.intro}</p> : null}
-
-        {segments.length > 0 && (
+        {d.groups.length > 0 && (
           <div className="cx-sec">
-            <div className="cx-sec-head"><h3 className="fr">Your Itinerary</h3><div /></div>
-            {segments.map((s) => (
-              <div className="cx-blk" key={s.key}>
-                <div className="cx-blk-head">
-                  <h4 className="fr cx-blk-city">{s.destination}</h4>
-                  <div className="cx-blk-when">{s.label}{s.dayRange ? ` · ${s.dayRange}` : ''}</div>
-                </div>
-                {s.blurb ? <p className="cx-blk-blurb">{s.blurb}</p> : null}
-                {s.notes.map((n, k) => <div className="cx-blk-note" key={k}>{n}</div>)}
-                {s.tiles.length > 0 && (
-                  <div className="cx-tiles">
-                    {s.tiles.map((t, k) => (
-                      <div className="cx-tile" key={k}>
-                        <div className="cx-tile-img" style={t.photoUrl ? { backgroundImage: `url("${t.photoUrl}")` } : undefined} />
-                        <div className="cx-tile-cap">{t.name}</div>
+            <div className="cx-sec-head"><h3 className="fr">Where You Go</h3><div /></div>
+            {d.groups.map((g, gi) => (
+              <div className="cx-city" key={gi}>
+                <h4 className="fr cx-city-name">{g.city}</h4>
+                {g.tiles.length > 0 && (
+                  <div className="cx-shots">
+                    {g.tiles.map((t, k) => (
+                      <div className="cx-shot" key={k} style={{ backgroundImage: `url("${t.photoUrl}")` }}>
+                        <div className="cx-shot-grad" />
+                        <div className="cx-shot-name">{t.name}</div>
                       </div>
                     ))}
                   </div>
                 )}
-                {(s.stay || s.meals) && (
-                  <div className="cx-stay">
-                    {s.stay ? <><b>Stay</b>{s.stay}</> : null}
-                    {s.stay && s.meals ? <u>·</u> : null}
-                    {s.meals ? <><b>Meals</b>{s.meals}</> : null}
-                  </div>
-                )}
+                {g.more.length > 0 && <div className="cx-more"><b>Also</b>{g.more.join(' · ')}</div>}
               </div>
             ))}
+          </div>
+        )}
+
+        {d.stays.length > 0 && (
+          <div className="cx-sec">
+            <div className="cx-stays">
+              <b>Accommodation</b>
+              {d.stays.map((st, i) => (
+                <span key={i}>
+                  {i > 0 ? <u>·</u> : null}
+                  {st.nights} {st.nights === 1 ? 'night' : 'nights'} {st.destination}
+                  {st.hotel ? ` (${st.hotel})` : ''}
+                </span>
+              ))}
+            </div>
           </div>
         )}
 
