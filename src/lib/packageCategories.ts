@@ -13,15 +13,16 @@
  * wins. Nothing here needs a schema migration.
  */
 
-export type PackageCategory = 'shakira' | 'eclipse' | 'multi' | 'other'
+export type PackageCategory = 'shakira' | 'eclipse' | 'multi' | 'redsea' | 'other'
 
-export const CATEGORY_ORDER: PackageCategory[] = ['shakira', 'eclipse', 'multi', 'other']
+export const CATEGORY_ORDER: PackageCategory[] = ['shakira', 'eclipse', 'multi', 'redsea', 'other']
 
 export const CATEGORY_LABEL: Record<PackageCategory, string> = {
   shakira: 'Shakira',
   eclipse: 'Solar eclipse',
   multi: 'Multi-country (Jordan)',
-  other: 'Everything else',
+  redsea: 'Red Sea only',
+  other: 'Standard',
 }
 
 /** Short hint shown under a group heading when it is the only thing on screen. */
@@ -29,6 +30,7 @@ export const CATEGORY_NOTE: Record<PackageCategory, string> = {
   shakira: 'Packages built around the Shakira dates.',
   eclipse: 'Packages built around the total solar eclipse.',
   multi: 'Packages that cross into Jordan.',
+  redsea: 'Beach-only stays — every night in Sharm or Hurghada.',
   other: 'Standard Egypt programmes.',
 }
 
@@ -37,13 +39,60 @@ export const CATEGORY_NOTE: Record<PackageCategory, string> = {
  *
  * Order is precedence: a package that mentions both Shakira and the eclipse files under
  * Shakira, because that is the reason the client is travelling on those dates. Anything
- * unmatched falls through to 'other'.
+ * unmatched falls through to the Red Sea test, then to 'other'.
  */
 const RULES: [PackageCategory, RegExp][] = [
   ['shakira', /shakira/],
   ['eclipse', /eclipse|totality/],
   ['multi', /jordan|petra|amman|aqaba|wadi\s*rum|jerash|dead\s*sea/],
 ]
+
+/** A destination that counts as a Red Sea beach stay. */
+const RED_SEA = /sharm|hurghada|na'?ama|nabq|sahl\s*hasheesh|makadi|el\s*gouna|soma\s*bay/i
+
+/** Anywhere that disqualifies a package from being beach-only. */
+const NOT_BEACH = /cairo|giza|pyramid|luxor|aswan|abu\s*simbel|alexandria|nile\s*cruise|dahabiya|siwa|fayoum|saint\s*catherine/i
+
+/**
+ * Where the trip actually goes, and for how long: [{ destination, nights }].
+ *
+ * The accommodation list is the honest source — it is what the agent typed and what
+ * drives the nights total everywhere else. The same destination entered twice (a Cairo
+ * night either side of a cruise, say) is merged so it reads "Cairo 4" rather than
+ * "Cairo 1 · Cairo 3", but first-mentioned order is kept because that is the shape of
+ * the journey. Falls back to the compact sheet's city names for packages that predate
+ * the accommodation editor.
+ */
+export function packageRoute(row: any): { destination: string; nights: number }[] {
+  const hotels: any[] = Array.isArray(row?.data?.hotels) ? row.data.hotels : []
+  const order: string[] = []
+  const byDest = new Map<string, number>()
+
+  for (const h of hotels) {
+    const dest = String(h?.destination ?? '').trim()
+    if (!dest) continue
+    if (!byDest.has(dest)) { byDest.set(dest, 0); order.push(dest) }
+    byDest.set(dest, byDest.get(dest)! + (Number(h?.nights) || 0))
+  }
+  if (order.length) return order.map((destination) => ({ destination, nights: byDest.get(destination)! }))
+
+  return Object.keys(row?.data?.compactCities ?? {}).map((destination) => ({ destination, nights: 0 }))
+}
+
+/**
+ * Beach-only: every night is spent in Sharm or Hurghada.
+ *
+ * "Strictly" is the point — a Cairo-and-Hurghada combination is a standard programme
+ * with a beach extension, not a beach package, and the two sell to different people.
+ * So this reads the accommodation list and requires every single stop to be a Red Sea
+ * resort. Packages with no accommodation recorded fall back to the text, where the
+ * absence of Cairo, Luxor, Aswan and the cruise has to do the same job.
+ */
+export function isBeachOnly(row: any, hay: string): boolean {
+  const route = packageRoute(row)
+  if (route.length) return route.every((r) => RED_SEA.test(r.destination))
+  return RED_SEA.test(hay) && !NOT_BEACH.test(hay)
+}
 
 /** True when the value the agent picked is one we know how to render. */
 export const isCategory = (v: unknown): v is PackageCategory =>
@@ -60,6 +109,7 @@ export function autoCategory(row: any): PackageCategory {
     hay = String(row?.name ?? '').toLowerCase()
   }
   for (const [cat, re] of RULES) if (re.test(hay)) return cat
+  if (isBeachOnly(row, hay)) return 'redsea'
   return 'other'
 }
 
@@ -126,9 +176,20 @@ export interface BandGroup { band: LengthBand; rows: any[] }
 export interface CategoryGroup { category: PackageCategory; rows: any[]; bands: BandGroup[] }
 
 /**
+ * Shortest first, then alphabetically so two 8-day packages keep a stable position
+ * instead of swapping places whenever one of them is re-saved.
+ */
+export function byLength(a: any, b: any): number {
+  const d = packageDays(a) - packageDays(b)
+  if (d) return d
+  return String(a?.name ?? '').localeCompare(String(b?.name ?? ''))
+}
+
+/**
  * Category → length band → rows, in a fixed order so the list does not reshuffle as
- * packages are added. Empty groups are dropped; row order inside a band is preserved
- * from the caller, which sorts by created_at.
+ * packages are added. Empty groups are dropped, and rows run shortest to longest —
+ * both across the bands and inside each one, so the whole category reads as a ladder
+ * whether or not the band headings are being used to navigate it.
  */
 export function groupPackages(rows: any[]): CategoryGroup[] {
   const byCat = new Map<PackageCategory, any[]>()
@@ -142,13 +203,14 @@ export function groupPackages(rows: any[]): CategoryGroup[] {
   for (const category of CATEGORY_ORDER) {
     const list = byCat.get(category)
     if (!list?.length) continue
+    const sorted = [...list].sort(byLength)
 
     const bands: BandGroup[] = []
     for (const band of [...LENGTH_BANDS, UNKNOWN_BAND]) {
-      const inBand = list.filter((r) => bandFor(packageDays(r)).key === band.key)
+      const inBand = sorted.filter((r) => bandFor(packageDays(r)).key === band.key)
       if (inBand.length) bands.push({ band, rows: inBand })
     }
-    out.push({ category, rows: list, bands })
+    out.push({ category, rows: sorted, bands })
   }
   return out
 }

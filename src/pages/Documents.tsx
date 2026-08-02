@@ -11,7 +11,7 @@ import PackageBuilder from './PackageBuilder'
 import type { PackageState } from './PackageBuilder'
 import type { QuotationDraft } from '../lib/types'
 import {
-  groupPackages, categoryOf, autoCategory, isManual, packageDays, bandFor,
+  groupPackages, categoryOf, autoCategory, isManual, packageDays, bandFor, packageRoute,
   CATEGORY_ORDER, CATEGORY_LABEL, CATEGORY_NOTE, LENGTH_BANDS, UNKNOWN_BAND,
 } from '../lib/packageCategories'
 import type { PackageCategory } from '../lib/packageCategories'
@@ -62,34 +62,6 @@ function pkgPrice(r: any): string {
   }
   const pp = Number(d.pp)
   return Number.isFinite(pp) && pp > 0 ? `$${pp.toLocaleString()}` : '—'
-}
-
-/**
- * Where the trip actually goes, and for how long: [{ destination, nights }].
- *
- * The accommodation list is the honest source — it is what the agent typed and what
- * drives the nights total everywhere else. Same destination entered twice (a Cairo
- * night either side of a cruise, say) is merged so the row reads "Cairo 4" rather than
- * "Cairo 1 · Cairo 3", but the first-mentioned order is kept because that is the shape
- * of the journey. Falls back to the compact sheet's city names when a package predates
- * the accommodation editor and has no nights recorded at all.
- */
-function pkgRoute(r: any): { destination: string; nights: number }[] {
-  const hotels: any[] = Array.isArray(r?.data?.hotels) ? r.data.hotels : []
-  const order: string[] = []
-  const byDest = new Map<string, number>()
-
-  for (const h of hotels) {
-    const dest = String(h?.destination ?? '').trim()
-    if (!dest) continue
-    const n = Number(h?.nights) || 0
-    if (!byDest.has(dest)) { byDest.set(dest, 0); order.push(dest) }
-    byDest.set(dest, byDest.get(dest)! + n)
-  }
-  if (order.length) return order.map((destination) => ({ destination, nights: byDest.get(destination)! }))
-
-  const named = Object.keys(r?.data?.compactCities ?? {})
-  return named.map((destination) => ({ destination, nights: 0 }))
 }
 
 const TABS = ['Quotations', 'Packages', 'Letters', 'Vouchers', 'Invoices'] as const
@@ -232,7 +204,7 @@ export default function Documents({ openQuotation, isAdmin, uid }: { openQuotati
     <tr key={r.id} className={busyId === r.id ? 'saving' : ''}>
       {tab === 'Quotations' && <><td>{r.name}</td><td>{r.group_ref}</td><td>{r.pax}</td><td>{r.arrival_date}</td><td>{r.departure_date}</td></>}
       {tab === 'Packages' && (() => {
-        const route = pkgRoute(r)
+        const route = packageRoute(r)
         const nights = route.reduce((s, x) => s + x.nights, 0)
         return <>
           <td className="c-name">

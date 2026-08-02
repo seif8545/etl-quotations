@@ -202,6 +202,55 @@ function PhotoStrip({ photos, onPick, onRemove, suggestion }: {
   )
 }
 
+/**
+ * iOS Safari, including iPadOS pretending to be a Mac.
+ *
+ * Two things break there and nowhere else: an <a download> click is ignored, so the
+ * file silently never arrives, and toDataURL on a large canvas can return an empty
+ * string rather than throwing. Both need a different route out, so the platform has
+ * to be named.
+ */
+const isIOS = (): boolean => {
+  if (typeof navigator === 'undefined') return false
+  const ua = navigator.userAgent || ''
+  return /iPad|iPhone|iPod/.test(ua) || (/Macintosh/.test(ua) && typeof document !== 'undefined' && 'ontouchend' in document)
+}
+
+/** canvas.toBlob, promisified, falling back to a data-URL decode on old engines. */
+function canvasToBlob(canvas: HTMLCanvasElement, type: string, quality?: number): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    if (canvas.toBlob) {
+      canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('Could not encode the image.'))), type, quality)
+      return
+    }
+    try {
+      const url = canvas.toDataURL(type, quality)
+      const [head, body] = url.split(',')
+      if (!body) throw new Error('Could not encode the image.')
+      const bin = atob(body)
+      const buf = new Uint8Array(bin.length)
+      for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i)
+      resolve(new Blob([buf], { type: /:(.*?);/.exec(head)?.[1] ?? type }))
+    } catch (e) { reject(e as Error) }
+  })
+}
+
+const blobToDataUrl = (b: Blob): Promise<string> => new Promise((res, rej) => {
+  const fr = new FileReader()
+  fr.onload = () => res(String(fr.result))
+  fr.onerror = () => rej(fr.error ?? new Error('Could not read the image.'))
+  fr.readAsDataURL(b)
+})
+
+/** The ordinary desktop download. Silently does nothing on iOS, hence the panel. */
+function saveBlob(url: string, filename: string) {
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  a.rel = 'noopener'
+  document.body.appendChild(a); a.click(); a.remove()
+}
+
 const PHOTO_BUCKET = 'tour-photos'
 
 /** Photo values are either a path under /images/tours/ or a full URL (Supabase Storage upload). */
@@ -264,6 +313,12 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
   const [error, setError] = useState('')
   const [currentId, setCurrentId] = useState<number | undefined>(savedId)
   
+  /** The last compact export, held so it can be previewed, shared or re-saved. */
+  const [shot, setShot] = useState<{ url: string; blob: Blob; filename: string; kind: 'png' | 'pdf' } | null>(null)
+  const [shared, setShared] = useState('')
+
+  useEffect(() => () => { if (shot) URL.revokeObjectURL(shot.url) }, [shot])
+
   const docRef = useRef<HTMLDivElement>(null)
   const [compactNode, setCompactNode] = useState<HTMLDivElement | null>(null)
   const [logoUrl, setLogoUrl] = useState('/images/logo.png')
@@ -963,11 +1018,18 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
       window.scrollTo(0, 0)
 
       const safe = (title || 'package').replace(/[^\w\-]+/g, '_') + '_compact'
-      const SCALE = 3, CUT = 27
+
+      /* A phone renders the same 1080-wide card, but a 3x intermediate canvas is
+         ~33 MB of pixels and iOS drops it on the floor without an error. 2x still
+         oversamples the 860px design box. */
+      const SCALE = isIOS() || window.innerWidth < 720 ? 2 : 3
+      const CUT = SCALE * 9
 
       const { default: html2canvas } = await import('html2canvas')
       const raw = await html2canvas(node, { scale: SCALE, useCORS: true, backgroundColor: '#fffefa', logging: false })
 
+      /* Fixed 1080 x 1350 — a 4:5 frame is what Instagram and WhatsApp want, and it
+         must not move with the crop. */
       const OUT_W = 1080
       const outH = Math.max(1, Math.round(OUT_W * node.offsetHeight / node.offsetWidth))
 
@@ -976,11 +1038,18 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
       canvas.height = outH
       const ctx = canvas.getContext('2d')
       if (!ctx) throw new Error('Canvas not available')
-      ctx.fillStyle = '#fffefa'
+      ctx.fillStyle = '#fffdf7'
       ctx.fillRect(0, 0, OUT_W, outH)
       ctx.imageSmoothingEnabled = true
       ctx.imageSmoothingQuality = 'high'
-      ctx.drawImage(raw, CUT, 0, raw.width - CUT * 2, raw.height, 0, 0, OUT_W, outH)
+
+      /* The crop shaves html2canvas's edge artefact off both sides, which makes the
+         source narrower than the frame. Scale to the frame's HEIGHT and centre, so
+         the card keeps its proportions instead of being stretched ~2% wide; the few
+         spare pixels either side land on the card's own background colour. */
+      const sw = Math.max(1, raw.width - CUT * 2)
+      const drawW = Math.min(OUT_W, Math.round(sw * (outH / raw.height)))
+      ctx.drawImage(raw, CUT, 0, sw, raw.height, Math.round((OUT_W - drawW) / 2), 0, drawW, outH)
 
       const body = node.querySelector('[data-cx-body]') as HTMLElement | null
       if (body && body.scrollHeight > body.clientHeight + 1) {
@@ -988,24 +1057,63 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
         setError(`Content overflows the 4:5 card by ~${over}px and has been cut off. Trim some inclusions, sites or pricing rows.`)
       }
 
+      let blob: Blob
+      let filename: string
       if (kind === 'png') {
-        const a = document.createElement('a')
-        a.href = canvas.toDataURL('image/png')
-        a.download = safe + '.png'
-        document.body.appendChild(a); a.click(); a.remove()
+        blob = await canvasToBlob(canvas, 'image/png')
+        filename = safe + '.png'
       } else {
         const { jsPDF } = await import('jspdf')
         const w = OUT_W, h = outH
         const pdf = new jsPDF({ unit: 'px', format: [w, h], orientation: h >= w ? 'portrait' : 'landscape', hotfixes: ['px_scaling'] })
-        pdf.addImage(canvas.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, w, h)
-        pdf.save(safe + '.pdf')
+        const jpeg = await canvasToBlob(canvas, 'image/jpeg', 0.95)
+        pdf.addImage(await blobToDataUrl(jpeg), 'JPEG', 0, 0, w, h)
+        blob = pdf.output('blob')
+        filename = safe + '.pdf'
       }
+
+      /* Hand the file over rather than assuming a download will land. A desktop
+         browser takes the anchor and is done; iOS ignores it, so the result panel
+         below is the actual delivery mechanism there — preview, share sheet, or a
+         long-press on the image. */
+      const url = URL.createObjectURL(blob)
+      setShot({ url, blob, filename, kind })
+      if (!isIOS()) saveBlob(url, filename)
     } catch (e: any) {
       setError(e.message ?? String(e))
     } finally {
       window.scrollTo(winX, winY)
       scrolled.forEach(([el, t, l]) => { el.scrollTop = t; el.scrollLeft = l })
       setBusy(false)
+    }
+  }
+
+  /**
+   * The iOS route out: the share sheet, which offers Save Image / Save to Files and
+   * every messaging app the agent might be sending this to. Must be called straight
+   * from the tap — the file is already made, so it is.
+   */
+  async function shareShot() {
+    if (!shot) return
+    const nav: any = navigator
+
+    let file: File | undefined
+    try { file = new File([shot.blob], shot.filename, { type: shot.blob.type }) } catch { /* no File ctor */ }
+
+    /* No share sheet at all: open the blob in a new tab while still inside the tap,
+       or Safari's popup blocker eats it. */
+    if (!file || !nav.canShare?.({ files: [file] })) {
+      window.open(shot.url, '_blank', 'noopener')
+      return
+    }
+
+    try {
+      await nav.share({ files: [file], title })
+      setShared('Shared'); setTimeout(() => setShared(''), 2500)
+    } catch (e: any) {
+      /* The tap's gesture is spent by now, so a window.open here would be blocked.
+         Point at the preview instead — long-press still works. */
+      if (e?.name !== 'AbortError') setError('Sharing was blocked. Press and hold the picture above to save it, or use Download.')
     }
   }
 
@@ -1415,6 +1523,30 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
         <ItineraryDoc ref={docRef} data={data} />
         <CompactDoc ref={setCompactNode} data={compactData} />
       </div>
+
+      {shot && (
+        <div className="picker-overlay" onClick={() => setShot(null)}>
+          <div className="picker shot-card" onClick={(e) => e.stopPropagation()}>
+            <div className="picker-head">
+              <b>{shot.kind === 'png' ? 'Compact PNG' : 'Compact PDF'} ready</b>
+              <button onClick={() => setShot(null)}>×</button>
+            </div>
+            <div className="shot-body">
+              {shot.kind === 'png'
+                ? <img className="shot-preview" src={shot.url} alt="Compact sheet preview" />
+                : <div className="shot-nopreview">{shot.filename}</div>}
+              <p className="muted small shot-hint">
+                On iPhone, tap <b>Share / Save</b> and choose “Save Image”, or press and hold the picture above.
+              </p>
+              <div className="shot-acts">
+                <button className="primary" onClick={shareShot}>{shared || 'Share / Save'}</button>
+                <a className="shot-dl" href={shot.url} download={shot.filename} target="_blank" rel="noopener noreferrer">Download</a>
+                <button onClick={() => setShot(null)}>Close</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {picker && (
         <div className="picker-overlay" onClick={() => setPicker(null)}>
