@@ -20,6 +20,8 @@ import { siteInfo } from '../lib/sitePhotos'
 
 import { deriveSegments, applyOverrides, summariseLines } from '../lib/segments'
 
+import type { PackageCategory } from '../lib/packageCategories'
+
 import type { Segment, SegmentOverride, SegSourceDay } from '../lib/segments'
 
 interface Meals { breakfast: boolean; lunch: boolean; dinner: boolean }
@@ -101,6 +103,12 @@ export interface PackageState {
 
   /** The three trust-strip lines on the compact card. */
   compactTrust?: string[]
+
+  /**
+   * Manual filing in the Packages list, set from that list rather than in here.
+   * Carried through save so re-saving a package does not un-file it.
+   */
+  category?: PackageCategory
 }
 
 const TOUR_MEALS = (): Meals => ({ breakfast: true, lunch: false, dinner: true })
@@ -555,6 +563,7 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
       compactExcluded: cxExcluded,
       compactSections: cxSections,
       compactTrust: cxTrust,
+      category: saved?.category,
     }
   }
 
