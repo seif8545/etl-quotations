@@ -12,9 +12,9 @@ import type { ItineraryData } from './ItineraryDoc'
 
 import type { QuotationDraft, RefData, DayPreset } from '../lib/types'
 
-import CompactDoc, { SHEET_H } from './CompactDoc'
+import CompactDoc, { SHEET_H, MAX_TILES, DEFAULT_SECTIONS, DEFAULT_TRUST } from './CompactDoc'
 
-import type { CompactData } from './CompactDoc'
+import type { CompactData, CompactSections } from './CompactDoc'
 
 import { siteInfo } from '../lib/sitePhotos'
 
@@ -38,8 +38,34 @@ interface FlightInsert { id: number; label: string; text: string; targetUid: str
 export interface CityOverride {
   name?: string
   bullets?: string[]
+  /** Legacy single photo. Read when `photos` is absent so old packages still open. */
   photo?: string
+  /** 1–4 photo paths. Set = wins outright over whatever was auto-resolved. */
+  photos?: string[]
   hidden?: boolean
+}
+
+/**
+ * A destination the agent typed in by hand. Auto cities come from the sites picked on
+ * each day; an extra is for places with no site behind them — a free afternoon, a beach
+ * stay, an add-on the itinerary does not itemise.
+ */
+export interface ExtraCity {
+  id: string
+  name: string
+  bullets: string[]
+  photos: string[]
+  hidden?: boolean
+  /** Where it sits: '__start', '__end', or the key of the auto city it follows. */
+  after: string
+}
+
+/** Read a city override's photo list, tolerating the pre-multi-photo shape. */
+export const ovPhotos = (ov: CityOverride | undefined): string[] | undefined => {
+  if (!ov) return undefined
+  if (ov.photos) return ov.photos.filter(Boolean)
+  if (ov.photo) return [ov.photo]
+  return undefined
 }
 
 /** Full serializable state of a built package — stored in q_package_docs so packages can be re-opened. */
@@ -61,6 +87,20 @@ export interface PackageState {
 
   /** Per-city edits for the compact sheet, keyed by the derived city name. */
   compactCities?: Record<string, CityOverride>
+
+  /** Hand-typed destinations that exist only on the compact sheet. */
+  compactExtraCities?: ExtraCity[]
+
+  /** Compact-only inclusions. When off, the card mirrors the main PDF's lists. */
+  compactIncOwn?: boolean
+  compactIncluded?: string
+  compactExcluded?: string
+
+  /** Which blocks the compact card renders. */
+  compactSections?: CompactSections
+
+  /** The three trust-strip lines on the compact card. */
+  compactTrust?: string[]
 }
 
 const TOUR_MEALS = (): Meals => ({ breakfast: true, lunch: false, dinner: true })
@@ -119,6 +159,37 @@ function MealTicker({ meals, onChange }: { meals: Meals; onChange: (m: Meals) =>
       <button type="button" className={`meal-toggle meal-toggle-none${none ? ' on' : ''}`}
         title="No meals this day — removes the Meals line from the PDF"
         onClick={() => onChange({ breakfast: false, lunch: false, dinner: false })}>None</button>
+    </div>
+  )
+}
+
+/**
+ * The photo tray for one destination on the compact card: up to MAX_TILES thumbnails,
+ * each swappable or removable, plus an empty slot to add the next one. The card lays
+ * these out as a mosaic, so the count here is what changes the picture, not the order.
+ */
+function PhotoStrip({ photos, onPick, onRemove, suggestion }: {
+  photos: string[]
+  onPick: (slot: number) => void
+  onRemove: (slot: number) => void
+  suggestion?: () => void
+}) {
+  const shots = photos.filter(Boolean).slice(0, MAX_TILES)
+  return (
+    <div className="cseg-shots">
+      <div className="cseg-shots-grid">
+        {shots.map((p, i) => (
+          <div className="cseg-shot" key={i + p}>
+            <img src={photoSrc(p)} alt="" onClick={() => onPick(i)} title="Click to swap this photo" />
+            <button className="cseg-shot-x" title="Remove this photo" onClick={() => onRemove(i)}>×</button>
+          </div>
+        ))}
+        {shots.length < MAX_TILES && (
+          <button className="cseg-shot-add" title={`Add photo ${shots.length + 1} of ${MAX_TILES}`} onClick={() => onPick(shots.length)}>+</button>
+        )}
+      </div>
+      <span className="muted small">{shots.length || 'no'} photo{shots.length === 1 ? '' : 's'}</span>
+      {suggestion && <button className="link" onClick={suggestion}>Use all suggested</button>}
     </div>
   )
 }
@@ -206,8 +277,15 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
 
   const [segOverrides, setSegOverrides] = useState<SegmentOverride[]>(saved?.compactSegments ?? [])
   const [cityOv, setCityOv] = useState<Record<string, CityOverride>>(saved?.compactCities ?? {})
+  const [extraCities, setExtraCities] = useState<ExtraCity[]>(saved?.compactExtraCities ?? [])
   const [compactOpen, setCompactOpen] = useState(false)
   const [density, setDensity] = useState(0)
+
+  const [cxSections, setCxSections] = useState<CompactSections>({ ...DEFAULT_SECTIONS(), ...(saved?.compactSections ?? {}) })
+  const [cxTrust, setCxTrust] = useState<string[]>(saved?.compactTrust ?? DEFAULT_TRUST())
+  const [cxIncOwn, setCxIncOwn] = useState(saved?.compactIncOwn ?? false)
+  const [cxIncluded, setCxIncluded] = useState(saved?.compactIncluded ?? '')
+  const [cxExcluded, setCxExcluded] = useState(saved?.compactExcluded ?? '')
 
   const [hotels, setHotels] = useState<{ nights: number; destination: string }[]>((saved?.hotels ?? (draft?.accommodation ?? []).filter((a) => a.nights > 0)) as { nights: number; destination: string }[])
   const totalNights = hotels.reduce((s, h) => s + h.nights, 0)
@@ -356,7 +434,19 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
 
   function pickPhoto(photo: string) {
     if (!picker) return
-    if (picker.target.startsWith('city:')) { setCityOvFor(picker.target.slice(5), { photo }); setPicker(null); return }
+
+    /* "city:<key>#<slot>" and "extra:<id>#<slot>" — slot is the index in that
+       destination's photo list, or its length when adding a new tile. */
+    if (picker.target.startsWith('city:')) {
+      const [key, slotRaw] = picker.target.slice(5).split('#')
+      setCityPhoto(key, Number(slotRaw ?? 0), photo)
+      setPicker(null); return
+    }
+    if (picker.target.startsWith('extra:')) {
+      const [id, slotRaw] = picker.target.slice(6).split('#')
+      setExtraPhoto(id, Number(slotRaw ?? 0), photo)
+      setPicker(null); return
+    }
     if (picker.target.startsWith('seg:')) { setSegOv(Number(picker.target.slice(4)), { photo }); setPicker(null); return }
     if (picker.target === 'hero') setHero(photo)
     else if (picker.target === 'arrival') setArrival((a) => ({ ...a, photo }))
@@ -459,6 +549,12 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
       roomBasis, 
       compactSegments: segOverrides,
       compactCities: cityOv,
+      compactExtraCities: extraCities,
+      compactIncOwn: cxIncOwn,
+      compactIncluded: cxIncluded,
+      compactExcluded: cxExcluded,
+      compactSections: cxSections,
+      compactTrust: cxTrust,
     }
   }
 
@@ -572,6 +668,56 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
   const setCityOvFor = (key: string, patch: Partial<CityOverride>) =>
     setCityOv((m) => ({ ...m, [key]: { ...m[key], ...patch } }))
 
+  /** Write one tile of a city's photo list, seeding from the auto photo on first edit. */
+  function setCityPhoto(key: string, slot: number, photo: string) {
+    setCityOv((m) => {
+      const base = ovPhotos(m[key]) ?? (autoCity[key]?.photo ? [autoCity[key].photo] : [])
+      const next = base.slice(0, MAX_TILES)
+      if (slot >= next.length) next.push(photo)
+      else next[slot] = photo
+      return { ...m, [key]: { ...m[key], photos: next.slice(0, MAX_TILES), photo: undefined } }
+    })
+  }
+
+  function removeCityPhoto(key: string, slot: number) {
+    setCityOv((m) => {
+      const base = ovPhotos(m[key]) ?? (autoCity[key]?.photo ? [autoCity[key].photo] : [])
+      const next = base.filter((_, i) => i !== slot)
+      return { ...m, [key]: { ...m[key], photos: next, photo: undefined } }
+    })
+  }
+
+  const setExtra = (id: string, patch: Partial<ExtraCity>) =>
+    setExtraCities((xs) => xs.map((x) => (x.id === id ? { ...x, ...patch } : x)))
+
+  function setExtraPhoto(id: string, slot: number, photo: string) {
+    setExtraCities((xs) => xs.map((x) => {
+      if (x.id !== id) return x
+      const next = x.photos.slice(0, MAX_TILES)
+      if (slot >= next.length) next.push(photo)
+      else next[slot] = photo
+      return { ...x, photos: next.slice(0, MAX_TILES) }
+    }))
+  }
+
+  const removeExtraPhoto = (id: string, slot: number) =>
+    setExtraCities((xs) => xs.map((x) => (x.id === id ? { ...x, photos: x.photos.filter((_, i) => i !== slot) } : x)))
+
+  const addExtraCity = () =>
+    setExtraCities((xs) => [...xs, { id: newUid(), name: '', bullets: [], photos: [], after: '__end' }])
+
+  const removeExtraCity = (id: string) => setExtraCities((xs) => xs.filter((x) => x.id !== id))
+
+  function moveExtraCity(id: string, dir: -1 | 1) {
+    setExtraCities((xs) => {
+      const i = xs.findIndex((x) => x.id === id)
+      const j = i + dir
+      if (i === -1 || j < 0 || j >= xs.length) return xs
+      const copy = xs.slice(); const t = copy[i]; copy[i] = copy[j]; copy[j] = t
+      return copy
+    })
+  }
+
   const setSegOv = (i: number, patch: Partial<SegmentOverride>) =>
     setSegOverrides((os) => {
       const next = os.slice()
@@ -637,7 +783,7 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
         if (!seenSite.has(key)) {
           seenSite.add(key)
           b.sites.push(name)
-          if (info.photo && b.photos.length < 2 && !b.used.has(info.photo)) {
+          if (info.photo && b.photos.length < MAX_TILES && !b.used.has(info.photo)) {
             b.used.add(info.photo)
             const url = photoSrc(info.photo)
             b.photos.push({ name, photoUrl: url, aspect: aspects[url] ?? 0 })
@@ -648,17 +794,25 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
       for (const city of touched) byCity.get(city)!.lines.push(...lines)
     })
 
-    const groups = order.map((city) => {
+    const tileOf = (path: string, label: string) => {
+      const url = photoSrc(path)
+      return { name: label, photoUrl: url, aspect: aspects[url] ?? 0 }
+    }
+
+    const autoGroups = order.map((city) => {
       const b = byCity.get(city)!
       const ov = cityOv[city] ?? {}
+      const chosen = ovPhotos(ov)
 
-      let photos = b.photos
-      if (ov.photo) {
-        const url = photoSrc(ov.photo)
-        photos = [{ name: ov.name || city, photoUrl: url, aspect: aspects[url] ?? 0 }]
-      } else if (!photos.length) {
+      /* An explicit photo list wins outright — including an empty one, which is how
+         the agent says "no picture for this stop". */
+      let photos = chosen
+        ? chosen.slice(0, MAX_TILES).map((p) => tileOf(p, ov.name || city))
+        : b.photos.slice(0, 1)
+
+      if (!chosen && !photos.length) {
         const p = siteInfo(city, manifest).photo
-        if (p) { const url = photoSrc(p); photos = [{ name: city, photoUrl: url, aspect: aspects[url] ?? 0 }] }
+        if (p) photos = [tileOf(p, city)]
       }
 
       return {
@@ -668,7 +822,24 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
         photos,
         hidden: !!ov.hidden,
       }
-    }).filter((g) => !g.hidden)
+    })
+
+    /* Hand-typed destinations slot in around the auto ones. */
+    const extrasAt = (slot: string) => extraCities
+      .filter((x) => !x.hidden && (x.after || '__end') === slot && (x.name.trim() || x.photos.length))
+      .map((x) => ({
+        key: 'extra:' + x.id,
+        city: x.name.trim() || 'Destination',
+        bullets: x.bullets.map((b) => b.trim()).filter(Boolean),
+        photos: x.photos.slice(0, MAX_TILES).map((p) => tileOf(p, x.name)),
+        hidden: false,
+      }))
+
+    const groups = [
+      ...extrasAt('__start'),
+      ...autoGroups.flatMap((g) => (g.hidden ? extrasAt(g.key) : [g, ...extrasAt(g.key)])),
+      ...extrasAt('__end'),
+    ].filter((g) => !g.hidden)
 
     const stayOrder: string[] = []
     const stayMap = new Map<string, { nights: number; destination: string; hotel: string }>()
@@ -680,6 +851,8 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
       if (!e.hotel && seg.stay && seg.stay !== dest) e.hotel = seg.stay
     }
 
+    const lines = (s: string) => s.split('\n').map((x) => x.trim()).filter(Boolean)
+
     return {
       title,
       logoUrl,
@@ -687,15 +860,17 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
       overview: { ...data.overview, cities: groups.length || data.overview.cities },
       groups,
       stays: stayOrder.map((d) => stayMap.get(d)!),
-      included: data.included,
-      excluded: data.excluded,
+      included: cxIncOwn ? lines(cxIncluded) : data.included,
+      excluded: cxIncOwn ? lines(cxExcluded) : data.excluded,
       price: { pp, sgl, show: showPrice },
       pricing: { show: priceTableOn, rows: priceRows, columns: priceColumnsMode },
       contact: CONTACT,
       roomBasis,
       density,
+      sections: cxSections,
+      trust: cxTrust,
     }
-  }, [title, logoUrl, meta, data, segmentsAll, manifest, aspects, cityOv, pp, sgl, showPrice, priceTableOn, priceRows, priceColumnsMode, roomBasis, density])
+  }, [title, logoUrl, meta, data, segmentsAll, manifest, aspects, cityOv, extraCities, pp, sgl, showPrice, priceTableOn, priceRows, priceColumnsMode, roomBasis, density, cxIncOwn, cxIncluded, cxExcluded, cxSections, cxTrust])
 
   const tileUrls = useMemo(
     () => compactData.groups.flatMap((g) => g.photos.map((p) => p.photoUrl)).join('|'),
@@ -727,6 +902,7 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
     compactData.groups.map((g) => [g.city, g.bullets, g.photos.map((p) => [p.name, p.aspect])]),
     compactData.stays, compactData.included, compactData.excluded, compactData.title,
     compactData.pricing, compactData.price, compactData.meta, compactData.overview,
+    compactData.sections, compactData.trust,
   ]), [compactData])
 
   useEffect(() => { setDensity(0) }, [fitSig])
@@ -831,9 +1007,9 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
   ]
 
   const autoCity = useMemo(() => {
-    const out: Record<string, { bullets: string[]; photo: string; siteCount: number }> = {}
+    const out: Record<string, { bullets: string[]; photo: string; photos: string[]; siteCount: number }> = {}
     const order: string[] = []
-    const buckets = new Map<string, { sites: string[]; lines: string[]; photo: string }>()
+    const buckets = new Map<string, { sites: string[]; lines: string[]; photo: string; photos: string[] }>()
     const seen = new Set<string>()
     const fallback: string[] = []
     for (const seg of segmentsAll.filter((x) => !x.hidden)) {
@@ -847,19 +1023,25 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
         if (!name || /^private guide$/i.test(name) || /^\+\d+ more$/.test(name)) continue
         const info = siteInfo(name, manifest)
         const city = info.city || fallback[di] || 'Egypt'
-        if (!buckets.has(city)) { buckets.set(city, { sites: [], lines: [], photo: '' }); order.push(city) }
+        if (!buckets.has(city)) { buckets.set(city, { sites: [], lines: [], photo: '', photos: [] }); order.push(city) }
         const b2 = buckets.get(city)!
         touched.add(city)
         const k = name.toLowerCase()
-        if (!seen.has(k)) { seen.add(k); b2.sites.push(name); if (!b2.photo && info.photo) b2.photo = info.photo }
+        if (!seen.has(k)) {
+          seen.add(k); b2.sites.push(name)
+          if (!b2.photo && info.photo) b2.photo = info.photo
+          if (info.photo && b2.photos.length < MAX_TILES && !b2.photos.includes(info.photo)) b2.photos.push(info.photo)
+        }
       }
       for (const c of touched) buckets.get(c)!.lines.push(...lines)
     })
     for (const city of order) {
       const b2 = buckets.get(city)!
+      const fallback = b2.photo || siteInfo(city, manifest).photo
       out[city] = {
         bullets: summariseLines(b2.lines, b2.sites, 3),
-        photo: b2.photo || siteInfo(city, manifest).photo,
+        photo: fallback,
+        photos: b2.photos.length ? b2.photos : (fallback ? [fallback] : []),
         siteCount: b2.sites.length,
       }
     }
@@ -929,19 +1111,25 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
             </div>
             {compactOpen && (
               <div className="cseg-list">
-                <p className="muted small">One row per city on the shareable card. Everything here is yours to change — rename a city, rewrite its bullets, pick a different photo, or hide it. Blank bullets fall back to the auto-generated ones. Only affects the compact PNG / PDF.</p>
+                <p className="muted small">One row per destination on the shareable card. Everything here is yours to change — rename it, rewrite its bullets, give it up to {MAX_TILES} photos, or hide it. Blank bullets fall back to the auto-generated ones. Only affects the compact PNG / PDF.</p>
+
                 {compactCityKeys.map((key) => {
                   const ov = cityOv[key] ?? {}
                   const auto = autoCity[key]
+                  const shots = ovPhotos(ov) ?? (auto?.photo ? [auto.photo] : [])
                   return (
                     <div className={`cseg-row${ov.hidden ? ' off' : ''}`} key={key}>
-                      <div className="cseg-thumb">
-                        {(ov.photo ?? auto?.photo) ? <img src={photoSrc(ov.photo ?? auto!.photo)} alt="" /> : <div className="b-nophoto">No photo</div>}
-                        <button className="link" onClick={() => setPicker({ target: `city:${key}` })}>Change</button>
-                      </div>
+                      <PhotoStrip
+                        photos={shots}
+                        onPick={(slot) => setPicker({ target: `city:${key}#${slot}` })}
+                        onRemove={(slot) => removeCityPhoto(key, slot)}
+                        suggestion={auto && auto.photos.length > shots.length
+                          ? () => setCityOvFor(key, { photos: auto.photos.slice(0, MAX_TILES), photo: undefined })
+                          : undefined}
+                      />
                       <div className="cseg-fields">
                         <div className="cseg-line">
-                          <input className="cseg-dest" value={ov.name ?? key} placeholder="City name" onChange={(e) => setCityOvFor(key, { name: e.target.value })} />
+                          <input className="cseg-dest" value={ov.name ?? key} placeholder="Destination name" onChange={(e) => setCityOvFor(key, { name: e.target.value })} />
                           <span className="muted small cseg-range">{auto ? auto.siteCount + ' site' + (auto.siteCount === 1 ? '' : 's') : ''}</span>
                         </div>
                         <textarea
@@ -952,10 +1140,7 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
                           onChange={(e) => {
                             const lines = e.target.value.split('\n')
                             const hasText = lines.some((l) => l.trim())
-                            setCityOv((m) => {
-                              const next = { ...m, [key]: { ...m[key], bullets: hasText ? lines : undefined } }
-                              return next
-                            })
+                            setCityOv((m) => ({ ...m, [key]: { ...m[key], bullets: hasText ? lines : undefined } }))
                           }}
                         />
                       </div>
@@ -964,6 +1149,92 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
                   )
                 })}
                 {compactCityKeys.length === 0 && <p className="muted">No cities yet — add sites to your days and they'll group here.</p>}
+
+                {/* ---------- Hand-typed destinations ---------- */}
+                <div className="b-day-head" style={{ marginTop: 14 }}>
+                  <h5 style={{ margin: 0 }}>Extra destinations</h5>
+                  <span className="muted small">Places with no site behind them — a beach stay, a free day, an add-on.</span>
+                </div>
+                {extraCities.map((x, i) => (
+                  <div className={`cseg-row${x.hidden ? ' off' : ''}`} key={x.id}>
+                    <PhotoStrip
+                      photos={x.photos}
+                      onPick={(slot) => setPicker({ target: `extra:${x.id}#${slot}` })}
+                      onRemove={(slot) => removeExtraPhoto(x.id, slot)}
+                    />
+                    <div className="cseg-fields">
+                      <div className="cseg-line">
+                        <input className="cseg-dest" value={x.name} placeholder="Destination name (e.g. Hurghada)" onChange={(e) => setExtra(x.id, { name: e.target.value })} />
+                        <select value={x.after} onChange={(e) => setExtra(x.id, { after: e.target.value })} title="Where this destination sits on the card">
+                          <option value="__start">First on the card</option>
+                          {compactCityKeys.map((k) => <option key={k} value={k}>After {cityOv[k]?.name ?? k}</option>)}
+                          <option value="__end">Last on the card</option>
+                        </select>
+                        <button disabled={i === 0} onClick={() => moveExtraCity(x.id, -1)}>↑</button>
+                        <button disabled={i === extraCities.length - 1} onClick={() => moveExtraCity(x.id, 1)}>↓</button>
+                      </div>
+                      <textarea
+                        rows={3}
+                        className="cseg-blurb"
+                        placeholder={'One highlight per line — these render as bullets'}
+                        value={x.bullets.join('\n')}
+                        onChange={(e) => setExtra(x.id, { bullets: e.target.value.split('\n') })}
+                      />
+                    </div>
+                    <div className="cseg-acts">
+                      <button className="link" onClick={() => setExtra(x.id, { hidden: !x.hidden })}>{x.hidden ? 'Show' : 'Hide'}</button>
+                      <button className="link danger" onClick={() => removeExtraCity(x.id)}>Remove</button>
+                    </div>
+                  </div>
+                ))}
+                <button onClick={addExtraCity}>+ Add destination</button>
+
+                {/* ---------- Which blocks appear ---------- */}
+                <div className="b-day-head" style={{ marginTop: 16 }}>
+                  <h5 style={{ margin: 0 }}>Show on the card</h5>
+                </div>
+                <div className="price-columns-picker">
+                  {([
+                    ['stats', 'Days / nights / cities'], ['dates', 'Travel dates'], ['stays', 'Stays row'],
+                    ['inclusions', 'Inclusions'], ['excluded', 'Not included'], ['trust', 'Trust strip'], ['pricing', 'Pricing'],
+                  ] as [keyof CompactSections, string][]).map(([k, label]) => (
+                    <button type="button" key={k} className={`meal-toggle${cxSections[k] ? ' on' : ''}`}
+                      onClick={() => setCxSections((s) => ({ ...s, [k]: !s[k] }))}>{label}</button>
+                  ))}
+                </div>
+
+                {cxSections.trust && (
+                  <div className="cseg-line" style={{ marginTop: 8, gap: 8 }}>
+                    {cxTrust.map((t, i) => (
+                      <input key={i} value={t} placeholder={`Trust line ${i + 1}`} style={{ flex: 1 }}
+                        onChange={(e) => setCxTrust((ts) => ts.map((x, j) => (j === i ? e.target.value : x)))} />
+                    ))}
+                  </div>
+                )}
+
+                {/* ---------- Card-only inclusions ---------- */}
+                <label className="check" style={{ marginTop: 14 }}>
+                  <input type="checkbox" checked={cxIncOwn} onChange={(e) => {
+                    const on = e.target.checked
+                    if (on && !cxIncluded.trim() && !cxExcluded.trim()) { setCxIncluded(included); setCxExcluded(excluded) }
+                    setCxIncOwn(on)
+                  }} />
+                  {' '}Use a shorter inclusions list on the card only
+                </label>
+                {cxIncOwn && (
+                  <div className="b-sec b-inc" style={{ padding: 0, border: 'none' }}>
+                    <div>
+                      <h4>Included on the card <span className="muted small">(one per line)</span></h4>
+                      <textarea rows={6} value={cxIncluded} onChange={(e) => setCxIncluded(e.target.value)} />
+                      <button className="link" onClick={() => setCxIncluded(included)}>Copy from the main list</button>
+                    </div>
+                    <div>
+                      <h4>Not included on the card <span className="muted small">(one per line)</span></h4>
+                      <textarea rows={6} value={cxExcluded} onChange={(e) => setCxExcluded(e.target.value)} />
+                      <button className="link" onClick={() => setCxExcluded(excluded)}>Copy from the main list</button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </section>

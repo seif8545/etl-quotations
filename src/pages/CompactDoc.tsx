@@ -8,12 +8,12 @@ export interface SiteTile {
   aspect: number
 }
 
-/** A destination, what happens there, and its photo. */
+/** A destination, what happens there, and its photos. */
 export interface CityGroup {
   city: string
   /** Highlights as bullets, drawn from the days spent here or typed by the agent. */
   bullets: string[]
-  /** One photo — rendered as a rounded landscape plate. */
+  /** 1–4 photos — rendered as a rounded mosaic inside one fixed plate footprint. */
   photos: SiteTile[]
 }
 
@@ -33,6 +33,28 @@ export interface CompactPricingRow {
   hotels: string
 }
 
+/** Show/hide switches that apply to the compact card only — never to the full PDF. */
+export interface CompactSections {
+  stays: boolean
+  inclusions: boolean
+  excluded: boolean
+  trust: boolean
+  pricing: boolean
+  stats: boolean
+  dates: boolean
+}
+
+export const DEFAULT_SECTIONS = (): CompactSections => ({
+  stays: true, inclusions: true, excluded: true, trust: true, pricing: true, stats: true, dates: true,
+})
+
+/** The three trust badges along the bottom strip — editable, because claims change. */
+export const DEFAULT_TRUST = (): string[] => [
+  'Licensed tour operator',
+  '4.8 / 5 on TripAdvisor',
+  '24/7 support in Egypt',
+]
+
 export interface CompactData {
   title: string
   logoUrl: string
@@ -48,6 +70,10 @@ export interface CompactData {
   roomBasis?: string
   /** 0 = roomy … 4 = tightest. Driven by the fit loop in PackageBuilder. */
   density: number
+  /** Per-section visibility on the card. Missing = everything on. */
+  sections?: CompactSections
+  /** Trust strip lines. Missing = the three defaults. */
+  trust?: string[]
 }
 
 /** Design box. 860 x 1075 is exactly 4:5, and exports to a 1080 x 1350 PNG. */
@@ -73,6 +99,32 @@ export const PLATE: [number, number][] = [
   [198, 108],
   [182, 100],
 ]
+
+/**
+ * A destination may carry 1-4 photos. They share ONE plate footprint so the vertical
+ * rhythm of the card never changes with the photo count — only the mosaic inside it.
+ *
+ *   1  one full plate
+ *   2  two stacked halves
+ *   3  one tall left + two stacked right
+ *   4  a 2 x 2 grid
+ *
+ * Multi-photo plates are given a little extra height (they carry more detail per
+ * tile and would otherwise read as letterbox slivers), capped so the fit loop can
+ * still condense its way out of an overflow.
+ */
+export const MAX_TILES = 4
+const MOSAIC_H_BOOST = [1, 1.34, 1.34, 1.34]
+
+/** Gap between tiles, per density step. */
+const MOSAIC_GAP = [5, 5, 4, 4, 3]
+
+export function plateBox(density: number, count: number): [number, number] {
+  const k = Math.max(0, Math.min(PLATE.length - 1, density))
+  const [w, h] = PLATE[k]
+  const n = Math.max(1, Math.min(MAX_TILES, count || 1))
+  return [w, Math.round(h * MOSAIC_H_BOOST[n - 1])]
+}
 
 /** Kept for compatibility with earlier callers. */
 export const DISC = [156, 142, 128, 116, 104]
@@ -116,6 +168,15 @@ const CSS = `
 .cx-stop { flex-shrink: 0; display: flex; align-items: center; gap: 21px; }
 .cx-stop.alt { flex-direction: row-reverse; }
 .cx-plate { flex-shrink: 0; border-radius: 12px; background-size: cover; background-position: ${FOCUS}; background-repeat: no-repeat; background-color: #e9e2d2; box-shadow: 0 5px 15px rgba(14,42,71,0.16); }
+
+/* Mosaic: 2-4 photos share the plate footprint. Grid, so every tile is sized in
+   both dimensions — html2canvas will not guess a height for us. */
+.cx-mosaic { flex-shrink: 0; display: grid; }
+.cx-mosaic .cx-tile { border-radius: 10px; background-size: cover; background-position: ${FOCUS}; background-repeat: no-repeat; background-color: #e9e2d2; box-shadow: 0 4px 12px rgba(14,42,71,0.14); }
+.cx-mosaic.m2 { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; }
+.cx-mosaic.m3 { grid-template-columns: 1.32fr 1fr; grid-template-rows: 1fr 1fr; }
+.cx-mosaic.m3 .cx-tile:first-child { grid-row: 1 / span 2; }
+.cx-mosaic.m4 { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; }
 .cx-stop-body { flex: 1; min-width: 0; }
 .cx-stop-head { display: flex; align-items: baseline; gap: 10px; }
 .cx-stop-no { font-size: 17px; font-weight: 700; color: #e8b015; line-height: 1; }
@@ -258,6 +319,31 @@ function Trail({ flip, width }: { flip: boolean; width: number }) {
   )
 }
 
+/**
+ * The photo block for one destination: a single plate, or a mosaic of up to four.
+ * Both dimensions are always inline (handoff.md section 8C).
+ */
+function Plate({ photos, width, height, gap }: { photos: SiteTile[]; width: number; height: number; gap: number }) {
+  const tiles = photos.filter((p) => p && p.photoUrl).slice(0, MAX_TILES)
+
+  if (tiles.length <= 1) {
+    return (
+      <div
+        className="cx-plate"
+        style={{ width, height, backgroundImage: tiles[0] ? `url("${tiles[0].photoUrl}")` : undefined }}
+      />
+    )
+  }
+
+  return (
+    <div className={`cx-mosaic m${tiles.length}`} style={{ width, height, gap }}>
+      {tiles.map((t, i) => (
+        <div key={i} className="cx-tile" style={{ backgroundImage: `url("${t.photoUrl}")` }} />
+      ))}
+    </div>
+  )
+}
+
 type PriceColKey = 'dbl' | 'single' | 'triple' | 'quad'
 
 const CompactDoc = forwardRef<HTMLDivElement, { data: CompactData }>(({ data }, ref) => {
@@ -271,8 +357,10 @@ const CompactDoc = forwardRef<HTMLDivElement, { data: CompactData }>(({ data }, 
   }, [])
 
   const k = Math.max(0, Math.min(4, d.density))
-  const [plateW, plateH] = PLATE[Math.max(0, Math.min(PLATE.length - 1, d.density))]
+  const gap = MOSAIC_GAP[k]
   const trailW = SHEET_W - (k >= 4 ? 54 : k >= 2 ? 62 : 70) - 130
+  const sec = { ...DEFAULT_SECTIONS(), ...(d.sections ?? {}) }
+  const trust = (d.trust ?? DEFAULT_TRUST()).map((t) => (t ?? '').trim()).filter(Boolean)
 
   const tierRows = d.pricing.rows.filter(
     (r) => (r.category ?? '').trim() && (r.dbl > 0 || r.single > 0 || r.triple > 0 || r.quad > 0),
@@ -307,34 +395,30 @@ const CompactDoc = forwardRef<HTMLDivElement, { data: CompactData }>(({ data }, 
           <h1 className="fr cx-title">{d.title}</h1>
           <div className="cx-meta">
             {d.groups.map((g) => g.city).join(' · ')}
-            {d.meta.arrival ? <><i>·</i>{fmtDate(d.meta.arrival)}{d.meta.departure ? <><i>→</i>{fmtDate(d.meta.departure)}</> : null}</> : null}
+            {sec.dates && d.meta.arrival ? <><i>·</i>{fmtDate(d.meta.arrival)}{d.meta.departure ? <><i>→</i>{fmtDate(d.meta.departure)}</> : null}</> : null}
           </div>
         </div>
-        <div className="cx-stats">
-          <div><b className="fr">{d.overview.days}</b><span>{d.overview.days === 1 ? 'Day' : 'Days'}</span></div>
-          <div><b className="fr">{d.overview.nights}</b><span>{d.overview.nights === 1 ? 'Night' : 'Nights'}</span></div>
-          <div><b className="fr">{d.overview.cities}</b><span>{d.overview.cities === 1 ? 'City' : 'Cities'}</span></div>
-        </div>
+        {sec.stats && (
+          <div className="cx-stats">
+            <div><b className="fr">{d.overview.days}</b><span>{d.overview.days === 1 ? 'Day' : 'Days'}</span></div>
+            <div><b className="fr">{d.overview.nights}</b><span>{d.overview.nights === 1 ? 'Night' : 'Nights'}</span></div>
+            <div><b className="fr">{d.overview.cities}</b><span>{d.overview.cities === 1 ? 'City' : 'Cities'}</span></div>
+          </div>
+        )}
       </div>
 
       {/* ---------- Body ---------- */}
       <div className="cx-body" data-cx-body="1">
 
         {d.groups.map((g, gi) => {
-          const photo = g.photos[0]
+          const tiles = (g.photos ?? []).filter((p) => p && p.photoUrl).slice(0, MAX_TILES)
+          const [plateW, plateH] = plateBox(d.density, tiles.length)
           const alt = gi % 2 === 1
           return (
             <Fragment key={`stop-${gi}`}>
               {gi > 0 && <Trail flip={gi % 2 === 1} width={trailW} />}
               <div className={`cx-stop${alt ? ' alt' : ''}`}>
-                <div
-                  className="cx-plate"
-                  style={{
-                    width: plateW,
-                    height: plateH,
-                    backgroundImage: photo ? `url("${photo.photoUrl}")` : undefined,
-                  }}
-                />
+                <Plate photos={tiles} width={plateW} height={plateH} gap={gap} />
                 <div className="cx-stop-body">
                   <div className="cx-stop-head">
                     <span className="fr cx-stop-no">{String(gi + 1).padStart(2, '0')}</span>
@@ -352,7 +436,7 @@ const CompactDoc = forwardRef<HTMLDivElement, { data: CompactData }>(({ data }, 
         })}
 
         {/* ---------- Stays: hotels and cruises, listed separately ---------- */}
-        {d.stays.length > 0 && (
+        {sec.stays && d.stays.length > 0 && (
           <>
             <div className="cx-rule" />
             <div className="cx-stays">
@@ -367,13 +451,13 @@ const CompactDoc = forwardRef<HTMLDivElement, { data: CompactData }>(({ data }, 
         )}
 
         {/* ---------- Inclusions ---------- */}
-        {d.included.length > 0 && (
+        {sec.inclusions && d.included.length > 0 && (
           <div className="cx-inc">
             {d.included.map((t, i) => <div key={i}>{t.replace(/\.$/, '')}</div>)}
           </div>
         )}
 
-        {d.excluded.length > 0 && (
+        {sec.excluded && d.excluded.length > 0 && (
           <div className="cx-exc">
             <b>Not included</b>
             {d.excluded.map((t) => (t ?? '').trim().replace(/\.$/, '')).filter(Boolean).join(' · ')}.
@@ -381,14 +465,14 @@ const CompactDoc = forwardRef<HTMLDivElement, { data: CompactData }>(({ data }, 
         )}
 
         {/* ---------- Trust ---------- */}
-        <div className="cx-trust">
-          <div><i>◆</i>Licensed tour operator</div>
-          <div><i>◆</i>4.8 / 5 on TripAdvisor</div>
-          <div><i>◆</i>24/7 support in Egypt</div>
-        </div>
+        {sec.trust && trust.length > 0 && (
+          <div className="cx-trust">
+            {trust.map((t, i) => <div key={i}><i>◆</i>{t}</div>)}
+          </div>
+        )}
 
         {/* ---------- Pricing: every tier offered, plus single supplement ---------- */}
-        {lead > 0 ? (
+        {!sec.pricing ? null : lead > 0 ? (
           <div className="cx-price">
             <div className="cx-price-lead">
               <em>From</em>
