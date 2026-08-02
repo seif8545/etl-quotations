@@ -222,6 +222,42 @@ export function summariseLines(
   return best.map((c) => c.text)
 }
 
+/** Letters and digits only, so "Valley of the Kings" matches "valley of the kings," */
+const flat = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '')
+
+/** "Kom Ombo, Edfu and Esna" */
+function listJoin(items: string[]): string {
+  if (items.length <= 1) return items[0] ?? ''
+  return items.slice(0, -1).join(', ') + ' and ' + items[items.length - 1]
+}
+
+/**
+ * Every bullet for one place on the compact sheet.
+ *
+ * `summariseLines` was built to pick the three strongest lines, which reads well but
+ * quietly drops sites the client is paying to see — a four-temple cruise day would
+ * show two of them. Here the cap is only a safety valve, and anything still unnamed
+ * after the written lines is gathered into a closing "Also visiting" bullet, so the
+ * card can never omit a site while keeping the agent's own wording where it exists.
+ */
+export function cityBullets(lines: string[], siteNames: string[], maxLines = 14): string[] {
+  const kept = summariseLines(lines, siteNames, maxLines)
+  const hay = flat(kept.join(' '))
+
+  const seen = new Set<string>()
+  const missing: string[] = []
+  for (const raw of siteNames) {
+    const name = (raw ?? '').trim()
+    const key = flat(name)
+    if (key.length < 3 || seen.has(key)) continue
+    seen.add(key)
+    if (!hay.includes(key)) missing.push(name)
+  }
+
+  if (missing.length) kept.push('Also visiting ' + listJoin(missing))
+  return kept
+}
+
 /**
  * Same selection, joined into a paragraph. Kept for the Segment model; the compact
  * sheet renders the lines as bullets instead.

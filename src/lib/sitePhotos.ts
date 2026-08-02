@@ -170,6 +170,30 @@ export function siteInfo(site: string, manifest: PhotoManifest): SiteInfo {
   return { photo: fromManifest(site, manifest), city: '' }
 }
 
+/**
+ * The picture that represents a whole destination on the compact sheet.
+ *
+ * Grouping by city used to borrow whichever site happened to be listed first, so the
+ * same Cairo block could open on the Sphinx, a museum interior or a mosque depending
+ * on the order sites were ticked. These are the chosen faces of each place — one
+ * recognisable image per destination, the same every time. Agents can still swap the
+ * photo per package; this only decides where it starts.
+ */
+const CITY_PHOTO: Record<string, string> = {
+  'Cairo & Giza': 'cairo-giza/sphinx-pyramids.jpeg',
+  'Nile Cruise': 'luxor-aswan/hypostyle.jpeg',
+  'Alexandria': 'alexandria/qaitbay-top-view.jpeg',
+  'Hurghada': 'red-sea/hurghada-signs.jpeg',
+  'Sharm El Sheikh': 'red-sea/sharm-el-sheikh.jpeg',
+  'Dahab': 'red-sea/dahab-night.jpeg',
+  'Marsa Alam': 'red-sea/marsa-alam.jpeg',
+  'Red Sea': 'red-sea/red-sea-boat.jpeg',
+  'Sinai': 'red-sea/saint-catherine-monastery.jpg',
+}
+
+/** Default photo for a destination heading, or '' when it is not one we know. */
+export const cityPhoto = (city: string): string => CITY_PHOTO[(city ?? '').trim()] ?? ''
+
 /** Photo only — for callers that don't care about the city. */
 export function sitePhoto(site: string, manifest: PhotoManifest, fallback = ''): string {
   return siteInfo(site, manifest).photo || fallback

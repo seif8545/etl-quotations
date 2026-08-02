@@ -16,9 +16,9 @@ import CompactDoc, { SHEET_H, MAX_TILES, DEFAULT_SECTIONS, DEFAULT_TRUST } from 
 
 import type { CompactData, CompactSections } from './CompactDoc'
 
-import { siteInfo } from '../lib/sitePhotos'
+import { siteInfo, cityPhoto } from '../lib/sitePhotos'
 
-import { deriveSegments, applyOverrides, summariseLines } from '../lib/segments'
+import { deriveSegments, applyOverrides, cityBullets } from '../lib/segments'
 
 import type { PackageCategory } from '../lib/packageCategories'
 
@@ -911,20 +911,26 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
       const chosen = ovPhotos(ov)
 
       /* An explicit photo list wins outright — including an empty one, which is how
-         the agent says "no picture for this stop". */
+         the agent says "no picture for this stop". Otherwise the destination's own
+         default picture, then whatever the first site resolved to. */
       let photos = chosen
         ? chosen.slice(0, MAX_TILES).map((p) => tileOf(p, ov.name || city))
-        : b.photos.slice(0, 1)
+        : []
 
-      if (!chosen && !photos.length) {
-        const p = siteInfo(city, manifest).photo
-        if (p) photos = [tileOf(p, city)]
+      if (!chosen) {
+        const def = cityPhoto(city)
+        if (def) photos = [tileOf(def, city)]
+        else if (b.photos.length) photos = b.photos.slice(0, 1)
+        else {
+          const p = siteInfo(city, manifest).photo
+          if (p) photos = [tileOf(p, city)]
+        }
       }
 
       return {
         key: city,
         city: ov.name ?? city,
-        bullets: ov.bullets ?? summariseLines(b.lines, b.sites, 3),
+        bullets: ov.bullets ?? cityBullets(b.lines, b.sites),
         photos,
         hidden: !!ov.hidden,
       }
@@ -1224,11 +1230,14 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
     })
     for (const city of order) {
       const b2 = buckets.get(city)!
-      const fallback = b2.photo || siteInfo(city, manifest).photo
+      /* Same order of preference as the card itself, or the editor would preview a
+         different picture from the one that gets exported. */
+      const lead = cityPhoto(city) || b2.photo || siteInfo(city, manifest).photo
+      const suggestions = [lead, ...b2.photos].filter(Boolean)
       out[city] = {
-        bullets: summariseLines(b2.lines, b2.sites, 3),
-        photo: fallback,
-        photos: b2.photos.length ? b2.photos : (fallback ? [fallback] : []),
+        bullets: cityBullets(b2.lines, b2.sites),
+        photo: lead,
+        photos: Array.from(new Set(suggestions)).slice(0, MAX_TILES),
         siteCount: b2.sites.length,
       }
     }

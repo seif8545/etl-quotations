@@ -244,6 +244,9 @@ const CSS = `
 .cx-tier em { font-style: normal; font-size: 12px; letter-spacing: 1.2px; text-transform: uppercase; color: #8a93a0; font-weight: 600; }
 .cx-tier.on em { color: #b08a1e; }
 .cx-tier b { font-size: 18px; font-weight: 600; color: #0e2a47; }
+/* Per-tier single supplement, riding alongside its own tier price. */
+.cx-tier s { text-decoration: none; font-size: 11.5px; font-weight: 600; color: #a08a52; white-space: nowrap; }
+.cx-tier.on s { color: #b08a1e; }
 .cx-pnote { flex-shrink: 0; font-size: 12px; color: #a09880; }
 
 /* ---------- Footer ---------- */
@@ -391,14 +394,30 @@ const CompactDoc = forwardRef<HTMLDivElement, { data: CompactData }>(({ data }, 
 
   /* One headline number per tier: whichever occupancy the package is actually sold
      on, so a card never leads with a dash. */
-  const headline = (r: CompactPricingRow): { value: number; label: string } => {
+  const headline = (r: CompactPricingRow): { value: number; label: string; key?: PriceColKey } => {
     const order: [PriceColKey, string][] =
       d.pricing.columns && d.pricing.columns !== 'all'
         ? [[d.pricing.columns, d.pricing.columns === 'single' ? 'single' : d.pricing.columns === 'triple' ? 'triple' : d.pricing.columns === 'quad' ? 'quad' : 'double']]
         : [['dbl', 'double'], ['triple', 'triple'], ['quad', 'quad'], ['single', 'single']]
-    for (const [key, label] of order) if ((r[key] || 0) > 0) return { value: r[key] || 0, label }
+    for (const [key, label] of order) if ((r[key] || 0) > 0) return { value: r[key] || 0, label, key }
     return { value: 0, label: basis }
   }
+
+  /**
+   * The single supplement that belongs to one tier.
+   *
+   * The pricing table has a Single column per category, so a 5-star supplement is
+   * rarely the same money as a 3-star one — showing a single global figure beside all
+   * of them was quietly wrong. The global field stays as the fallback for rows left at
+   * zero, and is skipped entirely when the tier is already being sold on single
+   * occupancy, since the supplement is then the headline price.
+   */
+  const suppFor = (r: CompactPricingRow, hd: { key?: PriceColKey }): number => {
+    if (hd.key === 'single') return 0
+    return (r.single || 0) > 0 ? r.single : d.price.sgl || 0
+  }
+
+  const anyTierSupp = showTiers && tierRows.some((r) => suppFor(r, headline(r)) > 0)
 
   /* Lead price: the cheapest tier on offer, or the flat package price. */
   const leadTier = showTiers
@@ -513,14 +532,17 @@ const CompactDoc = forwardRef<HTMLDivElement, { data: CompactData }>(({ data }, 
               {showTiers && tierRows.map((r, i) => {
                 const hd = headline(r)
                 if (hd.value <= 0) return null
+                const supp = suppFor(r, hd)
                 return (
                   <div className={`cx-tier${i === tierRows.length - 1 ? ' on' : ''}`} key={i}>
                     <em>{r.category}</em>
                     <b className="fr">${hd.value.toLocaleString()}</b>
+                    {supp > 0 && <s>+${supp.toLocaleString()} sgl</s>}
                   </div>
                 )
               })}
-              {d.price.sgl > 0 && (
+              {/* No tier carries one, so the global figure stands on its own. */}
+              {!anyTierSupp && d.price.sgl > 0 && (
                 <div className="cx-tier sgl">
                   <em>Single supp.</em>
                   <b className="fr">+${d.price.sgl.toLocaleString()}</b>
