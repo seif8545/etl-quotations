@@ -74,6 +74,13 @@ export interface CompactData {
   sections?: CompactSections
   /** Trust strip lines. Missing = the three defaults. */
   trust?: string[]
+  /**
+   * Last-resort shrink, 0.8–1. The five density steps handle nearly everything; a
+   * package with three long stops and ten inclusions can still run past the bottom of
+   * a 4:5 card, and losing the price off the end of a sales sheet is worse than
+   * setting it a few percent smaller. Applied as a transform, so it costs no layout.
+   */
+  fit?: number
 }
 
 /** Design box. 860 x 1075 is exactly 4:5, and exports to a 1080 x 1350 PNG. */
@@ -147,6 +154,20 @@ export const FOCUS = 'center 38%'
  */
 const CSS = `
 .cptx { width: ${SHEET_W}px; height: ${SHEET_H}px; overflow: hidden; display: flex; flex-direction: column; background: #fffdf7; color: #24384f; font-family: 'Inter', system-ui, sans-serif; line-height: 1.5; }
+
+/*
+ * Switch off iOS text autosizing, everywhere inside the sheet.
+ *
+ * Safari on iPhone inflates text inside any block much wider than the viewport — and
+ * this sheet is a fixed 860px being laid out behind a 390px phone, so it qualifies.
+ * The boxes keep their given sizes while only the type grows, which is why the card
+ * came out with correctly-sized photos and text spilling off the bottom. It bites
+ * hardest during capture, because html2canvas re-lays the clone out in its own iframe
+ * and can boost it harder than the live node the fit loop measured — the card looked
+ * like it fitted, then exported clipped.
+ */
+.cptx, .cptx * { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+
 .cptx * { box-sizing: border-box; }
 .cptx .fr { font-family: 'Fraunces', Georgia, serif; }
 
@@ -408,7 +429,16 @@ const CompactDoc = forwardRef<HTMLDivElement, { data: CompactData }>(({ data }, 
       </div>
 
       {/* ---------- Body ---------- */}
-      <div className="cx-body" data-cx-body="1">
+      {/* Widened by 1/fit before being scaled back down, so a shrunk body still spans
+          the full sheet and its 35px gutters stay aligned with the header and footer
+          instead of stepping inwards. */}
+      <div
+        className="cx-body"
+        data-cx-body="1"
+        style={d.fit && d.fit < 1
+          ? { transform: `scale(${d.fit})`, transformOrigin: 'top left', width: `${100 / d.fit}%` }
+          : undefined}
+      >
 
         {d.groups.map((g, gi) => {
           const tiles = (g.photos ?? []).filter((p) => p && p.photoUrl).slice(0, MAX_TILES)

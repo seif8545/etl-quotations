@@ -19,6 +19,11 @@ export interface ItineraryData {
 
 const CSS = `
 .itin { width: 794px; background: #fffefa; color: #0e2a47; font-family: 'Inter', system-ui, sans-serif; font-size: 14px; line-height: 1.5; }
+
+/* iOS inflates text in blocks wider than the viewport, which this page always is when
+   the builder is open on a phone — it would reflow every page of the PDF. */
+.itin, .itin * { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+
 .itin * { box-sizing: border-box; }
 .itin .fr { font-family: 'Fraunces', Georgia, serif; }
 

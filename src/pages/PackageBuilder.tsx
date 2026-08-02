@@ -242,6 +242,44 @@ const blobToDataUrl = (b: Blob): Promise<string> => new Promise((res, rej) => {
   fr.readAsDataURL(b)
 })
 
+/**
+ * Wait for the density fit loop to stop changing the card.
+ *
+ * It condenses one step per animation frame, driven by React state, so a card that
+ * was edited a moment ago may still be mid-descent. Polls the body's overflow until
+ * two frames agree or the budget runs out — capturing early is what clips the last
+ * block off the bottom.
+ */
+async function settleFit(node: HTMLElement, scale: () => number, frames = 24): Promise<void> {
+  /* rAF never fires in a backgrounded tab, and the budget below counts frames, not
+     time — without the timer an export started and then switched away from would
+     park here forever and leave the buttons disabled. */
+  const tick = () => new Promise<void>((r) => {
+    let done = false
+    const fire = () => { if (!done) { done = true; r() } }
+    requestAnimationFrame(fire)
+    setTimeout(fire, 60)
+  })
+
+  let settled = 0
+  for (let i = 0; i < frames; i++) {
+    await tick()
+    const b = node.querySelector('[data-cx-body]') as HTMLElement | null
+    if (!b) return
+    if (overflowPx(b, scale()) <= 1) { if (++settled >= 2) return } else settled = 0
+  }
+}
+
+/**
+ * How far the card's content runs past the bottom, in rendered pixels.
+ *
+ * The last-resort shrink is a transform, which leaves scrollHeight untouched — so the
+ * raw measurement has to be scaled before it means anything, or a card that now fits
+ * perfectly still reports itself as overflowing.
+ */
+const overflowPx = (body: HTMLElement, scale: number): number =>
+  Math.round(body.scrollHeight * scale - body.clientHeight)
+
 /** The ordinary desktop download. Silently does nothing on iOS, hence the panel. */
 function saveBlob(url: string, filename: string) {
   const a = document.createElement('a')
@@ -343,6 +381,10 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
   const [extraCities, setExtraCities] = useState<ExtraCity[]>(saved?.compactExtraCities ?? [])
   const [compactOpen, setCompactOpen] = useState(false)
   const [density, setDensity] = useState(0)
+  const [fit, setFit] = useState(1)
+  /** Mirrors `fit` for code that reads it across an await. */
+  const fitRef = useRef(1)
+  useEffect(() => { fitRef.current = fit }, [fit])
 
   const [cxSections, setCxSections] = useState<CompactSections>({ ...DEFAULT_SECTIONS(), ...(saved?.compactSections ?? {}) })
   const [cxTrust, setCxTrust] = useState<string[]>(saved?.compactTrust ?? DEFAULT_TRUST())
@@ -931,10 +973,11 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
       contact: CONTACT,
       roomBasis,
       density,
+      fit,
       sections: cxSections,
       trust: cxTrust,
     }
-  }, [title, logoUrl, meta, data, segmentsAll, manifest, aspects, cityOv, extraCities, pp, sgl, showPrice, priceTableOn, priceRows, priceColumnsMode, roomBasis, density, cxIncOwn, cxIncluded, cxExcluded, cxSections, cxTrust])
+  }, [title, logoUrl, meta, data, segmentsAll, manifest, aspects, cityOv, extraCities, pp, sgl, showPrice, priceTableOn, priceRows, priceColumnsMode, roomBasis, density, fit, cxIncOwn, cxIncluded, cxExcluded, cxSections, cxTrust])
 
   const tileUrls = useMemo(
     () => compactData.groups.flatMap((g) => g.photos.map((p) => p.photoUrl)).join('|'),
@@ -962,14 +1005,18 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
     return () => { dead = true }
   }, [tileUrls, aspects])
 
+  /* Everything that changes how tall the card wants to be. Photo aspect is left out
+     on purpose — plates are sized from the density step and the tile count, never
+     from the source ratio, so folding it in only threw the fit loop away and restarted
+     it each time an image finished measuring. */
   const fitSig = useMemo(() => JSON.stringify([
-    compactData.groups.map((g) => [g.city, g.bullets, g.photos.map((p) => [p.name, p.aspect])]),
+    compactData.groups.map((g) => [g.city, g.bullets, g.photos.length]),
     compactData.stays, compactData.included, compactData.excluded, compactData.title,
     compactData.pricing, compactData.price, compactData.meta, compactData.overview,
-    compactData.sections, compactData.trust,
+    compactData.sections, compactData.trust, compactData.roomBasis,
   ]), [compactData])
 
-  useEffect(() => { setDensity(0) }, [fitSig])
+  useEffect(() => { setDensity(0); setFit(1) }, [fitSig])
 
   useEffect(() => {
     const node = compactNode
@@ -981,7 +1028,16 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
       if (cancelled) return
       const body = node.querySelector('[data-cx-body]') as HTMLElement | null
       if (!body) return
-      if (body.scrollHeight > body.clientHeight + 1 && density < MAX_DENSITY) setDensity((x) => x + 1)
+      if (overflowPx(body, fitRef.current) <= 1) return
+
+      if (density < MAX_DENSITY) { setDensity((x) => x + 1); return }
+
+      /* Out of density steps and still over: shrink the whole body rather than let
+         the bottom block be cut off. `want` is an absolute target, and fit only ever
+         decreases and is floored, so the widen-and-rescale reflow settles in a step
+         or two instead of ratcheting. */
+      const want = Math.max(0.8, body.clientHeight / body.scrollHeight)
+      setFit((f) => Math.min(f, want))
     }
 
     const schedule = () => {
@@ -1001,7 +1057,7 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
     }
 
     return () => { cancelled = true; window.cancelAnimationFrame(raf); ro?.disconnect() }
-  }, [compactNode, fitSig, density])
+  }, [compactNode, fitSig, density, fit])
 
   async function exportCompact(kind: 'png' | 'pdf') {
     setBusy(true); setError('')
@@ -1011,6 +1067,11 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
       const node = compactNode
       if (!node) throw new Error('Document not ready')
       await waitForAssets(node)
+
+      /* The condense loop runs a step per animation frame. Let it finish before
+         shooting, or a card the agent has only just edited is captured one step too
+         tall and the last block gets clipped. */
+      await settleFit(node, () => fitRef.current)
 
       for (let el: HTMLElement | null = node.parentElement; el; el = el.parentElement) {
         if (el.scrollTop || el.scrollLeft) { scrolled.push([el, el.scrollTop, el.scrollLeft]); el.scrollTop = 0; el.scrollLeft = 0 }
@@ -1026,7 +1087,16 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
       const CUT = SCALE * 9
 
       const { default: html2canvas } = await import('html2canvas')
-      const raw = await html2canvas(node, { scale: SCALE, useCORS: true, backgroundColor: '#fffefa', logging: false })
+      const raw = await html2canvas(node, {
+        scale: SCALE, useCORS: true, backgroundColor: '#fffefa', logging: false,
+        /* html2canvas re-lays the clone out inside its own iframe, where iOS can
+           apply text autosizing all over again. Pin it off on the clone too. */
+        onclone: (doc: Document) => {
+          const style = doc.createElement('style')
+          style.textContent = '.cptx, .cptx * { -webkit-text-size-adjust: 100% !important; text-size-adjust: 100% !important; }'
+          doc.head.appendChild(style)
+        },
+      })
 
       /* Fixed 1080 x 1350 — a 4:5 frame is what Instagram and WhatsApp want, and it
          must not move with the crop. */
@@ -1052,8 +1122,8 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
       ctx.drawImage(raw, CUT, 0, sw, raw.height, Math.round((OUT_W - drawW) / 2), 0, drawW, outH)
 
       const body = node.querySelector('[data-cx-body]') as HTMLElement | null
-      if (body && body.scrollHeight > body.clientHeight + 1) {
-        const over = body.scrollHeight - body.clientHeight
+      const over = body ? overflowPx(body, fitRef.current) : 0
+      if (over > 1) {
         setError(`Content overflows the 4:5 card by ~${over}px and has been cut off. Trim some inclusions, sites or pricing rows.`)
       }
 
