@@ -64,6 +64,34 @@ function pkgPrice(r: any): string {
   return Number.isFinite(pp) && pp > 0 ? `$${pp.toLocaleString()}` : '—'
 }
 
+/**
+ * Where the trip actually goes, and for how long: [{ destination, nights }].
+ *
+ * The accommodation list is the honest source — it is what the agent typed and what
+ * drives the nights total everywhere else. Same destination entered twice (a Cairo
+ * night either side of a cruise, say) is merged so the row reads "Cairo 4" rather than
+ * "Cairo 1 · Cairo 3", but the first-mentioned order is kept because that is the shape
+ * of the journey. Falls back to the compact sheet's city names when a package predates
+ * the accommodation editor and has no nights recorded at all.
+ */
+function pkgRoute(r: any): { destination: string; nights: number }[] {
+  const hotels: any[] = Array.isArray(r?.data?.hotels) ? r.data.hotels : []
+  const order: string[] = []
+  const byDest = new Map<string, number>()
+
+  for (const h of hotels) {
+    const dest = String(h?.destination ?? '').trim()
+    if (!dest) continue
+    const n = Number(h?.nights) || 0
+    if (!byDest.has(dest)) { byDest.set(dest, 0); order.push(dest) }
+    byDest.set(dest, byDest.get(dest)! + n)
+  }
+  if (order.length) return order.map((destination) => ({ destination, nights: byDest.get(destination)! }))
+
+  const named = Object.keys(r?.data?.compactCities ?? {})
+  return named.map((destination) => ({ destination, nights: 0 }))
+}
+
 const TABS = ['Quotations', 'Packages', 'Letters', 'Vouchers', 'Invoices'] as const
 type Tab = (typeof TABS)[number]
 
@@ -198,17 +226,45 @@ export default function Documents({ openQuotation, isAdmin, uid }: { openQuotati
   }
 
   /** Columns in the current tab — group headings span the lot. */
-  const COLS = (tab === 'Quotations' ? 5 : tab === 'Packages' ? 7 : tab === 'Letters' ? 4 : 5) + 2
+  const COLS = (tab === 'Quotations' ? 5 : tab === 'Packages' ? 5 : tab === 'Letters' ? 4 : 5) + 2
 
   const renderRow = (r: any) => (
     <tr key={r.id} className={busyId === r.id ? 'saving' : ''}>
       {tab === 'Quotations' && <><td>{r.name}</td><td>{r.group_ref}</td><td>{r.pax}</td><td>{r.arrival_date}</td><td>{r.departure_date}</td></>}
-      {tab === 'Packages' && <><td>{r.name}</td><td className="pkg-dur">{pkgDuration(r)}</td><td className="pkg-price">{pkgPrice(r)}</td><td>{r.group_ref}</td><td>{r.pax}</td><td>{r.arrival_date}</td><td>{r.departure_date}</td></>}
+      {tab === 'Packages' && (() => {
+        const route = pkgRoute(r)
+        const nights = route.reduce((s, x) => s + x.nights, 0)
+        return <>
+          <td className="c-name">
+            <span className="pkg-name">{r.name}</span>
+            <span className="pkg-sub muted small">
+              {r.group_ref ? `Ref ${r.group_ref}` : 'No ref'}{r.pax ? ` · ${r.pax} pax` : ''}
+            </span>
+          </td>
+          <td className="c-route">
+            {route.length === 0 ? <span className="muted">—</span> : (
+              <span className="pkg-route">
+                {route.map((x, i) => (
+                  <span className="pkg-leg" key={i + x.destination}>
+                    {x.destination}{x.nights > 0 && <b>{x.nights}n</b>}
+                  </span>
+                ))}
+              </span>
+            )}
+            {nights > 0 && route.length > 1 && <span className="pkg-sub muted small">{nights} nights total</span>}
+          </td>
+          <td className="c-dur pkg-dur">{pkgDuration(r)}</td>
+          <td className="c-price pkg-price">{pkgPrice(r)}</td>
+          <td className="c-dates">
+            {r.arrival_date ? <>{r.arrival_date}<span className="pkg-sub muted small">{r.departure_date || '—'}</span></> : <span className="muted">—</span>}
+          </td>
+        </>
+      })()}
       {tab === 'Letters' && <><td>{r.consignee}</td><td>{r.arrival_date}</td><td>{r.departure_date}</td><td>{r.pax}</td></>}
       {tab === 'Vouchers' && <><td>{r.hotel_name}</td><td>{r.guest_or_group_name}</td><td>{r.from_date}</td><td>{r.to_date}</td><td>{r.singles + r.doubles + r.twins + r.triples}</td></>}
       {tab === 'Invoices' && <><td>{r.serial}</td><td>{r.client_name}</td><td>{r.issue_date}</td><td>{r.total}</td><td>{r.balance ?? '—'}</td></>}
       <td>{new Date(r.created_at).toLocaleDateString('en-GB')}</td>
-      <td className="actions">
+      <td className={`actions${tab === 'Packages' ? ' actions-pkg' : ''}`}>
         {tab === 'Quotations' && <>
           <button className="link" onClick={() => excel(r)}>Excel</button>
           {r.draft && <button className="link" onClick={() => setPdfDraft(r.draft)}>Package PDF</button>}
@@ -289,7 +345,7 @@ export default function Documents({ openQuotation, isAdmin, uid }: { openQuotati
             <thead>
               <tr>
                 {tab === 'Quotations' && <><th>Name</th><th>Ref</th><th>Pax</th><th>Arrival</th><th>Departure</th></>}
-                {tab === 'Packages' && <><th>Name</th><th>Duration</th><th>Price</th><th>Ref</th><th>Pax</th><th>Arrival</th><th>Departure</th></>}
+                {tab === 'Packages' && <><th className="c-name">Name</th><th className="c-route">Cities &amp; nights</th><th className="c-dur">Duration</th><th className="c-price">Price</th><th className="c-dates">Dates</th></>}
                 {tab === 'Letters' && <><th>To</th><th>Arrival</th><th>Departure</th><th>Pax</th></>}
                 {tab === 'Vouchers' && <><th>Hotel</th><th>Group</th><th>From</th><th>To</th><th>Rooms</th></>}
                 {tab === 'Invoices' && <><th>Serial</th><th>Client</th><th>Issue date</th><th>Total</th><th>Balance</th></>}
