@@ -737,6 +737,13 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
 
         pdf.save(safe + '.pdf')
       } catch (perPageErr) {
+        /* The fallback below is the LEGACY whole-document slicing pipeline, which is
+           subject to the constant-offset bug documented in handoff §8-I (blank band at
+           the top, last page clipped). Never degrade to it silently — say why the
+           per-page exporter failed, otherwise this reads as the old bug returning. */
+        const why = (perPageErr as any)?.message ?? String(perPageErr)
+        console.error('[PackageBuilder] per-page PDF export failed — falling back to the legacy sliced export (handoff §8-I):', perPageErr)
+        setError('Per-page export failed, so the legacy sliced export was used — pages may be shifted down. Cause: ' + why)
         const html2pdf = await getHtml2Pdf()
         const opt = {
           margin: 0,

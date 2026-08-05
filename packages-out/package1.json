@@ -1,0 +1,170 @@
+{
+  "title": "Cairo & Sharm El Sheikh — 07 Nights",
+  "intro": "Two Egypts in a single week. On one side the Giza Plateau and the Grand Egyptian Museum, Old Cairo and medieval Al-Moez Street, closing with a Sufi performance over dinner. On the other, three all-inclusive nights on the Sinai coast — Naama Bay, Ras Muhammad, a parasail flight and the cliffside lanterns of Farsha. You begin and end in Cairo, with the Red Sea in between.",
+  "hero": "cairo-giza/sphinx-pyramids.jpeg",
+  "meta": {
+    "ref": "",
+    "pax": 2,
+    "arrival": "",
+    "departure": ""
+  },
+  "overview": {
+    "days": 8,
+    "nights": 7,
+    "cities": 2
+  },
+  "hotels": [
+    {
+      "nights": 2,
+      "destination": "Cairo & Giza"
+    },
+    {
+      "nights": 3,
+      "destination": "Sharm El Sheikh"
+    },
+    {
+      "nights": 2,
+      "destination": "Cairo & Giza"
+    }
+  ],
+  "days": [
+    {
+      "uid": "d-pyr-gem",
+      "title": "The Pyramids of Giza & the Grand Egyptian Museum",
+      "description": "Breakfast at your hotel, then meet your private Egyptologist guide.\nThe Giza Plateau: the Great Pyramid of Khufu, the pyramids of Khafre and Menkaure, and the panoramic viewpoint over all three.\nThe Great Sphinx and the Valley Temple of Khafre.\nLunch at a local restaurant overlooking the plateau.\nThe Grand Egyptian Museum — the hanging obelisk, the Ramses II atrium, the grand staircase and the complete Tutankhamun collection.\nTransfer back to your hotel; evening at leisure.\nOvernight in Cairo.",
+      "photo": "cairo-giza/gem-pyramids.jpeg",
+      "sites": [
+        "Great Pyramid of Khufu",
+        "Great Sphinx",
+        "Grand Egyptian Museum"
+      ],
+      "guide": true,
+      "meals": {
+        "breakfast": true,
+        "lunch": true,
+        "dinner": false
+      },
+      "hotel": "Pyramids Park Resort Cairo (or similar)"
+    },
+    {
+      "uid": "p1-to-sharm",
+      "title": "Cairo to Sharm El Sheikh — Soho Square & the Old Market",
+      "description": "Breakfast at your hotel and check-out.\nTransfer to Sharm El Sheikh by private air-conditioned vehicle — roughly 6 hours by way of the Suez tunnel and the Sinai coast road, with comfort stops en route.\nA one-hour domestic flight is available as an upgrade in place of the drive — quoted on request.\nArrival and check-in at your Naama Bay resort on an all-inclusive basis.\nEvening out at Soho Square: the dancing fountain, the ice bar and the promenade.\nOn to the Old Market for spices, souvenirs and Egyptian coffee.\nOvernight in Sharm El Sheikh.",
+      "photo": "red-sea/sharm-el-sheikh.jpeg",
+      "sites": [
+        "Soho Square",
+        "Sharm Old Market"
+      ],
+      "guide": false,
+      "meals": {
+        "breakfast": true,
+        "lunch": true,
+        "dinner": true
+      },
+      "hotel": "Naama Bay, Sharm El Sheikh — 4★ resort (or similar), all-inclusive"
+    },
+    {
+      "uid": "p1-sharm-leisure",
+      "title": "Sharm El Sheikh at Leisure — Optional Ras Muhammad",
+      "description": "Breakfast at your resort.\nA full day at leisure on an all-inclusive basis — private beach, pools, house reef and every resort facility at your disposal.\nOptional, at extra cost: a full-day boat trip to Ras Muhammad National Park, with two swim stops over the Shark and Yolanda reefs and lunch served on board.\nRas Muhammad sits at the southern tip of Sinai, where the two gulfs of the Red Sea meet — the clearest water and the richest coral in Sinai.\nOvernight in Sharm El Sheikh.",
+      "photo": "red-sea/ras-muhammad.jpeg",
+      "sites": [
+        "All-inclusive resort day",
+        "Optional: Ras Muhammad, Sharm El Sheikh"
+      ],
+      "guide": false,
+      "meals": {
+        "breakfast": true,
+        "lunch": true,
+        "dinner": true
+      },
+      "hotel": "Naama Bay, Sharm El Sheikh — 4★ resort (or similar), all-inclusive"
+    },
+    {
+      "uid": "p1-para-sub",
+      "title": "Parasailing, the Submarine & Farsha by Night",
+      "description": "Breakfast at your resort.\nParasail flight over the bay — a tandem or solo lift from the boat, with the reef line and the resort coast laid out below you.\nA semi-submarine excursion: down to the glass observation deck to watch the coral gardens and reef fish through panoramic windows — no swimming and no experience needed.\nAfternoon back at the resort at leisure.\nEvening at Farsha Café — the cliffside terraces above the old town, all cushions and lanterns, and one of the best sunsets in Sinai.\nOvernight in Sharm El Sheikh.",
+      "photo": "red-sea/jet-ski-red-sea.jpeg",
+      "sites": [
+        "Parasail flight",
+        "Semi-submarine excursion",
+        "Farsha Café"
+      ],
+      "guide": false,
+      "meals": {
+        "breakfast": true,
+        "lunch": true,
+        "dinner": true
+      },
+      "hotel": "Naama Bay, Sharm El Sheikh — 4★ resort (or similar), all-inclusive"
+    },
+    {
+      "uid": "p1-back-cairo",
+      "title": "Sharm El Sheikh to Cairo",
+      "description": "Breakfast at your resort and a relaxed final morning by the sea.\nLunch before departure.\nCheck-out and transfer back to Cairo by private air-conditioned vehicle — roughly 6 hours, with comfort stops en route.\nA domestic flight is available as an upgrade in place of the drive — quoted on request.\nArrival and check-in at your Cairo hotel; evening at leisure.\nOvernight in Cairo.",
+      "photo": "red-sea/camels-sea.jpeg",
+      "sites": [],
+      "guide": false,
+      "meals": {
+        "breakfast": true,
+        "lunch": true,
+        "dinner": false
+      },
+      "hotel": "Pyramids Park Resort Cairo (or similar)"
+    },
+    {
+      "uid": "d-nmec-moez",
+      "title": "Egyptian Civilization, Old Cairo & a Farewell Dinner",
+      "description": "Breakfast at your hotel, then meet your private Egyptologist guide.\nThe National Museum of Egyptian Civilization in Fustat — the Royal Mummies Hall and five thousand years of Egypt in one gallery.\nLunch at a local restaurant.\nOld Cairo on foot: the Hanging Church, the Church of St Sergius and the Ben Ezra Synagogue.\nAl-Moez Ldin Allah Street — medieval Cairo past Bayt Al-Suhaymi, the Qalawun complex and the sabil-kuttabs, ending in Khan El-Khalili for tea and shopping.\nFarewell dinner at Mamai with a live oriental show and a Sufi tanoura performance.\nOvernight in Cairo.",
+      "photo": "cairo-giza/civilization-museum.jpg",
+      "sites": [
+        "Civilization Museum (NMEC)",
+        "Hanging Church",
+        "Al-Moez Street",
+        "Khan El-Khalili"
+      ],
+      "guide": true,
+      "meals": {
+        "breakfast": true,
+        "lunch": true,
+        "dinner": true
+      },
+      "hotel": "Pyramids Park Resort Cairo (or similar)"
+    }
+  ],
+  "arrival": {
+    "on": true,
+    "title": "Arrival in Cairo — Welcome Dinner",
+    "description": "Arrival at Cairo International Airport.\nMeet & assist by our representative through visa, passport and customs formalities.\nPrivate air-conditioned transfer to your hotel in Cairo.\nCheck-in and time to freshen up after your journey.\nWelcome dinner with your host — a first taste of Egyptian cooking and a walk-through of the days ahead.\nOvernight in Cairo.",
+    "photo": "arrivedepart/arrival-plane.jpg",
+    "meals": {
+      "breakfast": false,
+      "lunch": false,
+      "dinner": true
+    },
+    "hotel": "Pyramids Park Resort Cairo (or similar)"
+  },
+  "departure": {
+    "on": true,
+    "title": "Departure",
+    "description": "Breakfast at your hotel (subject to flight timing).\nCheck-out and assistance with your luggage.\nPrivate air-conditioned transfer to Cairo International Airport.\nFinal meet & assist through departure formalities — we wish you a safe journey home.",
+    "photo": "arrivedepart/departure-plane.jpg",
+    "meals": {
+      "breakfast": true,
+      "lunch": false,
+      "dinner": false
+    },
+    "hotel": ""
+  },
+  "pp": 0,
+  "sgl": 0,
+  "showPrice": false,
+  "included": "Meet & assist by our representative at Cairo International Airport on arrival and departure\nAccommodation as stated: Pyramids Park Resort Cairo and a 4★ Naama Bay resort in Sharm El Sheikh — or equivalent hotels of the same category\nAll transfers and excursions in modern, air-conditioned private vehicles\nSightseeing exactly as detailed, with a private licensed Egyptologist guide\nAll entrance fees to the sites named in the programme\nWelcome dinner on arrival day and farewell dinner at Mamai with the oriental Sufi performance\nMeals as shown on each day of the programme\nAll service charges and local taxes\n24/7 support from our Cairo office throughout your stay",
+  "excluded": "International airfare to and from Egypt\nEgypt entry visa (USD 25, payable on arrival)\nDomestic flights — available as an upgrade in place of the road transfer, quoted on request\nAny excursion marked \"optional\" in the programme\nMeals and drinks not listed in the programme\nPersonal expenses, laundry and telephone calls\nTipping for the guide, driver and hotel staff\nTravel insurance",
+  "priceTableOn": false,
+  "priceRows": [],
+  "priceColumns": "all",
+  "flights": [],
+  "roomBasis": "double/twin",
+  "category": "other"
+}
