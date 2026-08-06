@@ -288,7 +288,10 @@ const ItineraryDoc = forwardRef<HTMLDivElement, { data: ItineraryData }>(({ data
         type PriceColKey = 'dbl' | 'single' | 'triple' | 'quad'
         const PRICE_COLS: { key: PriceColKey; label: string }[] = [
           { key: 'dbl', label: 'Per Person in Double' },
-          { key: 'single', label: 'Single Supplement' },
+          /* On a solo quote the figure in this column is the whole price, not a top-up.
+             Labelling it 'Supplement' there reads as money owed on top of a per-person
+             rate that isn't shown. Only single-basis documents are affected. */
+          { key: 'single', label: d.roomBasis === 'single' ? 'Single Occupancy' : 'Single Supplement' },
           { key: 'triple', label: 'Per Person in Triple' },
           { key: 'quad', label: 'Per Person in Quadruple' },
         ]
