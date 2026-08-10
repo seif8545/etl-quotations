@@ -111,6 +111,38 @@ export interface PackageState {
   category?: PackageCategory
 }
 
+/**
+ * Public URL slug for a package.
+ *
+ * Matches the SQL backfill in migration `q_package_docs_public_slug_and_publish`
+ * exactly — lowercase, every run of non-alphanumerics collapsed to a single '-',
+ * trimmed, capped at 60 characters — so a slug generated here and one generated
+ * there are the same string.
+ *
+ * The 60-char cap cuts mid-word (package 153 backfilled as
+ * "...the-2027-total-so"). That is what the editable field in the publish strip
+ * is for: generate, then fix by hand before publishing. The cut is deliberately
+ * NOT made word-aware, because changing the rule now would silently re-slug
+ * rows whose links may already have been shared.
+ */
+/**
+ * Where a published package is served from. The public renderer lives in the
+ * WEBSITE repo (egypt-top-light) at functions/packages/[slug].js, not here —
+ * this app only sets `published` and `slug` on the row it reads.
+ * Override with VITE_PUBLIC_SITE_ORIGIN when testing against a preview deploy.
+ */
+const PUBLIC_SITE_ORIGIN =
+  (import.meta.env.VITE_PUBLIC_SITE_ORIGIN as string | undefined) || 'https://egypttoplight.net'
+
+export function slugify(input: string): string {
+  return String(input || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 60)
+    .replace(/-+$/g, '')
+}
+
 const TOUR_MEALS = (): Meals => ({ breakfast: true, lunch: false, dinner: true })
 
 const mealList = (m: Meals): string[] => [m.breakfast && 'Breakfast', m.lunch && 'Lunch', m.dinner && 'Dinner'].filter(Boolean) as string[]
@@ -350,6 +382,18 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
   const [savedMsg, setSavedMsg] = useState('')
   const [error, setError] = useState('')
   const [currentId, setCurrentId] = useState<number | undefined>(savedId)
+
+  // ── Publishing ────────────────────────────────────────────────────────────
+  // slug / published / published_at are COLUMNS on q_package_docs, not fields
+  // inside the `data` JSON, so they are deliberately not part of PackageState
+  // and are never touched by savePackage(). Save and Publish are separate
+  // actions: saving a draft must not be able to change what the public sees.
+  const [slug, setSlug] = useState('')
+  const [published, setPublished] = useState(false)
+  const [publishedAt, setPublishedAt] = useState<string | null>(null)
+  const [pubBusy, setPubBusy] = useState(false)
+  const [pubMsg, setPubMsg] = useState('')
+  const [pubErr, setPubErr] = useState('')
   
   /** The last compact export, held so it can be previewed, shared or re-saved. */
   const [shot, setShot] = useState<{ url: string; blob: Blob; filename: string; kind: 'png' | 'pdf' } | null>(null)
@@ -664,6 +708,81 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
     }
   }
 
+  // Publish columns are not passed in as props, so read them for the row we are
+  // editing. Runs on open and whenever savePackage() promotes a new insert into
+  // currentId, so a freshly saved package immediately shows its generated slug.
+  useEffect(() => {
+    let cancelled = false
+    if (!currentId) { setSlug(''); setPublished(false); setPublishedAt(null); return }
+    ;(async () => {
+      const { data, error: e } = await supabase
+        .from('q_package_docs')
+        .select('slug, published, published_at')
+        .eq('id', currentId)
+        .single()
+      if (cancelled || e || !data) return
+      setSlug(data.slug ?? '')
+      setPublished(Boolean(data.published))
+      setPublishedAt(data.published_at ?? null)
+    })()
+    return () => { cancelled = true }
+  }, [currentId])
+
+  const publicUrl = slug ? `${PUBLIC_SITE_ORIGIN}/packages/${slug}` : ''
+
+  /**
+   * Write slug / published / published_at. Separate from savePackage() on
+   * purpose — pressing Save on a draft must never change what is publicly
+   * visible, and pressing Publish must never overwrite the document body with
+   * whatever happens to be on screen.
+   */
+  async function savePublish(next: { slug?: string; published?: boolean }) {
+    if (!currentId) { setPubErr('Save the package first — it needs an id before it can have a public link.'); return }
+    setPubBusy(true); setPubErr(''); setPubMsg('')
+    try {
+      const nextSlug = (next.slug ?? slug).trim()
+      const nextPublished = next.published ?? published
+
+      if (nextPublished && !nextSlug) {
+        setPubErr('A package needs a slug before it can be published.')
+        return
+      }
+      if (nextSlug && nextSlug !== slugify(nextSlug)) {
+        setPubErr('Slug may only contain lowercase letters, numbers and hyphens.')
+        return
+      }
+
+      const row: Record<string, unknown> = {
+        slug: nextSlug || null,
+        published: nextPublished,
+      }
+      // Stamp published_at on the FIRST publish only, so it records when the
+      // link went live rather than when it was last toggled.
+      if (nextPublished && !publishedAt) row.published_at = new Date().toISOString()
+
+      const { error: e } = await supabase.from('q_package_docs').update(row).eq('id', currentId)
+      if (e) {
+        // 23505 = unique_violation on q_package_docs_slug_key.
+        setPubErr(
+          e.code === '23505'
+            ? `The slug "${nextSlug}" is already used by another package. Pick a different one.`
+            : e.message
+        )
+        return
+      }
+
+      setSlug(nextSlug)
+      setPublished(nextPublished)
+      if (nextPublished && !publishedAt) setPublishedAt(new Date().toISOString())
+      setPubMsg(nextPublished ? 'Published — the link is live' : 'Unpublished — the link now 404s')
+      setTimeout(() => setPubMsg(''), 3500)
+    } catch (err: any) {
+      setPubErr(err?.message ?? String(err))
+    } finally {
+      setPubBusy(false)
+    }
+  }
+
   async function savePackage(asNewVersion = false) {
     try {
       const st = buildState()
@@ -677,8 +796,21 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
         if (!e) { setSavedMsg('Saved'); setTimeout(() => setSavedMsg(''), 2500) }
       } else {
         const { data: u } = await supabase.auth.getUser()
+        // Give every new row a slug up front so the publish strip has something
+        // to show. Suffix on collision rather than failing the save — the unique
+        // index is on slug, and losing a whole package to a name clash would be
+        // a poor trade for a URL nobody has seen yet.
+        const base = slugify(st.title) || 'package'
+        let candidate = base
+        for (let n = 2; n <= 20; n++) {
+          const { data: clash } = await supabase
+            .from('q_package_docs').select('id').eq('slug', candidate).maybeSingle()
+          if (!clash) break
+          const suffix = `-${n}`
+          candidate = base.slice(0, 60 - suffix.length) + suffix
+        }
         const { data: ins, error: e } = await supabase.from('q_package_docs')
-          .insert({ ...row, created_by: u.user?.id }).select('id').single()
+          .insert({ ...row, slug: candidate, created_by: u.user?.id }).select('id').single()
         if (!e) {
           if (ins?.id) setCurrentId(ins.id)
           setSavedMsg(asNewVersion ? 'Saved as new version' : 'Saved to Packages')
@@ -767,7 +899,12 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
         scrolled.forEach(([el, t, l]) => { el.scrollTop = t; el.scrollLeft = l })
       }
 
-      await savePackage(false)
+      // Only update a package that already exists. This used to be an
+      // unconditional savePackage(false), which INSERTs when currentId is unset —
+      // so every export from an unsaved builder created another row. That is
+      // where the duplicate q_package_docs rows came from. Exporting a PDF is
+      // not a request to create a package.
+      if (currentId) await savePackage(false)
 
     } catch (e: any) {
       setError(e.message ?? String(e))
@@ -1274,6 +1411,70 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
           <button disabled={busy} title="One-page compact sheet as a printable PDF" onClick={() => exportCompact('pdf')}>Compact PDF</button>
         </div>
         {error && <div className="error">{error}</div>}
+
+        {/* ── Public link ──────────────────────────────────────────────────
+            Publishing is intentionally its own strip and its own action. The
+            Save buttons above write the document body; these write only
+            slug / published / published_at. Nothing here can alter the
+            itinerary, and nothing up there can put a package live.
+            The page itself is rendered by the website repo at
+            /packages/<slug> — noindex and share-by-link, never in the sitemap
+            or the nav. ───────────────────────────────────────────────────── */}
+        <div className="builder-publish" style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', padding: '8px 12px', borderBottom: '1px solid rgba(255,255,255,.12)', fontSize: 13 }}>
+          <b style={{ opacity: .85 }}>Public link</b>
+
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ opacity: .7 }}>/packages/</span>
+            <input
+              value={slug}
+              disabled={!currentId || pubBusy}
+              placeholder={currentId ? 'slug' : 'save first'}
+              onChange={(e) => setSlug(e.target.value)}
+              onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== slugify(v)) setSlug(slugify(v)) }}
+              style={{ width: 320 }}
+              title="Lowercase letters, numbers and hyphens. Capped at 60 characters — the SQL backfill cut some slugs mid-word, so check this before publishing."
+            />
+          </label>
+
+          <button
+            disabled={!currentId || pubBusy}
+            onClick={() => setSlug(slugify(title))}
+            title="Regenerate from the package title"
+          >Generate</button>
+
+          <button
+            disabled={!currentId || pubBusy || !slug.trim()}
+            onClick={() => savePublish({ slug })}
+          >Save slug</button>
+
+          <span className="spacer" style={{ flex: 1 }} />
+
+          {published && publicUrl && (
+            <>
+              <a href={publicUrl} target="_blank" rel="noreferrer" style={{ opacity: .9 }}>{publicUrl}</a>
+              <button
+                onClick={() => { navigator.clipboard?.writeText(publicUrl); setPubMsg('Link copied'); setTimeout(() => setPubMsg(''), 2000) }}
+              >Copy</button>
+            </>
+          )}
+
+          <button
+            className={published ? undefined : 'primary'}
+            disabled={!currentId || pubBusy || (!published && !slug.trim())}
+            onClick={() => savePublish({ published: !published })}
+            title={published
+              ? 'Take the page offline. The link will 404 for anyone who still has it.'
+              : 'Put the page live at the slug above. It is noindex and share-by-link — it will not appear in search or in the site navigation.'}
+          >{pubBusy ? 'Working…' : published ? 'Unpublish' : 'Publish'}</button>
+
+          {published
+            ? <span style={{ color: '#bfe6c0' }}>● Live{publishedAt ? ` since ${new Date(publishedAt).toLocaleDateString()}` : ''}</span>
+            : <span style={{ opacity: .6 }}>● Draft</span>}
+
+          {pubMsg && <span style={{ color: '#bfe6c0' }}>{pubMsg}</span>}
+          {pubErr && <span style={{ color: '#f3b0b0' }}>{pubErr}</span>}
+        </div>
+
         <div className="builder-body">
           <div className="b-trip">
             <div className="b-trip-dates">
