@@ -1,11 +1,7 @@
 # HANDOFF — ETL Quotation System (Egypt Top Light Travel)
 
-> **This is the single authoritative doc for this repo.** Superseded session notes are in `archive/`.
-> Last updated **2026-08-10**.
->
-> Read section **0 (Gotchas)** and section **4 (Package PDF)** before touching anything. Most of the
-> July pain came from a handful of tooling + html2canvas traps documented in section **8**.
-> Section **10** covers publishing packages to the public website — new on 10 Aug 2026.
+> Read section **0 (Gotchas)** and section **4 (Package PDF)** before touching anything. Most of this
+> session's pain came from a handful of tooling + html2canvas traps documented in section **8**.
 
 ---
 
@@ -13,7 +9,7 @@
 
 1. **The Write/Edit tools TRUNCATE `.tsx` files mid-write on this machine.** Symptom: `tsc`
    fails with `Identifier expected`, `JSX element has no corresponding closing tag`, or the file
-   just ends mid-line. It happened repeatedly in the July 2026 sessions.
+   just ends mid-line. It happened repeatedly this session.
    - **Do NOT edit `.tsx`/`.ts` with the Edit/Write tools.** Use bash + Python string replace:
      `python3 - <<'PY' ... open(p).read()/replace/write ... PY`, with `assert s.count(a)==1` guards.
    - If a file is already truncated, **restore it from git first**: `git show HEAD:src/pages/X.tsx > src/pages/X.tsx`, then re-apply edits via Python.
@@ -32,20 +28,6 @@
    no service key, no psycopg2). Use the **Supabase MCP `execute_sql`** (project `yxgpjjwjgtgavfusurbi`).
    For JSONB use dollar-quoting to avoid escaping hell: `$pkg${...json...}$pkg$::jsonb`. `created_by` is a
    NOT NULL uuid — use `0a58da13-831c-4322-8f62-e5777cc5f2b7` (the account's profile id) or query `q_profiles`.
-6. **Save and Publish are different actions, deliberately.** `slug` / `published` / `published_at` are
-   COLUMNS on `q_package_docs`, not fields inside `data`, so they are not part of `PackageState` and
-   `savePackage()` never touches them. Saving a draft must not be able to change what the public sees;
-   publishing must not overwrite the itinerary with whatever is on screen. Keep them separate. See §10.
-7. **Adding a photo now takes TWO steps, and skipping the second fails silently.** The local picker reads
-   `public/images/tours/` + `manifest.json`; the PUBLIC package pages read the Supabase `tour-photos`
-   bucket. Drop the file in the folder, add it to `manifest.json`, **and** run
-   `node scripts\upload-tour-photos.mjs`. Miss the upload and the PDF looks perfect while the public
-   page shows a broken image — and nothing errors anywhere.
-8. **Never click "Remove policy" on Supabase's "Clients can list all files in this bucket" warning.**
-   `loadUploads()` calls `supabase.storage.list()`, which needs the SELECT policy on `storage.objects`.
-   Removing it leaves public image URLs working (a public bucket bypasses RLS when SERVING files) while
-   the photo picker silently shows nothing — `loadUploads()` swallows the error. The correct hardening,
-   applied 10 Aug, is to narrow the policy to `authenticated` rather than drop it.
 
 ---
 
@@ -76,10 +58,7 @@ Colors: navy `#0e2a47`, navy-deep `#081a30`, gold `#c8960a`/`#e8b015`/pale `#f0c
   and **`q_package_docs`** (the exported/openable Package PDFs — this is what the Packages tab lists).
 - **`q_package_docs` columns:** `id bigint`, `name text NOT NULL`, `group_ref text`, `pax int`,
   `arrival_date date`, `departure_date date`, `data jsonb NOT NULL` (= a `PackageState`, see §4),
-  `created_by uuid NOT NULL DEFAULT auth.uid()`, `created_at timestamptz`, `shared_with uuid[]`,
-  and — added by migration `q_package_docs_public_slug_and_publish` — **`slug text`** (unique index
-  `q_package_docs_slug_key`), **`published boolean NOT NULL DEFAULT false`**, **`published_at timestamptz`**.
-  Those last three drive the public pages (§10) and are NOT inside `data`.
+  `created_by uuid NOT NULL`, `created_at timestamptz`.
 - **Document sharing (14 Jul session):** all four doc tables (`q_quotations`, `q_package_docs`, `q_letters`,
   `q_vouchers`) now have `shared_with uuid[] NOT NULL DEFAULT '{}'`. The old single ALL policy per table is split
   into select/insert/update/delete; SELECT adds `auth.uid() = any(shared_with)` so recipients can view but never
@@ -112,7 +91,7 @@ Guide 2000 / Rep 400 LE/day (`q_service_rates`).
 
 ---
 
-## 4. THE PACKAGE PDF SYSTEM  ← the core of this app
+## 4. THE PACKAGE PDF SYSTEM  ← main focus of this session
 
 Two files do everything:
 
@@ -160,7 +139,7 @@ Two files do everything:
   the rendered day pages (`days.length + arrival.on + departure.on`) — the stored overview.days was stale (a
   saved doc showed "15 days" for a 13-day trip, 14 Jul). Re-saving heals the stored value.
 - `buildState():PackageState` → `savePackage()` inserts into `q_package_docs`.
-- **Trip details editor** (added July 2026) — top of `.builder-body`, `.b-trip`: Arrival/Departure date pickers,
+- **Trip details editor** (added this session) — top of `.builder-body`, `.b-trip`: Arrival/Departure date pickers,
   Guests, and Accommodation-nights rows (nights + destination + remove, "+ Add accommodation"). Styles in `styles.css`.
 - **Photo picker:** each day + the cover have a "Change photo"/"Change cover photo" link → `setPicker({target})` →
   overlay that maps `manifest` (`public/images/tours/manifest.json`, fetched at runtime) grouped by area; clicking a
@@ -190,7 +169,7 @@ try {
 
 ---
 
-## 5. HOW THE FIRST PACKAGES WERE SEEDED (`q_package_docs`, July 2026)
+## 5. PACKAGES CURRENTLY IN THE DATABASE (created this session, in `q_package_docs`)
 
 From the "Egypt Discovery Programs" PDF (4, with 3/4/4-Deluxe/5★ tier tables + includes/excludes):
 - **52** 04 Nights Sharm El Sheikh Escape (5d/4n, $385 4★)
@@ -218,7 +197,7 @@ A 25-item array (`uploads/tours.json`) scraped from egypttoplight.net/tours. Eac
 excerpt, overview, highlights[], groupSize, pace, itinerary:[{day,title,description}], included[], excluded[], rating, reviews`.
 Image paths are `/assets/images/tours/<area>/<name>.webp`; the same basenames exist as `.jpeg`/`.jpg` in the app's
 `public/images/tours/<area>/`. All 25 tours are now inserted: 5 & 25 previously, and the remaining 23 on 14 Jul as ids **98-120**
-(generated from tours.json at `egypt-top-light-travel-v2/egypt-top-light/data/tours.json`, mounted alongside this one).
+(generated from tours.json at `egypt-top-light-travel-v2/egypt-top-light/data/tours.json`, mounted this session).
 Notes on the 23: pp = tours.json price, `priceTableOn:false` + empty priceRows (no tier source — user adds hotel
 categories in the builder); hotels hand-derived per itinerary (verified: hotel nights == overview.nights == days-1
 for every row); day photos keyword-matched against the real photo inventory (Jordan/Jerusalem days fall back to
@@ -242,31 +221,11 @@ generic shots — no such photos exist in the library yet); dahabiya tours use t
   photo values (http/data pass through, else `/images/tours/` prefix), so PackageState may contain absolute
   URLs now — old relative paths still work everywhere.
 
-### The bucket is now the source of truth for PUBLIC pages (10 Aug 2026)
-
-The PDF resolves relative paths against this repo's `public/images/tours/`. The public package pages
-(§10) live in the *website* repo, which has no copy of that library — so the whole library was mirrored
-into the bucket. **307 objects: 287 from `public/images/tours/` + the 20 pre-existing `my-uploads/`.**
-Verified by MD5 over the sorted filename list on both sides — byte-exact parity.
-
-- **Structure is load-bearing.** The 9 area folders sit at the BUCKET ROOT, because `data` stores paths
-  like `cairo-giza/sphinx-pyramids.jpeg` relative to it. One extra level of nesting (a `tours/` prefix)
-  breaks every relative photo at once.
-- **`scripts/upload-tour-photos.mjs`** does the mirroring in one command. It needs `SUPABASE_URL` and
-  the **service_role** key in the environment — uploading is not a public operation even on a public
-  bucket. Pass it via `set` in cmd; never put it in a file, and remember **this repo is public on
-  GitHub**. Run `--dry-run` first. It upserts, so it is always safe to re-run.
-- Node's `fetch` throws a bare `fetch failed` on transient connection drops; on a ~58 MB batch a handful
-  of random files will hit one. That is the network, not a bad file. The script retries 3× with backoff.
-- **Storage policies (10 Aug):** `q tour photos read` (SELECT) and `q tour photos upload` (INSERT) are
-  both scoped to `{authenticated}`. Anonymous users can still FETCH any image — public buckets bypass
-  RLS when serving files — they just cannot enumerate the bucket. See §0.8 before changing this.
-
 ---
 
-## 8. OBSTACLES AND THEIR FIXES (July 2026 — all still current)
+## 8. OBSTACLES FACED THIS SESSION (and how to avoid re-hitting them)
 
-**A. File truncation (the biggest time sink of that session).** See §0.1. Edit `.tsx` via Python, verify with tsc, restore from git if cut.
+**A. File truncation (biggest time sink).** See §0.1. Edit `.tsx` via Python, verify with tsc, restore from git if cut.
 
 **B. Blank/extra pages in the PDF.**
 - Original inline `<style>` inside `.itin` → phantom ~130px top box → cover split across pages. Fix: CSS in `<head>`.
@@ -324,106 +283,24 @@ Verified by MD5 over the sorted filename list on both sides — byte-exact parit
 
 ---
 
-## 9. CURRENT STATE / PENDING  (as of 2026-08-10)
+## 9. CURRENT STATE / PENDING
 
 - `tsc --noEmit` passes clean. Base modules (Excel/Letter/Voucher/Admin) unchanged and working.
-- Package PDF: cover fixed (portrait heroes work), one-per-page days, canvas-crop for the seam, singular
-  labels, Trip-details editor live above the Export button.
-- **`q_package_docs`: 69 rows, 69 slugs, all distinct. 2 published.**
-- **`exportPdf()` no longer creates rows.** It used to end with an unconditional `savePackage(false)`,
-  which INSERTs whenever `currentId` is unset — so every export from an unsaved builder minted another
-  row. That is where the historical duplicates came from. It now only updates a package that already
-  exists: exporting a PDF is not a request to create a package.
-- **Dahabiya day presets (14 Jul session):** `q_day_presets` ids 33–40, sorts 30–37, named "Dahabiya 1 — …"
-  to "Dahabiya 8 — …" so they render as one consecutive chip row in the Quotation wizard (Luxor–Luxor,
-  7 nights). Costed sites: D2 Valley of Kings+Hatshepsut, D3 Edfu, D4 Philae+High Dam, D6 Kom Ombo,
-  D7 Karnak+Luxor Temple. Abu Simbel (D5) is *optional* in the text and NOT costed (add site 80 via
-  Admin → Day presets if wanted). Guide on D2/3/4/6/7 only; no transfers (the boat is the transport).
-  NB: site 71 = "Habo" (Medinet Habu), NOT Memnon — the Colossi have no q_sites entry (free to visit).
-
-### Known-broken / open
-
-- **Package 1** (`Ultimate Egypt Experience February 2027`) is the one genuinely inconsistent row of the
-  69: `overview.days` 15 vs 14 real day pages, 13 hotel nights against a 14-night date span, and 5 days
-  with an empty description and no photo. Package 151 supersedes it. Decide whether it is worth keeping.
-- **`segments-cityBullets-patch.md`** — fixes the compact card's "Also visiting" line, which re-lists
-  places the prose already described. Root cause: the coverage test asks whether the whole flattened site
-  name appears as a contiguous substring, so "Al-Moez Street" misses "Al-Moez **Ldin Allah** Street".
-  Verified against real rows from 153/155/156 — 4 of 5 day-blocks improve, control unchanged. **Never
-  applied, `tsc` never run on it.**
-- **`summariseLines`** — decides which prose lines survive onto the compact card at all. The other half of
-  "doesn't summarise the days well". Not started.
-- Slug 153 still reads badly at the 60-char cut (`…the-2027-total-so`). The slug field in the publish strip
-  is the fix — edit it before publishing that one.
-
-### Things that are NOT bugs (verified — do not "fix" these)
-
-- **`photo: ''` is deliberate.** Packages 147/148/149 are intentionally photo-free on every day page (hero
-  kept), and 154's Siwa and El Alamein pages are blank because the library has no Western Desert imagery.
-  There is no `updated_at` on `q_package_docs`, so you cannot tell an intentional edit from a corruption —
-  **ask before restoring**. A previous session assumed blank meant lost, wrote the old values back over an
-  intentional edit, and had to revert.
-- **`sitePhotos.ts` ALIASES are cruise-centric and will invent cities.** Every Luxor keyword — `karnak`,
-  `luxor`, `valleyofthekings`, `hatshepsut`, `colossi`, `westbank` — and both `eclipse` and `solareclipse`
-  map to the city label **`Nile Cruise`**. Any land-based Luxor or eclipse day tagged naturally in `sites[]`
-  adds a phantom city to the At-a-Glance stat and a bogus block on the compact sheet. Worked around in
-  154/155/156 by wording the tags to dodge the aliases. The real fix (adding `luxor → Luxor`, `siwa → Siwa`)
-  reclassifies every existing cruise package's compact sheet, so it needs a deliberate decision.
-  Related: `hotels[].destination` doubles as a city label and must match the `siteInfo()` label exactly, or
-  the same place counts twice (`Cairo` vs `Cairo & Giza`).
-- **`packageCategories.ts` keyword rules fire on prose, not just titles.** Writing "Gulf of **Aqaba**" in a
-  day description filed two Red Sea packages under **Multi-country (Jordan)**, because `aqaba` is in the
-  `multi` rule. Recent packages carry an explicit `category` so wording can never refile them.
-- **`days[]` excludes arrival and departure.** The rendered sequence is
-  `[arrival if on, ...days, departure if on]`. Any count from `days.length` alone is two short. Endlessly
-  re-learned; it is now also asserted in the website repo's renderer tests.
+- Package PDF: cover fixed (portrait heroes work), one-per-page days, canvas-crop for the seam, singular labels,
+  Trip-details editor (dates + accommodation nights) live above the Export button.
+- `q_package_docs` has grown to ~68 rows (user kept building beyond the original ids 52–55, 57, 58).
+  `group-shots` area (20 photos) is in the picker.
+- **Dahabiya day presets (14 Jul session):** `q_day_presets` ids 33–40, sorts 30–37, named "Dahabiya 1 — …" to
+  "Dahabiya 8 — …" so they render as one consecutive chip row in the Quotation wizard (Luxor–Luxor, 7 nights).
+  Costed sites: D2 Valley of Kings+Hatshepsut, D3 Edfu, D4 Philae+High Dam, D6 Kom Ombo, D7 Karnak+Luxor Temple.
+  Abu Simbel (D5) is *optional* in the text and NOT costed (add site 80 via Admin → Day presets if wanted).
+  Guide on D2/3/4/6/7 only; no transfers (the boat is the transport). NB: site 71 = "Habo" (Medinet Habu), NOT
+  Memnon — the Colossi have no q_sites entry (free to visit).
+- **Uncommitted / needs the user's `git push`** to deploy: whatever the working tree shows (`git status`). DB and
+  photos are already live for local `npm run dev`; the live site needs the push.
+- **Likely next asks:** insert more of the 25 tours; add hotel-photo-per-tier to the pricing table (not a field
+  today — would need schema + builder input + PDF render); custom domain; keep tuning PDF spacing.
 
 ---
 
-## 10. PUBLISHING A PACKAGE TO THE PUBLIC WEBSITE  (new, 2026-08-10)
-
-A package can be shared as a URL instead of a 4 MB PDF attachment:
-
-```
-https://egypttoplight.net/packages/<slug>
-```
-
-**The page is rendered by the OTHER repo.** This app only sets three columns on the row. The renderer is
-`functions/_lib/packageHtml.js` + `functions/packages/[slug].js` in `seif8545/egypt-top-light`. If a page
-looks wrong, the bug is almost certainly there, not here.
-
-### The publish strip (in `PackageBuilder.tsx`, under the toolbar)
-
-- Editable slug + **Generate** (re-derives from the title), **Save slug**, **Publish** / **Unpublish**,
-  a copy-link button, and a live/draft indicator.
-- `slugify()` is exported and **matches the SQL backfill exactly** — lowercase, runs of non-alphanumerics
-  collapsed to a single `-`, trimmed, capped at 60 chars. The cap cuts mid-word on purpose; making it
-  word-aware now would silently re-slug rows whose links may already have been shared.
-- New rows get a slug on insert, with a `-2`, `-3` suffix on collision rather than failing the save.
-- `published_at` is stamped on the FIRST publish only, so it records when the link went live.
-- A unique-violation (`23505`) is reported as "that slug is already used", not a raw Postgres error.
-- Publishing needs an id, so **Save before Publish** on a brand-new package.
-
-### What the reader gets
-
-Noindex, nofollow, not in the sitemap, not linked from anywhere on the site — but **public to anyone with
-the URL. There is no password.** Be deliberate about who receives a link.
-
-Edits propagate on their own: the page caches for 5 minutes, so save a change here and the same link shows
-it shortly after. You never re-send a link or redeploy the site.
-
-Price display follows the existing flags and never invents a number: tier table if `priceTableOn` with a
-non-zero row, else the price box if `showPrice` and `pp > 0`, else **"Price on request"**. A package with
-no price set shows the last of those — correct behaviour, but check it is what you intended before sending.
-
-### Verified end to end on 2026-08-10
-
-Renderer exercised against all 69 rows (618 day cards, 56 deliberate blank photos, 27 tier tables /
-30 price boxes / 11 price-on-request, XSS probes escaped). Live: published renders correctly, unpublished
-returns 404. That 404 matters — `[slug].js` runs on a service_role key that bypasses RLS, so the
-`published=eq.true` filter is the only thing between the public and every draft quotation in this table.
-
----
-
-*Update this file at the end of each session. Keep §0, §8 and §9's "not bugs" list current — they are the
-expensive lessons.*
+*Update this file at the end of each session. Keep §0 and §8 current — they are the expensive lessons.*
