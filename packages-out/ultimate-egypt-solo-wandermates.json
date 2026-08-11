@@ -1,0 +1,243 @@
+{
+  "title": "Ultimate Egypt Experience Solo Wandermates Travel",
+  "intro": "Eleven days for one, and nothing shared but the company you choose. Six nights in Cairo and Giza open the programme — the Great Pyramid and the Grand Egyptian Museum, Memphis and the step pyramid at Sakkara, Alexandria on the Mediterranean, and the Coptic and medieval city on foot. Woven through those days are the workshops the guidebooks skip: a papyrus institute and a cotton house in Giza, a carpentry atelier on the road to Memphis, and a perfumer and a goldsmith in the old city — each one a family trade, each one worked by hand in front of you. Then the Monday sailing out of Luxor: four nights down the Nile through Esna, Edfu and Kom Ombo to Aswan, temple by temple, with a belly dancer, a galabia party and a Nubian show along the way. You disembark on the Friday morning, fly back up to Cairo for a last night, and fly home on the Saturday.",
+  "hero": "cairo-giza/sphinx-pyramids.jpeg",
+  "meta": {
+    "ref": "",
+    "pax": 1,
+    "arrival": "2027-02-17",
+    "departure": "2027-02-27"
+  },
+  "overview": {
+    "days": 11,
+    "nights": 10,
+    "cities": 4
+  },
+  "hotels": [
+    {
+      "nights": 6,
+      "destination": "Cairo & Giza"
+    },
+    {
+      "nights": 4,
+      "destination": "Nile Cruise"
+    }
+  ],
+  "arrival": {
+    "on": true,
+    "title": "Arrival in Cairo — Wednesday 17 February",
+    "description": "Arrival at Cairo International Airport.\nMeet & assist by our representative airside, who stays with you through visa, passport and customs formalities and collects your luggage with you.\nPrivate air-conditioned transfer to your hotel in Giza, with the pyramids on the skyline as you come off the ring road.\nCheck-in and time to settle after the journey; the rest of the day is yours.\nWelcome dinner with your host — a first Egyptian table, and a walk-through of the eleven days ahead so you know exactly what each morning looks like.\nOvernight in Cairo.",
+    "photo": "arrivedepart/arrival-plane.jpg",
+    "meals": {
+      "breakfast": false,
+      "lunch": false,
+      "dinner": true
+    },
+    "hotel": "Pyramids Park Resort Cairo (or equal) — bed & breakfast"
+  },
+  "days": [
+    {
+      "uid": "uews-d02-giza-gem",
+      "title": "The Pyramids of Giza & the Grand Egyptian Museum — Thursday 18 February",
+      "description": "Breakfast at your hotel, then meet your private licensed Egyptologist for the day.\nThe Giza Plateau: the Great Pyramid of Khufu, the pyramids of Khafre and Menkaure, and the panoramic viewpoint where all three line up at once. Entry into a burial chamber is available on the spot, at extra cost.\nThe Great Sphinx and the Valley Temple of Khafre, where the causeway ends in limestone blocks the size of a small car.\nA papyrus institute on the plateau road — a working studio, not a showroom. The reed cut, pressed into a lattice and dried into a sheet, then the painters laying mineral pigment by hand on the same fibre the scribes used. Every sheet is stamped, which is how genuine papyrus is told from the copies sold on the street.\nA break for lunch at a local restaurant with the plateau in the window — optional, and payable locally.\nA textile house for Egyptian cotton — the long-staple Giza varieties these mills have spun for a century and a half. The handloom in operation, a genuine single-ply weave against the printed imitation, and the finishing done by hand at the bench.\nThe Grand Egyptian Museum: the hanging obelisk, the Ramses II atrium, the grand staircase of royal statuary, and the complete Tutankhamun collection — over five thousand objects, the death mask among them.\nBack to your hotel; evening at leisure. Overnight in Cairo.",
+      "photo": "cairo-giza/gem-pyramids.jpeg",
+      "sites": [
+        "Great Pyramid",
+        "Sphinx",
+        "Grand Egyptian Museum",
+        "Papyrus institute",
+        "Cotton house"
+      ],
+      "guide": true,
+      "meals": {
+        "breakfast": true,
+        "lunch": false,
+        "dinner": false
+      },
+      "hotel": "Pyramids Park Resort Cairo (or equal) — bed & breakfast"
+    },
+    {
+      "uid": "uews-d03-memphis-sakkara",
+      "title": "Memphis, Sakkara & Dahshur — Friday 19 February",
+      "description": "Breakfast at your hotel, then south with your private Egyptologist along the west bank of the Nile.\nMemphis, capital of the Old Kingdom: the colossal recumbent Ramses II in his own pavilion and the alabaster sphinx, in a village of palm groves where the city once ran for miles.\nAn artisanal carpentry workshop in the Memphis villages — three generations of joiners working sycamore, beech and rosewood by hand. Mother-of-pearl and camel bone set into arabesque marquetry, mashrabiya lattice turned piece by piece on a hand lathe, inlaid boxes assembled without a single machined joint. The craft that furnished Ottoman Cairo, still done at the bench.\nSakkara: the Step Pyramid of Djoser — the first monumental stone building anywhere — the Serapeum, and mastaba tombs whose painted reliefs of harvest and market days are still sharp after four and a half thousand years.\nA break for lunch at a local restaurant — optional, and payable locally.\nDahshur, where the geometry was worked out: the Bent Pyramid, whose builders changed the angle halfway up, and the Red Pyramid, the first true smooth-sided pyramid, which you may enter at no extra charge — usually almost empty.\nBack to your hotel; evening at leisure. Overnight in Cairo.",
+      "photo": "memphis-sakkara-dahshur/sakkara-1.jpeg",
+      "sites": [
+        "Memphis",
+        "Sakkara",
+        "Dahshur",
+        "Carpentry workshop"
+      ],
+      "guide": true,
+      "meals": {
+        "breakfast": true,
+        "lunch": false,
+        "dinner": false
+      },
+      "hotel": "Pyramids Park Resort Cairo (or equal) — bed & breakfast"
+    },
+    {
+      "uid": "uews-d04-alexandria",
+      "title": "Alexandria — a Day on the Mediterranean — Saturday 20 February",
+      "description": "Early breakfast, then the desert road north with your private Egyptologist — around three hours to the coast.\nThe Catacombs of Kom El Shoqafa: a shaft cut a hundred feet down into three storeys of Roman-era tombs, with the spiral stair around the well the bodies were lowered through, the banqueting triclinium, and a burial chamber where Egyptian gods stand in Roman dress.\nPompey's Pillar and the Serapeum, with the underground galleries of the daughter library and the granite Apis bull.\nThe Bibliotheca Alexandrina, the modern answer to the ancient library: the great tilted disc of the reading room on eleven cascading terraces, and the granite wall carved with the scripts of the world.\nA seafood lunch on the Corniche is there if you want it — a fish market where you pick from the ice and they cook it. Optional, and payable locally.\nThe Citadel of Qaitbay, built on the foundations of the Pharos lighthouse at the tip of the eastern harbour — the ramparts, the mosque tower, and the view that has been the picture of Alexandria for five hundred years.\nBack along the Corniche past the Stanley Bridge and the gardens of Montazah before turning for Cairo. Overnight in Cairo.",
+      "photo": "alexandria/qaitbay-2.jpeg",
+      "sites": [
+        "Kom El Shoqafa",
+        "Pompey's Pillar",
+        "Bibliotheca",
+        "Qaitbay",
+        "Montazah"
+      ],
+      "guide": true,
+      "meals": {
+        "breakfast": true,
+        "lunch": false,
+        "dinner": false
+      },
+      "hotel": "Pyramids Park Resort Cairo (or equal) — bed & breakfast"
+    },
+    {
+      "uid": "uews-d05-nmec-old-cairo",
+      "title": "Egyptian Civilization & Old Cairo — Sunday 21 February",
+      "description": "Breakfast at your hotel, then meet your private Egyptologist.\nThe National Museum of Egyptian Civilization at Fustat: one gallery running the whole length of Egypt, and below it the Royal Mummies Hall — twenty kings and queens, Ramses II and Hatshepsut among them.\nCoptic Old Cairo on foot: the Hanging Church on the towers of the Roman fortress, St Sergius over the crypt where the Holy Family is held to have sheltered, and the Ben Ezra Synagogue — three faiths inside two hundred metres.\nA perfume and essential oil house, one family's trade for generations: the copper stills, the absolutes themselves — jasmine, blue lotus, sandalwood, Delta rose picked at dawn — and how a genuine oil attar behaves on skin, blended drop by drop by nose alone.\nA break for lunch at a local restaurant — optional, and payable locally.\nA handcrafted gold and jewellery atelier in the goldsmiths' lane, benches open to you: the wax carved, the piece cast, granulation and filigree soldered under the flame, cartouches cut to order in hieroglyph by hand — hallmarked and weighed in front of you at the day's gold rate.\nAl-Moez Ldin Allah Street, the open-air museum of medieval Cairo: Bayt Al-Suhaymi, the Qalawun complex, the sabil-kuttabs and the minarets of Al-Hakim, ending in Khan El-Khalili for mint tea at El-Fishawy.\nOvernight in Cairo.",
+      "photo": "cairo-giza/civilization-museum.jpg",
+      "sites": [
+        "NMEC",
+        "Hanging Church",
+        "Ben Ezra",
+        "Perfumery",
+        "Goldsmith",
+        "Al-Moez Street"
+      ],
+      "guide": true,
+      "meals": {
+        "breakfast": true,
+        "lunch": false,
+        "dinner": false
+      },
+      "hotel": "Pyramids Park Resort Cairo (or equal) — bed & breakfast"
+    },
+    {
+      "uid": "uews-d06-embark-east-bank",
+      "title": "To Luxor & Embarkation — Karnak and Luxor Temples — Monday 22 February",
+      "description": "Early breakfast at your hotel — a box is arranged if your flight is before service — and check-out.\nMorning flight from Cairo to Luxor, around an hour, met on arrival and driven straight to the mooring.\nEmbarkation before lunch: your cabin is ready, and the ship is your hotel for the next four nights.\nLunch on board while the ship is still moored at Luxor.\nThe East Bank in the afternoon with your private Egyptologist. Karnak: the avenue of ram-headed sphinxes, the first pylon, and the Great Hypostyle Hall — one hundred and thirty-four columns, the tallest twenty-one metres, still carrying their painted architraves.\nThen Luxor Temple, joined to Karnak by the restored three-kilometre Avenue of Sphinxes, with the standing obelisk of Ramses II at the gate.\nAfternoon tea on your return to the ship.\nA belly dancer in the lounge before an à la carte dinner on board.\nOvernight moored in Luxor.",
+      "photo": "luxor-aswan/hypostyle.jpeg",
+      "sites": [
+        "Karnak",
+        "Luxor Temple",
+        "Embarkation"
+      ],
+      "guide": true,
+      "meals": {
+        "breakfast": true,
+        "lunch": true,
+        "dinner": true
+      },
+      "hotel": "Sonesta Nile cruise (or equal) — full board"
+    },
+    {
+      "uid": "uews-d07-west-bank-esna",
+      "title": "The West Bank, then Sailing to Esna — Tuesday 23 February",
+      "description": "Breakfast on board, then an early crossing to the West Bank, ahead of the heat and the coaches.\nThe Valley of the Kings: three royal tombs on the standard ticket, cut deep into the hillside, their corridors of painted text and star-vaulted ceilings intact. Tutankhamun and Seti I are separately ticketed, at extra cost.\nMedinet Habu, the mortuary temple of Ramses III — the least visited and best preserved on the bank, with colour still sitting in the reliefs of the migdol gate.\nThe Temple of Queen Hatshepsut at El-Deir El-Bahari, three colonnaded terraces built straight into the cliff face.\nThe Colossi of Memnon, the two seated quartzite giants of Amenhotep III that once fronted a temple larger than Karnak.\nThe ship sails for Esna over lunch, the banks turning to sugar cane, water buffalo and ferry boats.\nAfternoon tea on the sundeck.\nThe captain's welcome cocktail, an à la carte dinner, and karaoke in the lounge afterwards.\nOvernight moored at Esna.",
+      "photo": "luxor-aswan/colossi.jpeg",
+      "sites": [
+        "Valley of the Kings",
+        "Medinet Habu",
+        "Hatshepsut",
+        "Colossi of Memnon"
+      ],
+      "guide": true,
+      "meals": {
+        "breakfast": true,
+        "lunch": true,
+        "dinner": true
+      },
+      "hotel": "Sonesta Nile cruise (or equal) — full board"
+    },
+    {
+      "uid": "uews-d08-edfu-kom-ombo",
+      "title": "Edfu & Kom Ombo — Wednesday 24 February",
+      "description": "The ship sails for Edfu through the Esna lock while you sleep; breakfast on board.\nThe Temple of Horus at Edfu in the morning, reached by horse-drawn carriage from the mooring. The most completely preserved temple in Egypt: the pylon, the courtyard, the black granite falcon, the roofed sanctuary with its barque shrine still standing, and walls recording the whole Ptolemaic calendar of festivals.\nBack aboard to sail on to Kom Ombo, with lunch served under way.\nA ship tour with the captain in the afternoon: the bridge, the engine room, and how a vessel this size is handled through a lock.\nAfternoon tea, then a cooking class with the ship's chef — an Egyptian dish or two you can reproduce at home.\nThe Temple of Kom Ombo at dusk, right on the riverbank: the only double temple in Egypt, halved precisely between Sobek the crocodile and Haroeris the elder Horus, with the surgical instruments carved on the outer wall and the crocodile museum alongside.\nAn oriental band and dinner buffet on the sundeck, then the galabia party — the ship lends you the robe.\nOvernight moored at Kom Ombo.",
+      "photo": "luxor-aswan/kom-ombo.jpeg",
+      "sites": [
+        "Edfu",
+        "Kom Ombo",
+        "Cooking class",
+        "Galabia party"
+      ],
+      "guide": true,
+      "meals": {
+        "breakfast": true,
+        "lunch": true,
+        "dinner": true
+      },
+      "hotel": "Sonesta Nile cruise (or equal) — full board"
+    },
+    {
+      "uid": "uews-d09-aswan",
+      "title": "Aswan — the High Dam, Philae & the Botanical Garden — Thursday 25 February",
+      "description": "The ship sails for Aswan overnight; breakfast on board.\nThe Aswan High Dam in the morning, the granite quarries and the lake behind it.\nThen the Temple of Philae, reached by motor launch to Agilkia Island, where the whole complex was cut into blocks and rebuilt stone by stone to save it from the rising water — the last temple in Egypt where the old religion was practised, and the last hieroglyphic inscription ever cut.\nLunch on board.\nOut onto the Nile by motor boat in the afternoon, through the granite islands and the cataract channel where the current still runs fast, to the Botanical Garden on Kitchener's Island — planted with what he brought back from India and East Africa, and the best hour of shade and birdsong in Aswan.\nAfternoon tea on your return.\nA Nubian show on board before an à la carte dinner.\nOvernight moored in Aswan.",
+      "photo": "luxor-aswan/aswan-temple.jpeg",
+      "sites": [
+        "High Dam",
+        "Philae",
+        "Botanical Garden"
+      ],
+      "guide": true,
+      "meals": {
+        "breakfast": true,
+        "lunch": true,
+        "dinner": true
+      },
+      "hotel": "Sonesta Nile cruise (or equal) — full board"
+    },
+    {
+      "uid": "uews-d10-disembark-cairo",
+      "title": "Disembarkation — Optional Abu Simbel, then Cairo — Friday 26 February",
+      "description": "Breakfast on board, then disembarkation after breakfast with assistance and your luggage taken care of.\nOptional, at extra cost: Abu Simbel. Three hours south across the desert to the rock temples of Ramses II and Nefertari — four twenty-metre seated colossi cut into the cliff, and a sanctuary the whole mountain was sliced up and moved to save. Worth the early start; quoted on request, by road or by short flight.\nOtherwise the morning is free in Aswan: the souk, a felucca hour, or the Nubian village across the water.\nAfternoon flight from Aswan to Cairo, around ninety minutes, met on arrival and transferred to your hotel.\nCheck-in for one last night, and a final evening at your own pace. Overnight in Cairo.",
+      "photo": "luxor-aswan/abusimbel.jpeg",
+      "sites": [
+        "Disembarkation",
+        "Optional: Abu Simbel"
+      ],
+      "guide": true,
+      "meals": {
+        "breakfast": true,
+        "lunch": false,
+        "dinner": false
+      },
+      "hotel": "Pyramids Park Resort Cairo (or equal) — bed & breakfast"
+    }
+  ],
+  "departure": {
+    "on": true,
+    "title": "Departure — Saturday 27 February",
+    "description": "Breakfast at your hotel, subject to your flight timing; a breakfast box is arranged for an early departure.\nCheck-out, with help for your luggage and a late check-out requested where the hotel can give it.\nPrivate air-conditioned transfer to Cairo International Airport in good time.\nFinal meet & assist through check-in and departure formalities — and a safe journey home.",
+    "photo": "arrivedepart/departure-plane.jpg",
+    "meals": {
+      "breakfast": true,
+      "lunch": false,
+      "dinner": false
+    },
+    "hotel": ""
+  },
+  "pp": 5930,
+  "sgl": 0,
+  "showPrice": false,
+  "priceTableOn": true,
+  "priceColumns": "single",
+  "roomBasis": "single",
+  "priceRows": [
+    {
+      "category": "4 Star Deluxe Cairo · 5 Star Luxury Nile Cruise",
+      "dbl": 0,
+      "single": 5930,
+      "triple": 0,
+      "quad": 0,
+      "hotels": "Cairo & Giza — Pyramids Park Resort or equal (4★ Deluxe, bed & breakfast)\nNile cruise — Sonesta or equal (5★ Luxury, full board)"
+    }
+  ],
+  "flights": [],
+  "category": "other",
+  "included": "Meet & assist by our representative at Cairo International Airport on arrival and departure, and at Luxor and Aswan on the domestic flights\n10 nights accommodation on single occupancy basis — 6 nights Cairo & Giza (bed & breakfast) and 4 nights aboard the Nile cruise (full board)\n4★ Deluxe in Cairo and a 5★ Luxury Nile cruise: Pyramids Park Resort Cairo and the Sonesta Nile cruise, or equal\nDomestic flights within the programme: Cairo – Luxor on Monday 22 February and Aswan – Cairo on Friday 26 February, including airport transfers at both ends\nFour-night Nile cruise Luxor to Aswan, with every shore excursion and all onboard entertainment as programmed — belly dancer, captain's cocktail, karaoke, ship tour, cooking class, oriental band, galabia party and the Nubian show\nPrivate air-conditioned vehicle for every transfer and excursion, at your disposal alone\nPrivate licensed Egyptologist guide on all sightseeing days in Cairo, Alexandria and along the Nile\nEntrance fees to every site named in the programme, including three tombs in the Valley of the Kings and entry to the Red Pyramid at Dahshur\nAll the workshop and atelier visits as described — the papyrus institute, the Egyptian cotton textile house, the carpentry workshop, the perfumer and the goldsmith — arranged privately, with no obligation to purchase anything\nWelcome dinner on arrival day\nMeals exactly as specified on each day of the programme — breakfast daily, full board throughout the cruise, and the welcome dinner\nBottled water in the vehicle throughout\nAll local taxes and service charges\n24/7 support from our Cairo office for the whole eleven days",
+  "excluded": "International airfare to and from Egypt\nEgypt entry visa (USD 36, payable on arrival)\nOptional Abu Simbel on Friday 26 February — quoted on request, by road or by short flight\nOptional entry to the tomb of Tutankhamun and the tomb of Seti I in the Valley of the Kings, and entry inside the Great Pyramid at Giza — all payable locally\nAll lunches in Cairo, Giza and Alexandria — optional throughout, arranged on request and payable locally\nAny purchase made at the papyrus institute, textile house, carpentry workshop, perfumer or goldsmith — the visits are included, what you buy is your own\nDrinks with meals, and anything from the ship's bar\nSpa treatments and anything booked directly with the hotel or the cruise ship\nTravel insurance\nTipping and gratuities for the guide, driver and ship crew\nPersonal expenses, laundry and telephone calls\nAnything not listed under \"Included\""
+}

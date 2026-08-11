@@ -1,7 +1,7 @@
 # HANDOFF — ETL Quotation System (Egypt Top Light Travel)
 
 > **This is the single authoritative doc for this repo.** Superseded session notes are in `archive/`.
-> Last updated **2026-08-10**.
+> Last updated **2026-08-11**.
 >
 > Read section **0 (Gotchas)** and section **4 (Package PDF)** before touching anything. Most of the
 > July pain came from a handful of tooling + html2canvas traps documented in section **8**.
@@ -422,6 +422,48 @@ Renderer exercised against all 69 rows (618 day cards, 56 deliberate blank photo
 30 price boxes / 11 price-on-request, XSS probes escaped). Live: published renders correctly, unpublished
 returns 404. That 404 matters — `[slug].js` runs on a service_role key that bypasses RLS, so the
 `published=eq.true` filter is the only thing between the public and every draft quotation in this table.
+
+---
+
+---
+
+## 11. DAY-PAGE AUTO-FIT  (new, 2026-08-11)
+
+**The bug:** a day whose description was longer than the body box was silently **clipped
+mid-sentence**. `.day-full` is a fixed `height:1123px; overflow:hidden` (it has to be — the
+exporter slices the canvas 1:1), `.df-photo` is a fixed 632px, so `.df-body` only ever had
+**399px of content box** — roughly 11 lines of 15px bullets once `.d-foot` is accounted for.
+Nine of the eleven day pages of package 159 overflowed it. Nothing errored; the text just ended.
+
+**The fix** — `fitDayPage()` / `autoFitDays()` in `ItineraryDoc.tsx`, run from a `useEffect`
+keyed on `data` and again on `document.fonts.ready` (the webfonts change the wrapped line
+count, so a pass against the fallback font would leave the wrong scale applied):
+
+- Each day body is wrapped in a single measurable child, **`.df-fit`** (`flex: 0 0 auto`), so
+  `box.offsetHeight` vs `body.clientHeight − padding` is an exact fit test. `.df-body` itself
+  stays `flex:1`, so shrinking the photo hands its pixels straight to the body.
+- Search order is **photo band first, type second** — `FIT_PHOTO_H = [632, 580, 530, 480, 440, 400]`
+  then `FIT_SCALES = [1 … 0.76]`. Losing photo height is visually cheap; 11px body copy is not.
+  The first combination that fits wins, so pages that already fitted are left untouched.
+- Shrinking the band also scales `.df-num`, `.df-cap` bottom and `.df-title`, and steps the
+  title down until the caption clears the top ~26% of the band — otherwise a short band would
+  trade the body overflow for a clipped heading.
+- **All values are written as inline px**, deliberately: no `var()`/`calc()` to resolve, so the
+  html2canvas clone sees plain computed pixels. (See §8C for why calc + html2canvas is a trap.)
+- The forwarded ref is now merged with a local `rootRef` (`setRoot`) so the fit pass finds the
+  day pages inside this document instead of querying the whole `document`.
+- Verified with `node node_modules/typescript/lib/tsc.js --noEmit` (exit 0). **Not yet rendered
+  in a browser** — have the user re-export a long package and confirm.
+
+**Content-side rule of thumb** (from modelling the same geometry in Python): a day page holds
+about **1,300 characters over 8 bullets** at the full 632px band and 15px type, and about
+**1,450 at a 400px band**. Past that the auto-fit starts shrinking type. Keep day descriptions
+under ~1,350 characters and short tag lines (a `sites[]` line that wraps to 2 lines costs 17px)
+and every page renders at full size.
+
+**Still to do:** the PUBLIC package renderer (`functions/_lib/packageHtml.js` in
+`seif8545/egypt-top-light`) was not touched — if it reuses the fixed-height day page it has the
+same clipping bug and needs the same treatment.
 
 ---
 

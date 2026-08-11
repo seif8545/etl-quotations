@@ -1,4 +1,4 @@
-import { forwardRef, useEffect } from 'react'
+import { forwardRef, useEffect, useRef } from 'react'
 
 export interface ItineraryData {
   title: string
@@ -63,6 +63,9 @@ const CSS = `
 .df-eyebrow { color: #f0c53a; font-weight: 600; font-size: 12px; letter-spacing: 3px; text-transform: uppercase; margin-bottom: 10px; }
 .df-title { font-size: 46px; font-weight: 600; line-height: 1.04; margin: 0; color: #fff; text-shadow: 0 2px 16px rgba(0,0,0,0.4); }
 .df-body { flex: 1; padding: 44px 64px 48px; display: flex; flex-direction: column; }
+/* Single measurable child of .df-body. autoFitDays() sizes the day's type against this
+   box so a long description can never be clipped by the fixed 1123px page. */
+.df-fit { flex: 0 0 auto; display: flex; flex-direction: column; min-height: 0; }
 .df-noimg { position: relative; flex-shrink: 0; height: 300px; background: linear-gradient(135deg,#0e2a47,#163d6b); padding: 40px 64px 0; overflow: hidden; }
 .df-noimg-top { display: flex; align-items: center; justify-content: space-between; }
 .df-noimg-logo { background: #ffffff; border-radius: 999px; padding: 10px 22px; display: inline-flex; box-shadow: 0 6px 20px rgba(0,0,0,0.25); }
@@ -143,16 +146,126 @@ const CSS = `
 .contact-brand-sub { display: block; font-size: 15px; letter-spacing: 10px; color: #c8960a; margin-top: 2px; }
 `
 
+/* ---------------------------------------------------------------------------
+   AUTO-FIT FOR DAY PAGES
+   Every page block is a fixed 1123px with overflow:hidden (the exporter slices
+   the canvas 1:1, so the height cannot flex). A day whose description is longer
+   than the body box used to be silently CLIPPED mid-sentence. This measures each
+   day page in the live DOM and shrinks, in order of preference:
+     1. the photo band (632 -> 400px), which buys up to 232px of body at full type
+        size; the overlaid day number and title scale with it so the caption can
+        never be clipped by the shorter band
+     2. the type scale (15px -> 11.4px floor), applied to the bullets, the body
+        padding and the footer rule spacing
+   The first combination that fits is used, so pages that already fit are left
+   untouched. All values are written as inline px — html2canvas reads computed
+   styles from its clone, and px needs no var()/calc() resolution to survive.
+   --------------------------------------------------------------------------- */
+const FIT_PHOTO_H = [632, 580, 530, 480, 440, 400]
+const FIT_SCALES = [1, 0.97, 0.94, 0.91, 0.88, 0.85, 0.82, 0.79, 0.76]
+
+const fitDayPage = (page: HTMLElement): void => {
+  const body = page.querySelector('.df-body') as HTMLElement | null
+  const box = page.querySelector('.df-fit') as HTMLElement | null
+  if (!body || !box) return
+  const photo = page.querySelector('.df-photo') as HTMLElement | null
+  const list = page.querySelector('.df-desc') as HTMLElement | null
+  const foot = page.querySelector('.d-foot') as HTMLElement | null
+  const items = list ? Array.prototype.slice.call(list.querySelectorAll('li')) as HTMLElement[] : []
+
+  const cap = page.querySelector('.df-cap') as HTMLElement | null
+  const title = page.querySelector('.df-title') as HTMLElement | null
+  const num = page.querySelector('.df-num') as HTMLElement | null
+
+  const apply = (photoH: number, k: number): void => {
+    if (photo) photo.style.height = photoH + 'px'
+    if (photo) {
+      // The caption is absolutely positioned inside the band, so a shorter band has
+      // to carry a smaller heading or the title would run up under the day number.
+      const pk = Math.min(1, photoH / 632)
+      const capBottom = Math.max(26, Math.round(46 * pk))
+      if (num) num.style.fontSize = Math.max(96, Math.round(150 * pk)) + 'px'
+      if (cap) cap.style.bottom = capBottom + 'px'
+      if (title && cap) {
+        // Leave the top ~26% of the band clear for the ghost number, then step the
+        // title down until the whole caption clears it.
+        const room = photoH - Math.round(photoH * 0.26) - capBottom
+        for (let t = Math.round(46 * pk); t >= 24; t -= 2) {
+          title.style.fontSize = t + 'px'
+          if (cap.offsetHeight <= room) break
+        }
+      }
+    }
+    body.style.paddingTop = (44 * k).toFixed(1) + 'px'
+    body.style.paddingBottom = (48 * k).toFixed(1) + 'px'
+    if (list) list.style.fontSize = (15 * k).toFixed(2) + 'px'
+    for (let i = 0; i < items.length; i++) {
+      items[i].style.fontSize = (15 * k).toFixed(2) + 'px'
+      items[i].style.marginBottom = (11 * k).toFixed(2) + 'px'
+      items[i].style.paddingLeft = Math.max(13, Math.round(20 * k)) + 'px'
+    }
+    if (foot) {
+      foot.style.marginTop = Math.round(26 * k) + 'px'
+      foot.style.paddingTop = Math.round(18 * k) + 'px'
+    }
+  }
+
+  // Available content height of .df-body, read back after each apply() because
+  // the body is flex:1 and grows by exactly what the photo gives up.
+  const fits = (): boolean => {
+    const cs = getComputedStyle(body)
+    const avail = body.clientHeight - parseFloat(cs.paddingTop || '0') - parseFloat(cs.paddingBottom || '0')
+    return box.offsetHeight <= avail
+  }
+
+  for (let si = 0; si < FIT_SCALES.length; si++) {
+    for (let pi = 0; pi < FIT_PHOTO_H.length; pi++) {
+      apply(FIT_PHOTO_H[pi], FIT_SCALES[si])
+      if (fits()) return
+    }
+  }
+  // Floor reached: the tightest combination stays applied. Nothing is lost that
+  // was not already lost before, and in practice no realistic day reaches here.
+}
+
+const autoFitDays = (root: HTMLElement | null): void => {
+  if (!root) return
+  const pages = root.querySelectorAll('.day-full')
+  for (let i = 0; i < pages.length; i++) fitDayPage(pages[i] as HTMLElement)
+}
+
 const bulletsOf = (s: string): string[] => (s ? s.split('\n').map((l) => l.trim()).filter(Boolean) : [])
 
 const ItineraryDoc = forwardRef<HTMLDivElement, { data: ItineraryData }>(({ data }, ref) => {
   const d = data
+  const rootRef = useRef<HTMLDivElement | null>(null)
+  // Keep our own handle on the root as well as honouring the forwarded ref, so the
+  // fit pass can find the day pages without reaching into the whole document.
+  const setRoot = (node: HTMLDivElement | null): void => {
+    rootRef.current = node
+    if (typeof ref === 'function') ref(node)
+    else if (ref) (ref as { current: HTMLDivElement | null }).current = node
+  }
   useEffect(() => {
     if (typeof document === 'undefined') return
     let el = document.getElementById('itin-doc-css') as HTMLStyleElement | null
     if (!el) { el = document.createElement('style'); el.id = 'itin-doc-css'; document.head.appendChild(el) }
     el.textContent = CSS
   }, [])
+
+  // Re-fit after every content change, and again once the webfonts land — Fraunces
+  // and Inter change the wrapped line count, so a pass against the fallback font
+  // would leave the wrong scale applied.
+  useEffect(() => {
+    if (typeof document === 'undefined') return
+    autoFitDays(rootRef.current)
+    let alive = true
+    const again = () => { if (alive) autoFitDays(rootRef.current) }
+    const t = window.setTimeout(again, 0)
+    const fonts = (document as Document & { fonts?: FontFaceSet }).fonts
+    if (fonts && fonts.ready) fonts.ready.then(again).catch(() => {})
+    return () => { alive = false; window.clearTimeout(t) }
+  }, [data])
 
   type DDay = ItineraryData['days'][number]
 
@@ -194,15 +307,17 @@ const ItineraryDoc = forwardRef<HTMLDivElement, { data: ItineraryData }>(({ data
           </div>
         )}
         <div className="df-body">
-          {bl.length > 0 ? <ul className="df-desc">{bl.map((l, k) => <li key={k}>{l}</li>)}</ul> : null}
-          {details(day)}
+          <div className="df-fit">
+            {bl.length > 0 ? <ul className="df-desc">{bl.map((l, k) => <li key={k}>{l}</li>)}</ul> : null}
+            {details(day)}
+          </div>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="itin" ref={ref}>
+    <div className="itin" ref={setRoot}>
       {/* Cover */}
       <div className="itin-cover">
         <img className="cover-hero" src={d.heroUrl} crossOrigin="anonymous" alt="" />
