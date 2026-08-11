@@ -440,8 +440,10 @@ keyed on `data` and again on `document.fonts.ready` (the webfonts change the wra
 count, so a pass against the fallback font would leave the wrong scale applied):
 
 - Each day body is wrapped in a single measurable child, **`.df-fit`** (`flex: 0 0 auto`), so
-  `box.offsetHeight` vs `body.clientHeight − padding` is an exact fit test. `.df-body` itself
-  stays `flex:1`, so shrinking the photo hands its pixels straight to the body.
+  `box.offsetHeight` is the exact content height. `.df-body` stays `flex:1`, so shrinking the
+  photo hands its pixels straight to the body.
+- **`.df-body` needs `min-height: 0`, and the fit test must measure the PAGE, not the body.**
+  This is the trap that made the first version of this fix a no-op — see the sub-section below.
 - Search order is **photo band first, type second** — `FIT_PHOTO_H = [632, 580, 530, 480, 440, 400]`
   then `FIT_SCALES = [1 … 0.76]`. Losing photo height is visually cheap; 11px body copy is not.
   The first combination that fits wins, so pages that already fitted are left untouched.
@@ -452,8 +454,36 @@ count, so a pass against the fallback font would leave the wrong scale applied):
   html2canvas clone sees plain computed pixels. (See §8C for why calc + html2canvas is a trap.)
 - The forwarded ref is now merged with a local `rootRef` (`setRoot`) so the fit pass finds the
   day pages inside this document instead of querying the whole `document`.
-- Verified with `node node_modules/typescript/lib/tsc.js --noEmit` (exit 0). **Not yet rendered
-  in a browser** — have the user re-export a long package and confirm.
+### The automatic-minimum-size trap (cost one round trip — do not re-learn it)
+
+`.df-body` is `flex: 1` with `overflow: visible`, so its **automatic minimum size** is its own
+content height: a column flex item *cannot shrink below its content*. A day needing 737px did
+not sit at its 491px flex height — `.df-body` **grew to 737px** and `.day-full` (fixed 1123,
+`overflow:hidden`) clipped the difference. Consequences:
+
+- `body.clientHeight` is `max(available, content)`, never the space actually available. The
+  first `fits()` compared `box.offsetHeight` against a number derived from that same content,
+  so it **passed on the first attempt every time** — all 11 bands stayed at 632px, nothing was
+  ever shrunk, and the re-export looked byte-identical to the broken one.
+- Fix is two-part: `min-height: 0` on `.df-body` so it holds its flex height, **and** compute
+  `avail = page.clientHeight − band() − bodyPadding` from the page geometry rather than
+  measuring the body. Either alone is not enough; the geometry version is the one to trust.
+
+**Verified in a real browser, not by reasoning.** `tsc --noEmit` exits 0, and the CSS + the fit
+function were extracted from this file into a standalone harness and run in headless Chromium
+(Playwright is available in the sandbox even though the html2pdf pipeline is not — see §0.3;
+plain HTML *can* be rendered and measured here, which is far better than iterating blind):
+
+- old logic: 8 of 11 day pages clipped bullets and/or the whole `.d-foot`; `bodyH` measured
+  737/761px against a 491px flex height, and every band stayed at 632
+- new logic: 0 pages clipped, 0 captions clipped, bands settle at 400–632px with body type at
+  14.6–15px, and every page still measures exactly 1123px so the canvas slicing is unchanged
+
+Reusable harness recipe: regex the `const CSS = \`...\`` literal and the `FIT_*`/`fitDayPage`/
+`autoFitDays` block out of `ItineraryDoc.tsx`, strip the TS annotations, emit one `.day-full`
+per day from a `PackageState`, then measure `getBoundingClientRect().bottom` of each `li` and
+of `.d-foot` against the page bottom. Fonts fall back to system faces in the sandbox, so the
+chosen tier differs slightly from the user's machine — the pass/fail logic does not.
 
 **Content-side rule of thumb** (from modelling the same geometry in Python): a day page holds
 about **1,300 characters over 8 bullets** at the full 632px band and 15px type, and about

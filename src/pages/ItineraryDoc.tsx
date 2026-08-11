@@ -62,7 +62,7 @@ const CSS = `
 .df-cap { position: absolute; left: 62px; right: 62px; bottom: 46px; z-index: 2; color: #fff; }
 .df-eyebrow { color: #f0c53a; font-weight: 600; font-size: 12px; letter-spacing: 3px; text-transform: uppercase; margin-bottom: 10px; }
 .df-title { font-size: 46px; font-weight: 600; line-height: 1.04; margin: 0; color: #fff; text-shadow: 0 2px 16px rgba(0,0,0,0.4); }
-.df-body { flex: 1; padding: 44px 64px 48px; display: flex; flex-direction: column; }
+.df-body { flex: 1; min-height: 0; padding: 44px 64px 48px; display: flex; flex-direction: column; }
 /* Single measurable child of .df-body. autoFitDays() sizes the day's type against this
    box so a long description can never be clipped by the fixed 1123px page. */
 .df-fit { flex: 0 0 auto; display: flex; flex-direction: column; min-height: 0; }
@@ -210,11 +210,20 @@ const fitDayPage = (page: HTMLElement): void => {
     }
   }
 
-  // Available content height of .df-body, read back after each apply() because
-  // the body is flex:1 and grows by exactly what the photo gives up.
+  // Available content height, derived from the PAGE and the band we just applied.
+  // Deliberately NOT from body.clientHeight: .df-body has overflow:visible, so its
+  // automatic minimum size is its own content height and it grows past its flex
+  // height rather than reporting the space it actually has. Measuring it would make
+  // this test compare the content against itself and always pass.
+  const band = (): number => {
+    if (photo) return photo.offsetHeight
+    const noimg = page.querySelector('.df-noimg') as HTMLElement | null
+    return noimg ? noimg.offsetHeight : 0
+  }
   const fits = (): boolean => {
     const cs = getComputedStyle(body)
-    const avail = body.clientHeight - parseFloat(cs.paddingTop || '0') - parseFloat(cs.paddingBottom || '0')
+    const pad = parseFloat(cs.paddingTop || '0') + parseFloat(cs.paddingBottom || '0')
+    const avail = page.clientHeight - band() - pad
     return box.offsetHeight <= avail
   }
 
