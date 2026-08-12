@@ -401,6 +401,10 @@ const CompactDoc = forwardRef<HTMLDivElement, { data: CompactData }>(({ data }, 
         ? [[d.pricing.columns, d.pricing.columns === 'single' ? 'single' : d.pricing.columns === 'triple' ? 'triple' : d.pricing.columns === 'quad' ? 'quad' : d.pricing.columns === 'solo' ? 'solo' : 'double']]
         : [['dbl', 'double'], ['triple', 'triple'], ['quad', 'quad'], ['single', 'single'], ['solo', 'solo']]
     for (const [key, label] of order) if ((r[key] || 0) > 0) return { value: r[key] || 0, label, key }
+    /* Same trap as the PDF's column picker: if the forced column is empty, fall through to
+       the natural order rather than leading the card with a zero. */
+    const fallback: [PriceColKey, string][] = [['dbl', 'double'], ['triple', 'triple'], ['quad', 'quad'], ['single', 'single'], ['solo', 'solo']]
+    for (const [key, label] of fallback) if ((r[key] || 0) > 0) return { value: r[key] || 0, label, key }
     return { value: 0, label: basis }
   }
 

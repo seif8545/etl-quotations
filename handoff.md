@@ -538,6 +538,29 @@ page, zero cells past the page edge, summary page overflow 0. `tsc --noEmit` exi
 **Keep categories short.** The cell wraps now, but a full sentence there makes a very tall row —
 put the explanation in `included` instead, as 162 does.
 
+### The empty-column trap this created, and the guard for it
+
+Package 150 was set to **`priceColumns: 'single'`**. The solo figures were typed into the new Solo
+column, so the Single column was zero — and `cols = PRICE_COLS.filter(c => c.key === mode)` printed
+a price page of nothing but em-dashes, with 9,100 and 7,250 sitting invisibly in the row. No error,
+nothing in the console, and the PDF looked finished.
+
+**The fifth column made this much easier to hit** (five places to put a number, one selector saying
+which is shown), so `cols` now falls back: a single-column mode is honoured only while that column
+has something to show; otherwise the columns that actually carry money are shown instead. When no
+column anywhere has a figure the chosen one is kept and prints dashes, exactly as before — that is
+the legitimate price-not-set-yet case and it must not change. Verified against four shapes:
+150-as-broken → falls back to Solo; a legacy single-basis package with money in Single → unchanged;
+an all-zero package → unchanged; explicit `'solo'` → Solo.
+
+`CompactDoc.tsx`'s `headline()` had the identical trap — a forced `columns` value with no figure led
+the card with a zero and fell back to the flat package price. It now falls through to the natural
+occupancy order after trying the forced column.
+
+**Diagnosing this class of bug:** query for rows whose money and whose `priceColumns` disagree —
+`select id, data->>'priceColumns', (select jsonb_agg(...) from jsonb_array_elements(data->'priceRows') r)`
+— rather than opening the builder, where the figures look present and correct.
+
 ---
 
 *Update this file at the end of each session. Keep §0, §8 and §9's "not bugs" list current — they are the

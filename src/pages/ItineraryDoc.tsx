@@ -431,9 +431,20 @@ const ItineraryDoc = forwardRef<HTMLDivElement, { data: ItineraryData }>(({ data
         const val = (r: (typeof d.pricing.rows)[number], key: PriceColKey) => r[key] || 0
         const mode = d.pricing.columns || 'all'
         const hasAny = (key: PriceColKey) => d.pricing.rows.some((r) => val(r, key) > 0)
+        const picked = PRICE_COLS.filter((c) => c.key === mode)
+        const anyMoneyAtAll = PRICE_COLS.some((c) => hasAny(c.key))
+        /* A single-column mode that points at an empty column used to print a table of
+           nothing but dashes — the figures were sitting in another column and the reader
+           had no way to know. Adding the Solo column made that easy to hit: type the price
+           into Solo while the document is still set to 'Single only' and the whole price
+           page silently goes blank. So a mode is honoured only while it has something to
+           show; otherwise fall back to whichever columns actually carry money. When no
+           column anywhere has a figure, keep the chosen one and print dashes as before. */
         const cols = mode === 'all'
           ? PRICE_COLS.filter((c) => c.key === 'dbl' || c.key === 'single' || hasAny(c.key))
-          : PRICE_COLS.filter((c) => c.key === mode)
+          : picked.some((c) => hasAny(c.key)) || !anyMoneyAtAll
+            ? picked
+            : PRICE_COLS.filter((c) => hasAny(c.key))
         return (
           <div className="summary-page">
             <div className="sec-eyebrow">Pricing</div>
