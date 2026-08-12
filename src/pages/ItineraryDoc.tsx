@@ -12,7 +12,7 @@ export interface ItineraryData {
   included: string[]
   excluded: string[]
   price: { pp: number; sgl: number; show: boolean }
-  pricing: { show: boolean; refPp: number; refSgl: number; rows: { category: string; dbl: number; single: number; triple: number; quad: number; hotels: string }[]; columns?: 'all' | 'dbl' | 'single' | 'triple' | 'quad' }
+  pricing: { show: boolean; refPp: number; refSgl: number; rows: { category: string; dbl: number; single: number; triple: number; quad: number; solo?: number; hotels: string }[]; columns?: 'all' | 'dbl' | 'single' | 'triple' | 'quad' | 'solo' }
   contact: { phone: string; email: string; website: string; social: string }
   roomBasis?: string // <-- Added here
 }
@@ -117,9 +117,13 @@ const CSS = `
 .price-sgl { font-size: 12px; color: #f0c53a; margin-top: 8px; }
 .price-ref { font-size: 13px; color: #45566b; margin-bottom: 18px; }
 .price-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
-.price-table th { text-align: left; background: #0e2a47; color: #fff; font-weight: 600; padding: 11px 14px; font-size: 10.5px; letter-spacing: 0.5px; text-transform: uppercase; }
-.price-table td { padding: 11px 14px; border-bottom: 1px solid #eee2c8; vertical-align: top; }
-.pt-cat { color: #0e2a47; font-weight: 600; white-space: nowrap; }
+.price-table th { text-align: left; background: #0e2a47; color: #fff; font-weight: 600; padding: 11px 10px; font-size: 10.5px; letter-spacing: 0.5px; text-transform: uppercase; }
+.price-table td { padding: 11px 10px; border-bottom: 1px solid #eee2c8; vertical-align: top; }
+/* The category was nowrap while every category was a short tier name ('5 Star Deluxe').
+   A descriptive category ('Solo traveller — one guest travelling alone') then forced the
+   column to its full single-line width and pushed the price and hotel columns off the
+   page. Let it wrap; the price cells stay nowrap so '3,750 USD' never breaks. */
+.pt-cat { color: #0e2a47; font-weight: 600; }
 .pt-price { color: #806000; font-weight: 600; white-space: nowrap; }
 .pt-hotels { color: #6a7789; font-size: 11.5px; }
 .pt-hl + .pt-hl { margin-top: 4px; }
@@ -409,7 +413,7 @@ const ItineraryDoc = forwardRef<HTMLDivElement, { data: ItineraryData }>(({ data
 
       {/* Pricing table */}
       {d.pricing.show && d.pricing.rows.length > 0 && (() => {
-        type PriceColKey = 'dbl' | 'single' | 'triple' | 'quad'
+        type PriceColKey = 'dbl' | 'single' | 'triple' | 'quad' | 'solo'
         const PRICE_COLS: { key: PriceColKey; label: string }[] = [
           { key: 'dbl', label: 'Per Person in Double' },
           /* On a solo quote the figure in this column is the whole price, not a top-up.
@@ -418,6 +422,11 @@ const ItineraryDoc = forwardRef<HTMLDivElement, { data: ItineraryData }>(({ data
           { key: 'single', label: d.roomBasis === 'single' ? 'Single Occupancy' : 'Single Supplement' },
           { key: 'triple', label: 'Per Person in Triple' },
           { key: 'quad', label: 'Per Person in Quadruple' },
+          /* A solo traveller's price is not the double rate plus the single supplement —
+             one guest also carries the whole private car and guide. It needs its own
+             column or the figure lands under a header that misdescribes it. Only shown
+             when a row actually carries a solo figure, so existing quotes are unchanged. */
+          { key: 'solo', label: 'Solo Traveller' },
         ]
         const val = (r: (typeof d.pricing.rows)[number], key: PriceColKey) => r[key] || 0
         const mode = d.pricing.columns || 'all'

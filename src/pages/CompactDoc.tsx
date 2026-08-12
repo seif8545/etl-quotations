@@ -30,6 +30,7 @@ export interface CompactPricingRow {
   single: number
   triple: number
   quad: number
+  solo?: number
   hotels: string
 }
 
@@ -65,7 +66,7 @@ export interface CompactData {
   included: string[]
   excluded: string[]
   price: { pp: number; sgl: number; show: boolean }
-  pricing: { show: boolean; rows: CompactPricingRow[]; columns?: 'all' | 'dbl' | 'single' | 'triple' | 'quad' }
+  pricing: { show: boolean; rows: CompactPricingRow[]; columns?: 'all' | 'dbl' | 'single' | 'triple' | 'quad' | 'solo' }
   contact: { phone: string; email: string; website: string; social: string }
   roomBasis?: string
   /** 0 = roomy … 4 = tightest. Driven by the fit loop in PackageBuilder. */
@@ -368,7 +369,7 @@ function Plate({ photos, width, height, gap }: { photos: SiteTile[]; width: numb
   )
 }
 
-type PriceColKey = 'dbl' | 'single' | 'triple' | 'quad'
+type PriceColKey = 'dbl' | 'single' | 'triple' | 'quad' | 'solo'
 
 const CompactDoc = forwardRef<HTMLDivElement, { data: CompactData }>(({ data }, ref) => {
   const d = data
@@ -387,7 +388,7 @@ const CompactDoc = forwardRef<HTMLDivElement, { data: CompactData }>(({ data }, 
   const trust = (d.trust ?? DEFAULT_TRUST()).map((t) => (t ?? '').trim()).filter(Boolean)
 
   const tierRows = d.pricing.rows.filter(
-    (r) => (r.category ?? '').trim() && (r.dbl > 0 || r.single > 0 || r.triple > 0 || r.quad > 0),
+    (r) => (r.category ?? '').trim() && (r.dbl > 0 || r.single > 0 || r.triple > 0 || r.quad > 0 || (r.solo ?? 0) > 0),
   )
   const showTiers = d.pricing.show && tierRows.length > 0
   const basis = d.roomBasis || 'double'
@@ -397,8 +398,8 @@ const CompactDoc = forwardRef<HTMLDivElement, { data: CompactData }>(({ data }, 
   const headline = (r: CompactPricingRow): { value: number; label: string; key?: PriceColKey } => {
     const order: [PriceColKey, string][] =
       d.pricing.columns && d.pricing.columns !== 'all'
-        ? [[d.pricing.columns, d.pricing.columns === 'single' ? 'single' : d.pricing.columns === 'triple' ? 'triple' : d.pricing.columns === 'quad' ? 'quad' : 'double']]
-        : [['dbl', 'double'], ['triple', 'triple'], ['quad', 'quad'], ['single', 'single']]
+        ? [[d.pricing.columns, d.pricing.columns === 'single' ? 'single' : d.pricing.columns === 'triple' ? 'triple' : d.pricing.columns === 'quad' ? 'quad' : d.pricing.columns === 'solo' ? 'solo' : 'double']]
+        : [['dbl', 'double'], ['triple', 'triple'], ['quad', 'quad'], ['single', 'single'], ['solo', 'solo']]
     for (const [key, label] of order) if ((r[key] || 0) > 0) return { value: r[key] || 0, label, key }
     return { value: 0, label: basis }
   }
@@ -413,7 +414,7 @@ const CompactDoc = forwardRef<HTMLDivElement, { data: CompactData }>(({ data }, 
    * occupancy, since the supplement is then the headline price.
    */
   const suppFor = (r: CompactPricingRow, hd: { key?: PriceColKey }): number => {
-    if (hd.key === 'single') return 0
+    if (hd.key === 'single' || hd.key === 'solo') return 0
     return (r.single || 0) > 0 ? r.single : d.price.sgl || 0
   }
 

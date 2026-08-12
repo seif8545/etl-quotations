@@ -30,9 +30,9 @@ interface EditableDay { uid: string; title: string; description: string; photo: 
 
 interface FixedDay { on: boolean; title: string; description: string; photo: string; meals: Meals; hotel: string }
 
-interface PriceRow { category: string; dbl: number; single: number; triple: number; quad: number; hotels: string }
+interface PriceRow { category: string; dbl: number; single: number; triple: number; quad: number; solo?: number; hotels: string }
 
-type PriceColumnsMode = 'all' | 'dbl' | 'single' | 'triple' | 'quad'
+type PriceColumnsMode = 'all' | 'dbl' | 'single' | 'triple' | 'quad' | 'solo'
 
 interface FlightInsert { id: number; label: string; text: string; targetUid: string; position: 'start' | 'end' }
 
@@ -1760,7 +1760,7 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
                 <div className="price-columns-picker">
                   <span className="meal-ticker-label">Show in PDF</span>
                   {([
-                    ['all', 'All'], ['dbl', 'Double only'], ['single', 'Single only'], ['triple', 'Triple only'], ['quad', 'Quadruple only'],
+                    ['all', 'All'], ['dbl', 'Double only'], ['single', 'Single only'], ['triple', 'Triple only'], ['quad', 'Quadruple only'], ['solo', 'Solo only'],
                   ] as [PriceColumnsMode, string][]).map(([mode, label]) => (
                     <button type="button" key={mode} className={`meal-toggle${priceColumnsMode === mode ? ' on' : ''}`}
                       onClick={() => setPriceColumnsMode(mode)}>{label}</button>
@@ -1768,7 +1768,7 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
                 </div>
                 <div className="table-scroll">
                   <table className="grid-table wide">
-                    <thead><tr><th>Category</th><th>Per person (DBL) USD</th><th>Single supp. USD</th><th>Triple USD</th><th>Quad USD</th><th>Offered hotels</th><th /></tr></thead>
+                    <thead><tr><th>Category</th><th>Per person (DBL) USD</th><th>Single supp. USD</th><th>Triple USD</th><th>Quad USD</th><th>Solo USD</th><th>Offered hotels</th><th /></tr></thead>
                     <tbody>
                       {priceRows.map((r, i) => (
                         <tr key={i}>
@@ -1777,6 +1777,10 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
                           <td><input type="number" min={0} value={r.single} onChange={(e) => updateRow(i, { single: +e.target.value })} /></td>
                           <td><input type="number" min={0} value={r.triple} onChange={(e) => updateRow(i, { triple: +e.target.value })} /></td>
                           <td><input type="number" min={0} value={r.quad} onChange={(e) => updateRow(i, { quad: +e.target.value })} /></td>
+                          {/* Solo = the whole price for one guest travelling alone. NOT double + single
+                              supplement: a lone traveller also carries the private car and guide, so the
+                              two figures differ and must be quotable separately. */}
+                          <td><input type="number" min={0} value={r.solo ?? 0} onChange={(e) => updateRow(i, { solo: +e.target.value })} /></td>
                           <td style={{ width: '30%', minWidth: '250px', maxWidth: '400px' }}>
                             <textarea 
                               className="pr-hotels" 
@@ -1799,7 +1803,7 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
                     </tbody>
                   </table>
                 </div>
-                <button onClick={() => setPriceRows((rs) => [...rs, { category: '', dbl: 0, single: 0, triple: 0, quad: 0, hotels: '' }])}>+ Add row</button>
+                <button onClick={() => setPriceRows((rs) => [...rs, { category: '', dbl: 0, single: 0, triple: 0, quad: 0, solo: 0, hotels: '' }])}>+ Add row</button>
               </div>
             )}
           </section>

@@ -1,0 +1,222 @@
+{
+  "title": "Solar Eclipse Nile Cruise — Luxor Roundtrip & Totality at Karnak",
+  "intro": "Seven nights on the river, timed so the ship puts you back on the Luxor quay on the morning of the eclipse. The Monday sailing runs the full roundtrip — down through Esna, Edfu and Kom Ombo to Aswan, two nights there for the High Dam, Philae and the botanical garden, then back up the same water with the temples seen from the other direction. You wake in Luxor on 2 August, step off after breakfast, and go straight to Karnak for totality among the columns. Cairo bookends it: a night to land and sleep off the flight at the start, and on the last morning the Giza Plateau and the Grand Egyptian Museum before the airport. No clock-watching on board — the programme below is the shape of each day, and the ship keeps to it, not you.",
+  "hero": "luxor-aswan/sailing.jpeg",
+  "meta": {
+    "ref": "",
+    "pax": 2,
+    "arrival": "2027-07-25",
+    "departure": "2027-08-03"
+  },
+  "overview": {
+    "days": 10,
+    "nights": 9,
+    "cities": 4
+  },
+  "hotels": [
+    {
+      "nights": 2,
+      "destination": "Cairo & Giza"
+    },
+    {
+      "nights": 7,
+      "destination": "Nile Cruise"
+    }
+  ],
+  "arrival": {
+    "on": true,
+    "title": "Arrival in Cairo — Sunday 25 July",
+    "description": "Arrival at Cairo International Airport.\nMeet & assist by our representative airside, who stays with you through the visa, passport and customs formalities and collects your luggage with you.\nPrivate air-conditioned transfer to your hotel.\nNothing scheduled: the day is yours to sleep off the flight, eat, and adjust before an early start tomorrow.\nDinner at the hotel.\nOvernight in Cairo.",
+    "photo": "arrivedepart/arrival-plane.jpg",
+    "meals": {
+      "breakfast": false,
+      "lunch": false,
+      "dinner": true
+    },
+    "hotel": "Pyramids Park Resort Cairo, 4★ (or equal) — bed & breakfast"
+  },
+  "days": [
+    {
+      "uid": "ecr-d02-embark",
+      "title": "To Luxor & Embarkation — Monday 26 July",
+      "description": "Early breakfast at the hotel — or a breakfast box if the flight goes before service — and check-out.\nTransfer to Cairo airport for the morning flight to Luxor, around an hour, met on arrival and driven straight to the mooring.\nEmbarkation before lunch. Your cabin is ready and the ship is home for the next seven nights.\nLunch on board, then the afternoon at leisure — the sundeck, the pool, or the town if you want it.\nAfternoon tea.\nA belly dancer in the lounge before an à la carte dinner on board.\nOvernight moored in Luxor.",
+      "photo": "luxor-aswan/nile.jpeg",
+      "sites": [
+        "Embarkation",
+        "Luxor",
+        "Afternoon at leisure"
+      ],
+      "guide": false,
+      "meals": {
+        "breakfast": true,
+        "lunch": true,
+        "dinner": true
+      },
+      "hotel": "Blue Shadow Nile cruise (or equal) — full board"
+    },
+    {
+      "uid": "ecr-d03-west-bank-esna",
+      "title": "The West Bank, then Sailing to Esna — Tuesday 27 July",
+      "description": "Breakfast on board, then across to the west bank early with your private Egyptologist, ahead of the heat.\nThe Valley of the Kings: royal tombs cut deep into the hillside, their corridors of painted text and star-vaulted ceilings intact. Tutankhamun, Seti I and Nefertari are separately ticketed and can be added on the spot.\nMedinet Habu, the mortuary temple of Ramses III — the best preserved on the bank, colour still sitting in the reliefs of the migdol gate.\nThe Temple of Queen Hatshepsut at El-Deir El-Bahari, three colonnaded terraces built straight into the cliff face.\nThe Colossi of Memnon, the two seated quartzite giants of Amenhotep III.\nBack aboard and the ship sails for Esna over lunch, with the afternoon free as the banks turn to sugar cane and water buffalo.\nAfternoon tea on the sundeck, then the captain's welcome cocktail, à la carte dinner and karaoke in the lounge.\nOvernight moored at Esna.",
+      "photo": "luxor-aswan/colossi.jpeg",
+      "sites": [
+        "Valley of the Kings",
+        "Medinet Habu",
+        "Hatshepsut Temple",
+        "Colossi of Memnon",
+        "Esna"
+      ],
+      "guide": true,
+      "meals": {
+        "breakfast": true,
+        "lunch": true,
+        "dinner": true
+      },
+      "hotel": "Blue Shadow Nile cruise (or equal) — full board"
+    },
+    {
+      "uid": "ecr-d04-edfu-kom-ombo",
+      "title": "Edfu & Kom Ombo — Wednesday 28 July",
+      "description": "The ship sails for Edfu through the Esna lock while you sleep; breakfast on board.\nMid-morning at the Temple of Horus at Edfu, reached by horse-drawn carriage from the mooring — the most completely preserved temple in Egypt, with its pylon, courtyard, black granite falcon and roofed sanctuary still holding the barque shrine.\nBack aboard to sail on to Kom Ombo, with lunch under way and the afternoon at leisure.\nA ship tour with the captain: the bridge, the engine room, and how a vessel this size is handled through a lock.\nAfternoon tea, then a cooking class with the ship's chef — an Egyptian dish or two you can reproduce at home.\nAn oriental band and dinner buffet on the sundeck, then the galabia party. The ship lends you the robe.\nOvernight moored at Kom Ombo.",
+      "photo": "luxor-aswan/kom-ombo.jpeg",
+      "sites": [
+        "Temple of Horus, Edfu",
+        "Kom Ombo",
+        "Cooking class",
+        "Galabia party"
+      ],
+      "guide": true,
+      "meals": {
+        "breakfast": true,
+        "lunch": true,
+        "dinner": true
+      },
+      "hotel": "Blue Shadow Nile cruise (or equal) — full board"
+    },
+    {
+      "uid": "ecr-d05-aswan",
+      "title": "Aswan — the High Dam, Philae & the Botanical Garden — Thursday 29 July",
+      "description": "The ship sails for Aswan overnight; breakfast on board.\nThe Aswan High Dam in the morning, the granite quarries and the lake behind it.\nThen the Temple of Philae, reached by motor launch to Agilkia Island, where the whole complex was cut into blocks and rebuilt stone by stone to save it from the rising water — the last temple in Egypt where the old religion was practised.\nLunch on board.\nOut onto the Nile by motor boat in the afternoon, through the granite islands and the cataract channel where the current still runs fast, to the Botanical Garden on Kitchener's Island.\nAfternoon tea on your return, dinner on board, and a Nubian show in the lounge.\nOvernight moored in Aswan.",
+      "photo": "luxor-aswan/aswan-temple.jpeg",
+      "sites": [
+        "Aswan High Dam",
+        "Philae Temple",
+        "Botanical Garden",
+        "Nile motor boat"
+      ],
+      "guide": true,
+      "meals": {
+        "breakfast": true,
+        "lunch": true,
+        "dinner": true
+      },
+      "hotel": "Blue Shadow Nile cruise (or equal) — full board"
+    },
+    {
+      "uid": "ecr-d06-aswan-leisure",
+      "title": "Aswan at Leisure — Optional Abu Simbel — Friday 30 July",
+      "description": "The ship stays moored at Aswan all day and the programme is deliberately empty.\nOptional, at extra cost, and this is the day for it: Abu Simbel. South across the desert to the two rock temples of Ramses II and Nefertari — four twenty-metre seated colossi cut into the cliff, and a sanctuary the whole mountain was sliced up and moved to save. By road or by short flight, quoted on request.\nIf you would rather stay: the souk, a felucca hour under the sail, the Nubian village across the water, or simply the sundeck and the pool.\nLunch on board whenever you get back, and the afternoon free.\nAfternoon tea on the sundeck, the captain's cocktail, dinner on board and a Nubian show.\nOvernight moored in Aswan.",
+      "photo": "luxor-aswan/abusimbel.jpeg",
+      "sites": [
+        "Aswan at leisure",
+        "Optional: Abu Simbel",
+        "Nubian show"
+      ],
+      "guide": false,
+      "meals": {
+        "breakfast": true,
+        "lunch": true,
+        "dinner": true
+      },
+      "hotel": "Blue Shadow Nile cruise (or equal) — full board"
+    },
+    {
+      "uid": "ecr-d07-return-north",
+      "title": "North Again — Kom Ombo, Edfu & Esna — Saturday 31 July",
+      "description": "The ship casts off early for Kom Ombo; breakfast on board as you sail.\nThe Temple of Kom Ombo in the cool of the morning, right on the riverbank — the only double temple in Egypt, halved precisely between Sobek the crocodile and Haroeris the elder Horus, with the surgical instruments carved on the outer wall and the crocodile museum alongside.\nBack aboard and on to Edfu, then Esna, with lunch served under way. This is the day the river gives you: the same water in the other direction, the banks passing, nothing to do.\nAfternoon tea on the sundeck as the ship works down through the lock.\nDinner on board, then a galabia party.\nOvernight moored at Esna.",
+      "photo": "luxor-aswan/sunset-boat.jpeg",
+      "sites": [
+        "Kom Ombo Temple",
+        "Sobek & Haroeris",
+        "Sailing day",
+        "Esna lock"
+      ],
+      "guide": true,
+      "meals": {
+        "breakfast": true,
+        "lunch": true,
+        "dinner": true
+      },
+      "hotel": "Blue Shadow Nile cruise (or equal) — full board"
+    },
+    {
+      "uid": "ecr-d08-east-bank",
+      "title": "Back to Luxor — Karnak & the East Bank — Sunday 1 August",
+      "description": "An early morning sail brings the ship up to Luxor; breakfast on board and the morning free as you come alongside.\nLunch on board.\nThe East Bank in the afternoon with your private Egyptologist. Karnak first: the avenue of ram-headed sphinxes, the first pylon, and the Great Hypostyle Hall — one hundred and thirty-four columns, the tallest twenty-one metres, still carrying their painted architraves. Your guide will walk the ground you will be standing on tomorrow.\nThen Luxor Temple, joined to Karnak by the restored three-kilometre Avenue of Sphinxes, with the standing obelisk of Ramses II at the gate.\nAfternoon tea, dinner on board and a belly dancer in the lounge.\nAn early night — tomorrow is the reason for the dates.\nOvernight moored in Luxor.",
+      "photo": "luxor-aswan/hypostyle.jpeg",
+      "sites": [
+        "Karnak Temple",
+        "Great Hypostyle Hall",
+        "Luxor Temple",
+        "Avenue of Sphinxes"
+      ],
+      "guide": true,
+      "meals": {
+        "breakfast": true,
+        "lunch": true,
+        "dinner": true
+      },
+      "hotel": "Blue Shadow Nile cruise (or equal) — full board"
+    },
+    {
+      "uid": "ecr-d09-totality-karnak",
+      "title": "Disembarkation, Totality at Karnak, and North to Cairo — Monday 2 August",
+      "description": "Breakfast on board, then disembarkation after breakfast with assistance and your luggage taken care of. Your bags travel with the vehicle for the rest of the day.\nStraight to Karnak, early and on purpose: the approaches will be closed or crawling by mid-morning and we intend to be inside the precinct long before that.\nYou already know the complex from yesterday, so today is not a tour. Your guide settles you where you want to be — the great court, the sacred lake, or among the columns — with shade, cold water and certified solar viewing glasses.\nThe partial phases run for over an hour. The light goes wrong, the temperature drops, the birds stop. Then totality, over the temple of Amun-Ra, on ground where the priesthood tracked exactly this for three thousand years. Luxor lies close to the point of greatest duration on this eclipse, one of the longest of the century.\nWe wait for the roads to clear rather than fight them, then a late lunch and the evening flight up to Cairo. A sleeper cabin on the night train is held as a fallback in case the flight moves.\nTransfer to your hotel and a quiet night.\nOvernight in Cairo.",
+      "photo": "luxor-aswan/avenue-sphinxes.jpeg",
+      "sites": [
+        "Disembarkation",
+        "Total eclipse at Karnak",
+        "Flight to Cairo"
+      ],
+      "guide": true,
+      "meals": {
+        "breakfast": true,
+        "lunch": true,
+        "dinner": false
+      },
+      "hotel": "Pyramids Park Resort Cairo, 4★ (or equal) — bed & breakfast"
+    }
+  ],
+  "departure": {
+    "on": true,
+    "title": "Giza, the Grand Egyptian Museum & Departure — Tuesday 3 August",
+    "description": "Breakfast at your hotel, then out early with your Cairo Egyptologist while the plateau is still cool.\nThe Giza Plateau, privately: the Great Pyramid of Khufu, the pyramids of Khafre and Menkaure, and the panoramic viewpoint where all three line up. Entry into the burial chamber is available on the spot at extra cost.\nThe Great Sphinx and the Valley Temple of Khafre.\nThe Grand Egyptian Museum: the hanging obelisk, the Ramses II atrium, the grand staircase of royal statuary, and the complete Tutankhamun collection — over five thousand objects with the death mask among them.\nTime to eat and to buy anything you still want, with a late check-out held at the hotel so you can shower and change before you travel.\nPrivate transfer to Cairo International Airport in good time for your international flight, with final meet & assist through check-in. Safe journey home.",
+    "photo": "cairo-giza/gem-pyramids.jpeg",
+    "meals": {
+      "breakfast": true,
+      "lunch": false,
+      "dinner": false
+    },
+    "hotel": ""
+  },
+  "pp": 6500,
+  "sgl": 0,
+  "showPrice": false,
+  "priceTableOn": true,
+  "priceColumns": "dbl",
+  "roomBasis": "double/twin",
+  "priceRows": [
+    {
+      "category": "4 Star — Pyramids Park & Blue Shadow",
+      "dbl": 6500,
+      "single": 0,
+      "triple": 0,
+      "quad": 0,
+      "hotels": "Cairo & Giza — Pyramids Park Resort or equal (4★, bed & breakfast)\nNile cruise — Blue Shadow or equal (full board)"
+    }
+  ],
+  "flights": [],
+  "category": "other",
+  "included": "Meet & assist by our representative at Cairo International Airport on arrival and departure, and at Luxor on both domestic flights\n9 nights on double/twin room basis — 2 nights Cairo & Giza (bed & breakfast) and 7 nights aboard the Nile cruise (full board)\nAccommodation as listed: Pyramids Park Resort Cairo, 4★, and the Blue Shadow Nile cruise, or equal\nSeven-night Luxor roundtrip cruise, Luxor – Aswan – Luxor, with every shore excursion and all onboard entertainment as programmed — belly dancer, captain's cocktails, karaoke, ship tour, cooking class, oriental band and buffet, galabia parties and two Nubian shows\nDomestic flights within the programme: Cairo – Luxor on Monday 26 July and Luxor – Cairo on Monday 2 August, with a sleeper-train cabin held as a fallback on eclipse night at no extra cost\nEclipse-day arrangements at Karnak on 2 August: early access before the roads close, shade, cold water and certified solar viewing glasses for both guests, and your guide with you throughout\nPrivate licensed Egyptologist guide on every shore excursion and in Cairo\nPrivate air-conditioned vehicle for all transfers and excursions\nEntrance fees to every site named in the programme, including the Valley of the Kings, Hatshepsut, Medinet Habu, Edfu, Kom Ombo, Philae, the High Dam, Karnak, Luxor Temple, the Giza Plateau and the Grand Egyptian Museum\nDinner on arrival night in Cairo, and full board throughout the cruise\nLate check-out in Cairo on departure day to shower and change before your flight\nBottled water in the vehicle throughout, and cold water at Karnak on eclipse day\nAll local taxes and service charges\n24/7 support from our Cairo office for the whole ten days\nWritten booking confirmation setting out the payment schedule and cancellation terms in full before any deposit is taken",
+  "excluded": "International airfare to and from Egypt — book early; eclipse-week seats will go fast\nEgypt entry visa (USD 36, payable on arrival)\nAny special eclipse-day surcharge set by the Ministry of Tourism & Antiquities on admission to Karnak — not published at the time of quoting, and confirmed in writing as soon as it is\nOptional Abu Simbel on Friday 30 July — by road or short flight, quoted on request\nOptional entry inside the Great Pyramid at Giza, and the separately ticketed tombs of Tutankhamun, Seti I and Nefertari in the Valley of the Kings\nOptional sunrise hot-air balloon over the Luxor west bank\nLunches and dinners in Cairo other than those listed\nDrinks with meals and anything from the ship's bar\nSpa treatments and anything booked directly with the hotel or cruise ship\nTravel insurance — strongly recommended for a trip booked this far ahead\nTipping and gratuities for the guide, driver and ship crew\nPersonal expenses, laundry and telephone calls\nAnything not listed under \"Included\""
+}

@@ -497,5 +497,48 @@ same clipping bug and needs the same treatment.
 
 ---
 
+---
+
+## 12. THE SOLO TRAVELLER PRICE COLUMN  (new, 2026-08-11)
+
+**Why it exists.** A lone traveller's price is **not** the double rate plus the single supplement —
+one guest also carries the whole private vehicle and guide. On package 162 those are 3,750 + 1,250
+= 5,000 against a real solo price of 5,600. Before this change the only homes for that figure were
+the `dbl` column ("Per Person in Double") or the `single` column ("Single Supplement"), both of
+which misdescribe it. So `solo` is now a fifth price column.
+
+**Touches four files** — the price-column type is duplicated in each, so all four must move together:
+
+- `PackageBuilder.tsx` — `PriceRow` gains `solo?: number`; `PriceColumnsMode` gains `'solo'`;
+  a "Solo only" button in the Show-in-PDF picker; a `Solo USD` header + input in the editor grid;
+  `solo: 0` in the "+ Add row" literal.
+- `ItineraryDoc.tsx` — the `pricing.rows` element type and `columns` union gain `solo`;
+  `PriceColKey` gains `'solo'`; `PRICE_COLS` gains `{ key: 'solo', label: 'Solo Traveller' }`.
+- `CompactDoc.tsx` — `CompactPricingRow` and the `columns` union gain `solo`; `PriceColKey` too;
+  the `tierRows` filter counts a solo-only row; `headline()`'s order lists include `solo`; and
+  `suppFor()` returns 0 for a solo headline (a solo price already includes the room).
+
+**`solo` is deliberately OPTIONAL (`solo?: number`).** All ~70 existing rows lack the key, and
+`val()`'s `|| 0` plus `hasAny()` mean the column only appears when some row carries a figure.
+Legacy quotes render Double + Single exactly as before — verified.
+
+**A five-column table exposed a latent CSS bug.** `.pt-cat` was `white-space: nowrap`, harmless
+while every category was a short tier name ("5 Star Deluxe"), but a descriptive category
+("Solo traveller — one guest travelling alone") then forced that column to its full single-line
+width and pushed the price and hotel columns clean off the 794px page. Fixed: `.pt-cat` wraps, and
+`.price-table` cell padding went 14px → 10px to buy room for the extra column. `.pt-price` stays
+nowrap so "3,750 USD" never breaks mid-figure.
+
+**Verified in headless Chromium**, not by reasoning (see §11 for the harness recipe — extract the
+`CSS` literal and the `PRICE_COLS`/filter logic straight out of the source so the harness cannot
+drift from the component). Result: headers `Category | Per Person in Double | Single Supplement |
+Solo Traveller | Offered Hotels`, each figure in its own correct column, table 666px inside the
+page, zero cells past the page edge, summary page overflow 0. `tsc --noEmit` exits 0.
+
+**Keep categories short.** The cell wraps now, but a full sentence there makes a very tall row —
+put the explanation in `included` instead, as 162 does.
+
+---
+
 *Update this file at the end of each session. Keep §0, §8 and §9's "not bugs" list current — they are the
 expensive lessons.*
