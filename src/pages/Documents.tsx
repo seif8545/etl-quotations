@@ -5,7 +5,7 @@ import { generateLetterDocx, letterToPdf } from './Letter'
 import type { LetterData } from './Letter'
 import { generateVoucherDocx, voucherToPdf } from './Voucher'
 import type { VoucherData } from './Voucher'
-import { generateInvoiceDocx, invoiceToPdf } from './Invoice'
+import { generateInvoiceDocx, invoiceToPdf, duplicateInvoice, hydrateInvoice } from './Invoice'
 import type { InvoiceData } from './Invoice'
 import PackageBuilder from './PackageBuilder'
 import type { PackageState } from './PackageBuilder'
@@ -67,7 +67,14 @@ function pkgPrice(r: any): string {
 const TABS = ['Quotations', 'Packages', 'Letters', 'Vouchers', 'Invoices'] as const
 type Tab = (typeof TABS)[number]
 
-export default function Documents({ openQuotation, isAdmin, uid }: { openQuotation: (d: QuotationDraft) => void; isAdmin: boolean; uid: string }) {
+export default function Documents({ openQuotation, openInvoice, isAdmin, uid }: {
+  openQuotation: (d: QuotationDraft) => void
+  /** Hand an invoice to the Invoice page. With `saved`, it edits that row; without, the
+   *  figures are only a starting point and the save mints a new row. */
+  openInvoice: (d: InvoiceData, saved?: { id: number; serial: string }) => void
+  isAdmin: boolean
+  uid: string
+}) {
   const [tab, setTab] = useState<Tab>('Quotations')
   const [rows, setRows] = useState<any[]>([])
   const [search, setSearch] = useState('')
@@ -235,7 +242,14 @@ export default function Documents({ openQuotation, isAdmin, uid }: { openQuotati
       {tab === 'Letters' && <><td>{r.consignee}</td><td>{r.arrival_date}</td><td>{r.departure_date}</td><td>{r.pax}</td></>}
       {tab === 'Vouchers' && <><td>{r.hotel_name}</td><td>{r.guest_or_group_name}</td><td>{r.from_date}</td><td>{r.to_date}</td><td>{r.singles + r.doubles + r.twins + r.triples}</td></>}
       {tab === 'Invoices' && <><td>{r.serial}</td><td>{r.client_name}</td><td>{r.issue_date}</td><td>{r.total}</td><td>{r.balance ?? '—'}</td></>}
-      <td>{new Date(r.created_at).toLocaleDateString('en-GB')}</td>
+      <td>
+        {new Date(r.created_at).toLocaleDateString('en-GB')}
+        {/* Only invoices carry `updated_at`, and only once they have actually been reopened —
+            so this line appearing is itself the signal that a row is not as first issued. */}
+        {r.updated_at && (
+          <span className="pkg-sub muted small">edited {new Date(r.updated_at).toLocaleDateString('en-GB')}</span>
+        )}
+      </td>
       <td className={`actions${tab === 'Packages' ? ' actions-pkg' : ''}`}>
         {tab === 'Quotations' && <>
           <button className="link" onClick={() => excel(r)}>Excel</button>
@@ -262,6 +276,16 @@ export default function Documents({ openQuotation, isAdmin, uid }: { openQuotati
           <button className="link" onClick={() => (
             tab === 'Letters' ? letterToPdf(r.data) : tab === 'Vouchers' ? voucherToPdf(r.data) : invoiceToPdf(r.data, r.serial)
           ).catch((e: any) => setError(e.message ?? String(e)))}>PDF</button>
+        </>}
+        {tab === 'Invoices' && r.data && <>
+          {/* Edit writes back to this row, so it is offered only to whoever may update it —
+              a recipient of a shared invoice would hit the RLS policy on save. */}
+          {(isAdmin || r.created_by === uid) && (
+            <button className="link" title={`Reopen ${r.serial} to correct it, or file a copy under a new number`}
+              onClick={() => openInvoice(hydrateInvoice(r.data as InvoiceData), { id: r.id, serial: r.serial })}>Edit</button>
+          )}
+          <button className="link" title="Start a new invoice from this one — same charges, deposits already paid carried over as deductions, so the balance is what is still owed"
+            onClick={() => openInvoice(duplicateInvoice(r.data as InvoiceData))}>Duplicate</button>
         </>}
         {isAdmin && (
           <button className="link" onClick={() => setShareRow(r)}>
