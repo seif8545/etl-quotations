@@ -1,0 +1,238 @@
+{
+ "title": "Egypt Solar Eclipse Tour 2027 Double — 9 Days, Aswan First with the Eclipse Finale",
+ "intro": "The same nine days, run in reverse. Fly straight through to Aswan on arrival day and start on the water — the High Dam and Philae the evening you land, Abu Simbel and Kom Ombo on the Saturday, Edfu and Luxor Temple on the Sunday — so the cruise ends exactly where the eclipse is. You disembark on the morning of 2 August and walk into Karnak for up to 6 minutes and 22 seconds of totality, among the longest eclipse durations on Earth in over 400 years. Then north to Cairo for five nights and the whole of it: the Pyramids and the Grand Egyptian Museum, Memphis, Sakkara and Dahshur, Alexandria, the Royal Mummies and Coptic Cairo.",
+ "hero": "https://yxgpjjwjgtgavfusurbi.supabase.co/storage/v1/object/public/tour-photos/my-uploads/1784639333058-eclipse.jpeg",
+ "meta": {
+  "ref": "",
+  "pax": 2,
+  "arrival": "2027-07-30",
+  "departure": "2027-08-07"
+ },
+ "overview": {
+  "days": 9,
+  "nights": 8,
+  "cities": 4
+ },
+ "hotels": [
+  {
+   "nights": 3,
+   "destination": "Nile Cruise (Depending on choice)"
+  },
+  {
+   "nights": 5,
+   "destination": "Cairo (Depending on choice)"
+  }
+ ],
+ "arrival": {
+  "on": true,
+  "title": "30th July - Arrival & Straight On to Aswan, Embarkation",
+  "description": "Airport greeting by our representative at Cairo International Airport, with assistance through immigration and baggage formalities.\nConnecting domestic flight south to Aswan the same day — you are on the Nile before the day is out.\nTransfer to your Nile Cruise and check in, with a welcome drink and a short orientation on board.\nVisit the impressive High Dam, the elegant Temple of Philae reached by motorboat across the water, and the famous Unfinished Obelisk still lying in its quarry.\nOptional Nubian Village Visit by boat, for the painted mud-brick houses and a glass of hibiscus with a Nubian family.\nDinner and overnight on board in Aswan.",
+  "photo": "arrivedepart/arrival-plane.jpg",
+  "meals": {
+   "breakfast": false,
+   "lunch": false,
+   "dinner": true
+  },
+  "hotel": "Nile Cruise"
+ },
+ "days": [
+  {
+   "uid": "spin-a2-abusimbel-komombo",
+   "title": "31st July - Abu Simbel & Kom Ombo",
+   "description": "An early start from Aswan for Abu Simbel, across the desert to the shores of Lake Nasser.\nMarvel at the magnificent rock temples of Ramesses II and Queen Nefertari, and learn about the extraordinary 1960s UNESCO rescue that relocated the entire complex, block by block, ahead of the rising water.\nReturn to Aswan and back on board for lunch as the ship sails north.\nVisit the unique double Temple of Kom Ombo, dedicated to Sobek the crocodile god and Horus the elder, and the fascinating collection of mummified crocodiles in the adjoining museum — best in the late afternoon light, right on the riverbank.\nDinner and overnight on board.",
+   "photo": "luxor-aswan/abusimbel.jpeg",
+   "sites": [
+    "Abu Simbel",
+    "Kom Ombo",
+    "Crocodile Museum"
+   ],
+   "guide": true,
+   "meals": {
+    "breakfast": true,
+    "lunch": true,
+    "dinner": true
+   },
+   "hotel": "Nile Cruise"
+  },
+  {
+   "uid": "spin-a2-edfu-luxor",
+   "title": "1st August - Edfu, the Cooking Class & the Southern Sanctuary",
+   "description": "Breakfast on board, then ashore at Edfu by horse carriage to the Temple of Horus — the best-preserved temple in all of Egypt, its pylon and roof still standing.\nBack on board and sailing north through the lock at Esna, with the executive chef's cooking class in the afternoon and tea on the top deck as the valley goes by.\nArrive in Luxor and go ashore in the evening for the elegant Luxor Temple, at its best after dark when the columns are lit and the Roman and Islamic city built over it comes into view.\nLearn how the two great temples of Thebes were once joined by the Avenue of Sphinxes during the ancient Opet Festival — you walk part of it tonight and stand at the other end of it tomorrow.\nYour guide walks you through exactly how the eclipse morning will run before you turn in.\nDinner and overnight on board in Luxor.",
+   "photo": "luxor-aswan/avenue-sphinxes.jpeg",
+   "sites": [
+    "Edfu by horse carriage",
+    "Temple of Horus",
+    "Esna lock",
+    "Cooking class",
+    "Luxor Temple"
+   ],
+   "guide": true,
+   "meals": {
+    "breakfast": true,
+    "lunch": true,
+    "dinner": true
+   },
+   "hotel": "Nile Cruise"
+  },
+  {
+   "uid": "spin-a2-eclipse-disembark",
+   "title": "2nd August - Total Solar Eclipse at Karnak Temple, Disembark & Fly to Cairo",
+   "description": "Breakfast on board and check out — your luggage stays with the vehicle for the day, so nothing is rushed.\nStraight to Karnak, well before the approaches close, for the total solar eclipse from the great precinct of Amun — up to 6 minutes and 22 seconds of totality, among the longest eclipse durations on Earth in over 400 years.\nThe partial phases run for over an hour before the light goes wrong and the birds fall silent; your guide is with you throughout, with shade and cold water.\nAfterwards, explore the precinct properly once the crowd thins — the Great Hypostyle Hall and its hundred and thirty-four columns, the sacred lake and the standing obelisks.\nCross to the West Bank later in the afternoon, once the roads clear: the royal tombs of the Valley of the Kings, the terraced Temple of Queen Hatshepsut against the cliffs, and the towering Colossi of Memnon.\nEvening flight from Luxor back to Cairo and transfer to your hotel.",
+   "photo": "https://yxgpjjwjgtgavfusurbi.supabase.co/storage/v1/object/public/tour-photos/my-uploads/1784639333058-eclipse.jpeg",
+   "sites": [
+    "Total Solar Eclipse viewing — Karnak Temple",
+    "Great Hypostyle Hall",
+    "Valley of Kings",
+    "Hatshepsut",
+    "Domestic Flight Luxor-Cairo"
+   ],
+   "guide": true,
+   "meals": {
+    "breakfast": true,
+    "lunch": true,
+    "dinner": false
+   },
+   "hotel": "Cairo"
+  },
+  {
+   "uid": "spin-a2-pyramids-gem",
+   "title": "3rd August - Pyramids & GEM Day",
+   "description": "Marvel at the last surviving Wonder of the Ancient World — the Great Pyramids of Khufu, Khafre and Menkaure.\nStand before the enigmatic Great Sphinx and enjoy a panoramic photo stop across the Giza plateau.\nExplore the Grand Egyptian Museum, home to the complete treasures of Tutankhamun.\nOptional camel or horse ride around the pyramids (payable locally).\nOptional Lunch with a Pyramids View.\nReturn and overnight in your hotel.",
+   "photo": "cairo-giza/gem-pyramids.jpeg",
+   "sites": [
+    "Pyramids",
+    "Grand Egyptian Museum"
+   ],
+   "guide": true,
+   "meals": {
+    "breakfast": true,
+    "lunch": false,
+    "dinner": false
+   },
+   "hotel": "Cairo"
+  },
+  {
+   "uid": "spin-a2-memphis",
+   "title": "4th August - Memphis, Sakkara & Dahshur",
+   "description": "Begin at Sakkara and the Step Pyramid of Djoser — the oldest stone building of its size anywhere, and the ancestor of every pyramid that followed.\nStep inside a nobleman's mastaba to see painted reliefs of daily life along the Nile, still sharp after four and a half thousand years.\nContinue to Dahshur for the Bent Pyramid and the Red Pyramid, where the geometry was finally solved — the Red Pyramid is the first true smooth-sided pyramid ever completed.\nFinish at Memphis, capital of the Old Kingdom, and its open-air museum with the colossal recumbent Ramesses II and the alabaster sphinx.\nOptional lunch at a local restaurant on the way back (payable locally).\nReturn and overnight in your hotel.",
+   "photo": "memphis-sakkara-dahshur/sakkara-1.jpeg",
+   "sites": [
+    "Sakkara",
+    "Step Pyramid of Djoser",
+    "Dahshur",
+    "Memphis"
+   ],
+   "guide": true,
+   "meals": {
+    "breakfast": true,
+    "lunch": false,
+    "dinner": false
+   },
+   "hotel": "Cairo"
+  },
+  {
+   "uid": "spin-a2-alexandria",
+   "title": "5th August - Alexandria Day Trip",
+   "description": "Full day on the Mediterranean coast, with the drive along the desert road each way.\nThe Catacombs of Kom el-Shoqafa, cut three levels down into the rock, where Egyptian, Greek and Roman funerary art collide in the same tomb.\nPompey's Pillar and the Serapeum, still standing over the ruins of the temple precinct.\nThe Citadel of Qaitbay on the harbour, built on the foundations of the Pharos — the lost lighthouse of the ancient world.\nThe Bibliotheca Alexandrina, the modern answer to the greatest library of antiquity.\nOptional seafood lunch on the corniche (payable locally).\nReturn to Cairo in the evening. Overnight in Cairo.",
+   "photo": "alexandria/qaitbay-top-view.jpeg",
+   "sites": [
+    "Catacombs of Kom el-Shoqafa",
+    "Pompey's Pillar",
+    "Citadel of Qaitbay",
+    "Bibliotheca Alexandrina"
+   ],
+   "guide": true,
+   "meals": {
+    "breakfast": true,
+    "lunch": false,
+    "dinner": false
+   },
+   "hotel": "Cairo"
+  },
+  {
+   "uid": "spin-a2-nmec-coptic",
+   "title": "6th August - NMEC, Coptic Cairo & Khan el-Khalili",
+   "description": "The National Museum of Egyptian Civilization at Fustat, and the reason for going: the Royal Mummies Hall, where twenty kings and queens lie in low light and climate control — Ramesses II, Hatshepsut and Seti I among them.\nContinue into Coptic Cairo for the Hanging Church, the Ben Ezra Synagogue and the church of Saints Sergius and Bacchus, all within a few quiet streets of each other.\nOptional lunch in the old city (payable locally).\nFinish at Khan el-Khalili — mint tea at El Fishawy, the coppersmiths and the spice stalls, and time to bargain badly on your last evening.\nReturn and overnight in your hotel.",
+   "photo": "cairo-giza/civilization-museum.jpg",
+   "sites": [
+    "NMEC",
+    "Royal Mummies Hall",
+    "Hanging Church",
+    "Khan el-Khalili"
+   ],
+   "guide": true,
+   "meals": {
+    "breakfast": true,
+    "lunch": false,
+    "dinner": false
+   },
+   "hotel": "Cairo"
+  }
+ ],
+ "departure": {
+  "on": true,
+  "title": "7th August - Final Departure",
+  "description": "Check out from your hotel and transfer to Cairo International Airport for your departure flight.",
+  "photo": "arrivedepart/departure-plane.jpg",
+  "meals": {
+   "breakfast": true,
+   "lunch": false,
+   "dinner": false
+  },
+  "hotel": ""
+ },
+ "pp": 0,
+ "sgl": 0,
+ "showPrice": false,
+ "priceTableOn": false,
+ "priceRows": [
+  {
+   "category": "4 Star Standard",
+   "dbl": 0,
+   "single": 0,
+   "triple": 0,
+   "quad": 0,
+   "solo": 0,
+   "hotels": "Cairo: Stay Inn Pyramids or Jewel Zamalek or similar\n\nNile Cruise: Moondance Nile Cruise or similar"
+  },
+  {
+   "category": "4 Star Deluxe",
+   "dbl": 0,
+   "single": 0,
+   "triple": 0,
+   "quad": 0,
+   "solo": 0,
+   "hotels": "Cairo: Pyramids Park or equal\nNile Cruise: Blue Shadow or equal"
+  },
+  {
+   "category": "5 Star Luxury",
+   "dbl": 0,
+   "single": 0,
+   "triple": 0,
+   "quad": 0,
+   "solo": 0,
+   "hotels": "Cairo: Steigenberger Pyramids or equal\nNile Cruise: Acamar Nile Cruise or equal"
+  }
+ ],
+ "priceColumns": "dbl",
+ "roomBasis": "double",
+ "flights": [
+  {
+   "id": 260,
+   "text": "International arrival Cairo, connecting the same day to Aswan.",
+   "label": "Cairo to Aswan (connecting flight)",
+   "position": "end",
+   "targetUid": ""
+  },
+  {
+   "id": 261,
+   "text": "Evening domestic flight from Luxor back to Cairo after the eclipse.",
+   "label": "Luxor to Cairo (flight)",
+   "position": "end",
+   "targetUid": ""
+  }
+ ],
+ "category": null,
+ "included": "Meet-and-greet and guest relations support\nAir-conditioned vehicle transfers\nDomestic flights (Cairo–Aswan on arrival day, Luxor–Cairo on the evening of the eclipse)\n3 nights Nile Cruise accommodation in a double/twin cabin on full board (breakfast, lunch, dinner), sailing Aswan to Luxor\n5 nights Cairo hotel accommodation on bed & breakfast basis, double/twin room\nAbu Simbel by road on 31 July, included rather than optional — or optionally by short flight instead of the drive, at a supplement\nSightseeing tours with English-speaking Egyptologist guides\nBottled water during outings\nAll meals per the itinerary\nAdmission to all sites listed in the itinerary",
+ "excluded": "International airfare\nEgypt entry visa\nOptional tours and excursions\nInterior pyramid / tomb entrance fees\nEclipse-viewing special permits (if required)\nHotel dinners in Cairo where not specified\nPersonal expenses (beverages, laundry, phone calls)\nGratuities"
+}

@@ -492,8 +492,8 @@ under ~1,350 characters and short tag lines (a `sites[]` line that wraps to 2 li
 and every page renders at full size.
 
 **Still to do:** the PUBLIC package renderer (`functions/_lib/packageHtml.js` in
-`seif8545/egypt-top-light`) was not touched — if it reuses the fixed-height day page it has the
-same clipping bug and needs the same treatment.
+`seif8545/egypt-top-light`) was not checked for the day-page clipping bug — it builds its own
+flowing HTML rather than fixed 1123px pages, so it is probably immune, but nobody has looked.
 
 ---
 
@@ -561,7 +561,176 @@ occupancy order after trying the forced column.
 `select id, data->>'priceColumns', (select jsonb_agg(...) from jsonb_array_elements(data->'priceRows') r)`
 — rather than opening the builder, where the figures look present and correct.
 
+### The website renderer needed the same column — a published page said "Price on request"
+
+**`priceColumns` / `priceRows` are read in a SECOND repo.** `functions/_lib/packageHtml.js` in
+`seif8545/egypt-top-light` has its own copy of the column list, and it is the only file in that
+repo that touches `priceRows` (verified by grep across `functions/`; `schema.js` builds its offer
+from tours, not packages). Its rule is documented in its own header: tier table if `priceTableOn`
+with a non-zero row, else the price box if `showPrice && pp > 0`, else "Price on request".
+
+Package 150 went live through that gap. Its money had moved into `solo`, so every column the
+website knew about read zero, `cols` came back empty, the table was skipped, `showPrice` was
+false — and a fully priced solo quote published as **"Price on request"** to a client.
+
+Patched there (2026-08-11), `node --check` clean:
+- `all` gains `{ key: 'solo', label: 'Solo Traveller' }`.
+- `offered` now narrows on ANY key in `all` rather than testing `columnsMode === 'single'`, so
+  `'solo'` (and any future key) narrows correctly instead of silently falling through to all.
+- `cols` falls back: `nonZero(offered).length ? nonZero(offered) : nonZero(all)` — the same
+  empty-column guard as the PDF, so a stale `priceColumns` can never blank the price again.
+
+Exercised against six shapes with the helpers stubbed: 150-as-published → Solo Traveller
+9,100/7,250; 150 with mode `solo` → same; 162's mixed table → Double + Single Supplement + Solo
+with all three figures; legacy 151 with no `solo` key → Single Occupancy 4,700 unchanged; legacy
+double → unchanged; all-zero → still "Price on request".
+
+**THE TWO REPOS MUST BE CHANGED TOGETHER.** A price column added to the builder is invisible on
+the website until `packageHtml.js` learns it, and the failure is silent and client-facing.
+
+**One temporary hack to remove:** row 150 currently has its solo figures MIRRORED into `single`
+so the live link showed a price before this fix was deployed. Once the website change is pushed,
+undo it — `update q_package_docs set data = jsonb_set(data, '{priceRows}', (select jsonb_agg(case
+when coalesce((r->>'solo')::numeric,0) > 0 then jsonb_set(r,'{single}','0'::jsonb) else r end order
+by ord) from jsonb_array_elements(data->'priceRows') with ordinality as t(r,ord))) where id = 150;`
+— otherwise the two figures can drift apart. It was safe only because 150's `priceColumns` is
+`'solo'` (so the PDF never rendered the mirrored column) and its `roomBasis` is `'single'` (so the
+label would have read "Single Occupancy", not "Supplement"). The same mirror on a double-basis
+package would publish a solo price as a supplement — which is why 162 was left alone.
+
 ---
 
 *Update this file at the end of each session. Keep §0, §8 and §9's "not bugs" list current — they are the
 expensive lessons.*
+
+---
+
+## 13. INCLUSIONS PAGE — MEASURED SPLIT  (new, 2026-08-13)
+
+**The second clipping bug, same class as §11, different page.** `.summary-page` is the same fixed
+`height:1123px; overflow:hidden` block as a day page, and the inclusions page had no fit logic at all.
+Long Included / Not included lists were being cut off in the exported PDF with no warning — the page
+simply ended. Nothing in the console, nothing in the preview at a glance.
+
+**Scale of it.** Measured in headless Chromium against the real `CSS` literal. Content box = 983px
+(1123 − 70 top − 70 bottom):
+
+| package | one-page height | over by |
+|---|---|---|
+| pam-egypt-14-days (row 164) | 1440 | +457 (~20 lines lost) |
+| pam-reverse-14-days (row 165) | 1331 | +348 |
+| luxor-eclipse-roadtrip (row 160) | 1319 | +336 |
+| eclipse-nile-cruise (row 161) | 1106 | +123 |
+| nov-cairo-nile-aswan | 1098 | +115 |
+| ultimate-egypt-solo-wandermates (159) | 1025 | +42 |
+| hatshepsut-eclipse-4nights (163) | 1025 | +42 |
+
+**Every package built in this session was losing the tail of its lists.** The longer the quote, the
+more inclusions — so the biggest, most expensive itineraries lost the most.
+
+**Why shrinking alone is the wrong fix.** The two-column grid gives each list a 319px column, and that
+text needs 1300–1440px of stacked height at that width. Getting under 983px by type scale alone needs
+k = 0.80 → **10.0px** body text. Legible, but not what a five-figure quote should look like.
+
+**The fix: full width halves the wrapped line count.** When the pair does not fit, each list gets its
+own full-width page — 824px and 510px against 983px available on row 164/165, at the full 12.5px.
+Nothing shrinks.
+
+Implementation in `ItineraryDoc.tsx`:
+
+- `incPages` state, `1 | 2`. `1` renders the existing two-column page; `2` renders two full-width pages
+  titled *What's Included* and *Not Included* (the `<h4>` column sub-headings drop out — the page title
+  carries it).
+- The decision is **measured, never estimated**: an effect that runs only while `incPages === 1`
+  compares `.sum-block` height against `page.clientHeight` minus the page's own vertical padding, and
+  flips to `2` on overflow. It cannot oscillate — the check disables itself once split.
+- A separate effect resets to `1` on every `[data]` change, so a quote that gets shorter drops back to
+  one page instead of keeping a split it no longer needs.
+- `autoFitIncl()` runs in the same effect as `autoFitDays()` — on mount, on `setTimeout(0)`, and again
+  on `document.fonts.ready`. Fraunces and Inter change the wrapped line count, so a pass against the
+  fallback font leaves the wrong layout.
+- `fitIncPage()` is the last resort: a single list that still overruns its own page, or a package with
+  only one of the two lists (nothing to split), steps `.inc-item` type down through
+  `[1, .96, .92, .88, .84, .8]` exactly as the day pages do. No current package reaches it.
+
+**Page count changes.** The exporter iterates `node.children` — one PDF page per direct child of
+`.itin` (`PackageBuilder.tsx` ~line 857). A split adds one real page, so affected quotes export one
+page longer than before. Intended, not a regression. `tsc --noEmit` exits 0.
+
+**The rule for any future fixed-height page.** Every new `.summary-page` block needs its own fit test,
+and the pattern to copy is `availOf()` / `incOver()`: derive the available height from the PAGE and its
+own padding, **never** from the content wrapper. §11 documents why measuring the wrapper compares the
+content against itself and always passes — that mistake shipped once already.
+
+---
+
+## 14. CURRENT STATE — 2026-08-14  (supersedes the row counts in §9)
+
+### Copy policy changes applied across the table
+
+- **No solar-viewing glasses anywhere.** Every mention was removed from rows 154, 155, 156 (they sat in
+  the *not included* list as "Eclipse glasses and any specialist observing equipment") and from 160,
+  161, 163, 164, 165 (day prose and inclusions: "shade, cold water and certified solar viewing
+  glasses"). The eclipse-day inclusion now reads shade and cold water only. Verified: zero occurrences
+  of "glasses" in `q_package_docs`. If eclipse packages are written in future, do not reintroduce it.
+- **Abu Simbel is offered optionally by flight** wherever it is included by road — rows 164 and 165
+  ("…or optionally by short flight instead of the drive, at a supplement"). Row 161 already offered
+  both in its excluded list.
+
+### Rows touched or created in this session
+
+| row | what | state |
+|---|---|---|
+| 159 | Ultimate Egypt Solo Wandermates, 11d/10n Feb 2027 | priced, unpublished |
+| 160 | Luxor Eclipse Road Trip — Dendera roof | pricing blank |
+| 161 | Solar Eclipse Nile Cruise — Luxor roundtrip | priced |
+| 163 | Totality from Deir el-Bahari, 5d/4n | pricing blank |
+| 164 | Pam Witcraft — Egypt in Full, 14d/13n | pricing blank |
+| 165 | Pam Witcraft — Egypt in Reverse, 14d/13n | pricing blank |
+| 168 | Eclipse 2027 **Double** — 9 Days, Aswan First with the Eclipse Finale | pricing at zero, tiers pre-filled |
+| 169 | Eclipse 2027 **Double** — 9 Days, Luxor Stay Without the Cruise | pricing at zero, tiers pre-filled |
+
+168 and 169 are spinoffs of row 130, both 30 July – 7 August 2027 (9 days / 8 nights, 2 guests,
+`roomBasis: 'double'`, `priceColumns: 'dbl'`). 168 flies straight through to Aswan on arrival and sails
+NORTH so the cruise disembarks into the eclipse; 169 has no boat at all — 3 nights in one Luxor hotel
+plus 5 in Cairo. Note 130's own inclusions contradict its accommodation block (says 4 Cairo / 3 cruise
+against 3 / 4) and say "**Group** sightseeing tours" on a single-occupancy package; both were corrected
+in the spinoffs but NOT in 130 itself.
+
+### Cruise embarkation weekdays govern every eclipse itinerary
+
+The operator sheets are weekday-locked, and every date in a quote falls out of them:
+
+- **4 nights Luxor → Aswan — each MONDAY**, disembark Friday.
+- **3 nights Aswan → Luxor — each FRIDAY**, disembark Monday.
+- **7 nights Luxor roundtrip — each MONDAY.**
+
+The 2027 eclipse is **Monday 2 August**. So a southbound 4-night boat embarks *on* eclipse morning
+(rows 161, 164, 165, and the original 168), while a northbound 3-night boat embarking Friday 30 July
+disembarks *into* it (the flipped 168). Anything that wants both a 4-night cruise and a northbound
+sailing needs a land night added — there is no 4-night Aswan → Luxor product.
+
+### The local `packages-out/` files drift from the live rows
+
+The `.json` / `.sql` files are a point-in-time snapshot, not a mirror. Two ways they go stale: prose
+trimmed in the DB for page fit after the file was written (row 161), and edits made by hand in the
+builder UI (row 164 had "(optionally Abu Simbel by flight)" typed into its inclusions, and its glasses
+clause already removed, neither of which existed in the file). **Treat the database as authoritative
+and reconcile from it** — a blind file-to-DB overwrite silently reverts real edits. Files for 160, 161,
+163, 164, 165, 168, 169 were reconciled on 2026-08-14; anything older has not been checked.
+
+### Still open
+
+- **Row 150's solo → single mirror is still in place** (both columns read 9,100 / 7,250). The website
+  fix is committed, so it can be undone with the statement at the end of §12 — do it once the live page
+  header is confirmed to read "Solo Traveller".
+- **Row 141** ("Ultimate Egypt and Shakira Solo Experience") still has `priceColumns: 'single'` with the
+  money in `dbl` and `roomBasis: 'double'` despite the name. Needs a decision on which it should be.
+  A sweep found the same class of mismatch on ~141 rows overall; none are published.
+- Pricing not set on 160, 163, 164, 165, 168, 169 — they render "Price on request".
+- MoTA eclipse-day permits / surcharges unconfirmed for Karnak (161, 164, 165, 168, 169), the Dendera
+  Hathor roof (160) and Deir el-Bahari (163). Each affected quote flags it as the one figure that can move.
+- Row 164: confirm with the boat that the Friday allows luggage-aboard check-in while guests are at
+  Abu Simbel.
+- No imagery for Middle Egypt / Dendera / Amarna / Abydos — row 160 has 4–5 photo-free pages.
+- `src/pages/Documents.tsx` is modified in the working tree and is not from these sessions.

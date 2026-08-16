@@ -1,0 +1,235 @@
+{
+ "title": "Egypt Solar Eclipse Tour 2027 Double — 9 Days, Luxor Stay Without the Cruise",
+ "intro": "Witness one of the longest total solar eclipses in over 400 years — up to 6 minutes and 22 seconds of totality — from Karnak Temple in Luxor, without a boat. Three nights in one Luxor hotel around the eclipse, so there is no embarkation to make and no schedule to keep on the morning itself, and five nights in Cairo for the Pyramids, the Grand Egyptian Museum, the Royal Mummies, Coptic Cairo, Alexandria and the pyramid fields at Sakkara and Dahshur. No Aswan and no Abu Simbel on this version.",
+ "hero": "https://yxgpjjwjgtgavfusurbi.supabase.co/storage/v1/object/public/tour-photos/my-uploads/1784639333058-eclipse.jpeg",
+ "meta": {
+  "ref": "",
+  "pax": 2,
+  "arrival": "2027-07-30",
+  "departure": "2027-08-07"
+ },
+ "overview": {
+  "days": 9,
+  "nights": 8,
+  "cities": 3
+ },
+ "hotels": [
+  {
+   "nights": 5,
+   "destination": "Cairo (Depending on choice)"
+  },
+  {
+   "nights": 3,
+   "destination": "Luxor (Depending on choice)"
+  }
+ ],
+ "arrival": {
+  "on": true,
+  "title": "30th July - Arrival in Cairo",
+  "description": "Airport greeting by our representative and assistance with immigration and baggage formalities.\nPrivate transfer to your hotel for check-in.\nItinerary review with our team.\nOvernight in Cairo.",
+  "photo": "arrivedepart/arrival-plane.jpg",
+  "meals": {
+   "breakfast": false,
+   "lunch": false,
+   "dinner": false
+  },
+  "hotel": "Cairo"
+ },
+ "days": [
+  {
+   "uid": "spin-pyramids-gem",
+   "title": "31st July - Pyramids & GEM Day",
+   "description": "Marvel at the last surviving Wonder of the Ancient World — the Great Pyramids of Khufu, Khafre and Menkaure.\nStand before the enigmatic Great Sphinx and enjoy a panoramic photo stop across the Giza plateau.\nExplore the Grand Egyptian Museum, home to the complete treasures of Tutankhamun.\nOptional camel or horse ride around the pyramids (payable locally).\nOptional Lunch with a Pyramids View.\nReturn and overnight in your hotel.",
+   "photo": "cairo-giza/gem-pyramids.jpeg",
+   "sites": [
+    "Pyramids",
+    "Grand Egyptian Museum"
+   ],
+   "guide": true,
+   "meals": {
+    "breakfast": true,
+    "lunch": false,
+    "dinner": false
+   },
+   "hotel": "Cairo"
+  },
+  {
+   "uid": "spin-b-fly-luxor",
+   "title": "1st August - Fly to Luxor & the Southern Sanctuary",
+   "description": "Morning transfer to Cairo International Airport and short flight south to Luxor.\nTransfer to your Luxor hotel and check in — the same hotel for the next three nights, so you unpack once.\nIn the late afternoon, walk the restored Avenue of Sphinxes to the elegant Luxor Temple, at its best as the light drops and the columns are lit.\nLearn how the two great temples of Thebes were once joined by this avenue during the ancient Opet Festival.\nYour guide walks you through exactly how tomorrow morning will run before you turn in.\nOvernight in Luxor.",
+   "photo": "luxor-aswan/avenue-sphinxes.jpeg",
+   "sites": [
+    "Avenue of Sphinxes",
+    "Southern Sanctuary",
+    "Domestic flight to Upper Egypt"
+   ],
+   "guide": true,
+   "meals": {
+    "breakfast": true,
+    "lunch": false,
+    "dinner": false
+   },
+   "hotel": "Luxor"
+  },
+  {
+   "uid": "spin-b-eclipse",
+   "title": "2nd August - Total Solar Eclipse at Karnak Temple",
+   "description": "An early start and the short run to Karnak, well before the approaches close.\nWitness the total solar eclipse from the great precinct of Amun — up to 6 minutes and 22 seconds of totality, among the longest eclipse durations on Earth in over 400 years.\nThe partial phases run for over an hour before the light goes wrong and the birds fall silent; your guide is with you throughout, with shade and cold water.\nAfterwards, explore the precinct properly — the Great Hypostyle Hall, the sacred lake and the standing obelisks — once the crowd thins.\nThe rest of the day is deliberately free. Optional Luxor Museum or Mummification Museum on the corniche, or simply the pool at your hotel.\nOvernight in Luxor.",
+   "photo": "https://yxgpjjwjgtgavfusurbi.supabase.co/storage/v1/object/public/tour-photos/my-uploads/1784639333058-eclipse.jpeg",
+   "sites": [
+    "Totality — Precinct of Amun",
+    "Great Hypostyle Hall",
+    "Sacred Lake"
+   ],
+   "guide": true,
+   "meals": {
+    "breakfast": true,
+    "lunch": false,
+    "dinner": false
+   },
+   "hotel": "Luxor"
+  },
+  {
+   "uid": "spin-b-west-bank",
+   "title": "3rd August - The Theban Necropolis",
+   "description": "Cross to the west bank, the ancient land of the dead, early while it is still cool.\nOptional Hot Air Balloon trip: Experience the magic of Luxor from above with an early morning hot air balloon ride. As the sun rises over the Nile, you'll float gently above the royal valleys, temples, and farmlands, offering a breathtaking panoramic view of ancient Thebes bathed in golden light. It's a serene and unforgettable way to start your day.\nDescend into the royal tombs of the Valley of the Kings, including Tutankhamun's resting place.\nAdmire the terraced Temple of Queen Hatshepsut at Deir el-Bahari, set dramatically against the cliffs.\nStop at the towering Colossi of Memnon for a memorable photo.\nOptional visit to the alabaster workshops at Gurna on the way back.\nOvernight in Luxor.",
+   "photo": "luxor-aswan/colossi.jpeg",
+   "sites": [
+    "Theban royal tombs",
+    "Deir el-Bahari",
+    "Memnon statues",
+    "Optional Hot Air Balloon"
+   ],
+   "guide": true,
+   "meals": {
+    "breakfast": true,
+    "lunch": false,
+    "dinner": false
+   },
+   "hotel": "Luxor"
+  },
+  {
+   "uid": "spin-b-back-cairo-nmec",
+   "title": "4th August - Fly to Cairo, NMEC & Coptic Cairo",
+   "description": "Breakfast and check-out, then transfer to Luxor airport for the flight north to Cairo.\nCheck in to your Cairo hotel and out again with your guide.\nThe National Museum of Egyptian Civilization at Fustat, and the reason for going: the Royal Mummies Hall, where twenty kings and queens lie in low light and climate control — Ramesses II, Hatshepsut and Seti I among them.\nContinue into Coptic Cairo for the Hanging Church, the Ben Ezra Synagogue and the church of Saints Sergius and Bacchus, all within a few quiet streets of each other.\nFinish at Khan el-Khalili in the evening — mint tea at El Fishawy and time to bargain badly.\nOvernight in Cairo.",
+   "photo": "cairo-giza/civilization-museum.jpg",
+   "sites": [
+    "NMEC",
+    "Royal Mummies Hall",
+    "Hanging Church",
+    "Khan el-Khalili"
+   ],
+   "guide": true,
+   "meals": {
+    "breakfast": true,
+    "lunch": false,
+    "dinner": false
+   },
+   "hotel": "Cairo"
+  },
+  {
+   "uid": "spin-b-alexandria",
+   "title": "5th August - Alexandria Day Trip",
+   "description": "Full day on the Mediterranean coast, with the drive along the desert road each way.\nThe Catacombs of Kom el-Shoqafa, cut three levels down into the rock, where Egyptian, Greek and Roman funerary art collide in the same tomb.\nPompey's Pillar and the Serapeum, still standing over the ruins of the temple precinct.\nThe Citadel of Qaitbay on the harbour, built on the foundations of the Pharos — the lost lighthouse of the ancient world.\nThe Bibliotheca Alexandrina, the modern answer to the greatest library of antiquity.\nOptional seafood lunch on the corniche (payable locally).\nReturn to Cairo in the evening. Overnight in Cairo.",
+   "photo": "alexandria/qaitbay-top-view.jpeg",
+   "sites": [
+    "Catacombs of Kom el-Shoqafa",
+    "Pompey's Pillar",
+    "Citadel of Qaitbay",
+    "Bibliotheca Alexandrina"
+   ],
+   "guide": true,
+   "meals": {
+    "breakfast": true,
+    "lunch": false,
+    "dinner": false
+   },
+   "hotel": "Cairo"
+  },
+  {
+   "uid": "spin-b-memphis",
+   "title": "6th August - Memphis, Sakkara & Dahshur",
+   "description": "Begin at Sakkara and the Step Pyramid of Djoser — the oldest stone building of its size anywhere, and the ancestor of every pyramid that followed.\nStep inside a nobleman's mastaba to see painted reliefs of daily life along the Nile, still sharp after four and a half thousand years.\nContinue to Dahshur for the Bent Pyramid and the Red Pyramid, where the geometry was finally solved — the Red Pyramid is the first true smooth-sided pyramid ever completed.\nFinish at Memphis, capital of the Old Kingdom, and its open-air museum with the colossal recumbent Ramesses II and the alabaster sphinx.\nOptional lunch at a local restaurant on the way back (payable locally).\nReturn and overnight in your hotel.",
+   "photo": "memphis-sakkara-dahshur/sakkara-1.jpeg",
+   "sites": [
+    "Sakkara",
+    "Step Pyramid of Djoser",
+    "Dahshur",
+    "Memphis"
+   ],
+   "guide": true,
+   "meals": {
+    "breakfast": true,
+    "lunch": false,
+    "dinner": false
+   },
+   "hotel": "Cairo"
+  }
+ ],
+ "departure": {
+  "on": true,
+  "title": "7th August - Final Departure",
+  "description": "Check out from your hotel and transfer to Cairo International Airport for your departure flight.",
+  "photo": "arrivedepart/departure-plane.jpg",
+  "meals": {
+   "breakfast": true,
+   "lunch": false,
+   "dinner": false
+  },
+  "hotel": ""
+ },
+ "pp": 0,
+ "sgl": 0,
+ "showPrice": false,
+ "priceTableOn": false,
+ "priceRows": [
+  {
+   "category": "4 Star Standard",
+   "dbl": 0,
+   "single": 0,
+   "triple": 0,
+   "quad": 0,
+   "solo": 0,
+   "hotels": "Cairo: Stay Inn Pyramids or Jewel Zamalek or similar\n\nLuxor: Susanna Hotel or similar"
+  },
+  {
+   "category": "4 Star Deluxe",
+   "dbl": 0,
+   "single": 0,
+   "triple": 0,
+   "quad": 0,
+   "solo": 0,
+   "hotels": "Cairo: Pyramids Park or equal\nLuxor: Achti Resort Luxor or equal"
+  },
+  {
+   "category": "5 Star Luxury",
+   "dbl": 0,
+   "single": 0,
+   "triple": 0,
+   "quad": 0,
+   "solo": 0,
+   "hotels": "Cairo: Steigenberger Pyramids or equal\nLuxor: Sofitel Winter Palace or equal"
+  }
+ ],
+ "priceColumns": "dbl",
+ "roomBasis": "double",
+ "flights": [
+  {
+   "id": 250,
+   "text": "Domestic flight from Cairo to Luxor.",
+   "label": "Cairo to Luxor (flight)",
+   "position": "end",
+   "targetUid": ""
+  },
+  {
+   "id": 251,
+   "text": "Domestic flight from Luxor back to Cairo.",
+   "label": "Luxor to Cairo (flight)",
+   "position": "end",
+   "targetUid": ""
+  }
+ ],
+ "category": null,
+ "included": "Meet-and-greet and guest relations support\nAir-conditioned vehicle transfers\nDomestic flights (Cairo–Luxor, Luxor–Cairo)\n5 nights Cairo hotel accommodation on bed & breakfast basis, double/twin room\n3 nights Luxor hotel accommodation on bed & breakfast basis, double/twin room\nSightseeing tours with English-speaking Egyptologist guides\nBottled water during outings\nAll meals per the itinerary\nAdmission to all sites listed in the itinerary",
+ "excluded": "International airfare\nEgypt entry visa\nOptional tours and excursions\nInterior pyramid / tomb entrance fees\nEclipse-viewing special permits (if required)\nHotel dinners in Cairo where not specified\nPersonal expenses (beverages, laundry, phone calls)\nGratuities"
+}

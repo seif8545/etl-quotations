@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useRef } from 'react'
+import { forwardRef, useEffect, useRef, useState } from 'react'
 
 export interface ItineraryData {
   title: string
@@ -247,10 +247,69 @@ const autoFitDays = (root: HTMLElement | null): void => {
   for (let i = 0; i < pages.length; i++) fitDayPage(pages[i] as HTMLElement)
 }
 
+/* ---------------------------------------------------------------------------
+   INCLUSIONS PAGE FIT  (handoff §13)
+   .summary-page is the same fixed 1123px/overflow:hidden block as a day page,
+   so a long Included / Not included pair is silently truncated in the PDF — the
+   two-column grid needs ~1350px for a fourteen-day quote against 983px of
+   content box. Measured, never estimated:
+     1. incOver() reports whether the block outgrows the page.
+     2. If it does and BOTH lists have content, the render splits into two
+        full-width pages (see incPages state). Full width halves the wrapped
+        line count, which is why each list then fits at the full 12.5px.
+     3. fitIncPage() is the last resort for a single list that still overruns
+        on its own page — it steps the item type down, as the day pages do.
+   --------------------------------------------------------------------------- */
+const INC_SCALES = [1, 0.96, 0.92, 0.88, 0.84, 0.8]
+
+const availOf = (page: HTMLElement): number => {
+  const cs = getComputedStyle(page)
+  return page.clientHeight - parseFloat(cs.paddingTop || '0') - parseFloat(cs.paddingBottom || '0')
+}
+
+const incOver = (page: HTMLElement): boolean => {
+  const blk = page.querySelector('.sum-block') as HTMLElement | null
+  return !!blk && blk.offsetHeight > availOf(page)
+}
+
+const fitIncPage = (page: HTMLElement): void => {
+  const blk = page.querySelector('.sum-block') as HTMLElement | null
+  if (!blk) return
+  const items = Array.prototype.slice.call(page.querySelectorAll('.inc-item')) as HTMLElement[]
+  const heads = Array.prototype.slice.call(page.querySelectorAll('.inc-col h4')) as HTMLElement[]
+  if (items.length === 0) return
+  for (let si = 0; si < INC_SCALES.length; si++) {
+    const k = INC_SCALES[si]
+    for (let i = 0; i < items.length; i++) {
+      items[i].style.fontSize = (12.5 * k).toFixed(2) + 'px'
+      items[i].style.marginBottom = Math.max(2, Math.round(8 * k)) + 'px'
+      items[i].style.gap = Math.max(5, Math.round(9 * k)) + 'px'
+    }
+    for (let i = 0; i < heads.length; i++) {
+      heads[i].style.fontSize = (16 * k).toFixed(2) + 'px'
+      heads[i].style.margin = '0 0 ' + Math.max(5, Math.round(12 * k)) + 'px'
+    }
+    if (!incOver(page)) return
+  }
+  // Floor reached. Nothing is lost that was not already lost before.
+}
+
+const autoFitIncl = (root: HTMLElement | null): void => {
+  if (!root) return
+  const pages = root.querySelectorAll('.inc-page')
+  for (let i = 0; i < pages.length; i++) {
+    const page = pages[i] as HTMLElement
+    if (incOver(page)) fitIncPage(page)
+  }
+}
+
 const bulletsOf = (s: string): string[] => (s ? s.split('\n').map((l) => l.trim()).filter(Boolean) : [])
 
 const ItineraryDoc = forwardRef<HTMLDivElement, { data: ItineraryData }>(({ data }, ref) => {
   const d = data
+  // 1 = Included and Not included share one page (the common case); 2 = each list
+  // gets its own full-width page because the pair outgrew a single page (§13).
+  const [incPages, setIncPages] = useState<1 | 2>(1)
   const rootRef = useRef<HTMLDivElement | null>(null)
   // Keep our own handle on the root as well as honouring the forwarded ref, so the
   // fit pass can find the day pages without reaching into the whole document.
@@ -272,13 +331,41 @@ const ItineraryDoc = forwardRef<HTMLDivElement, { data: ItineraryData }>(({ data
   useEffect(() => {
     if (typeof document === 'undefined') return
     autoFitDays(rootRef.current)
+    autoFitIncl(rootRef.current)
     let alive = true
-    const again = () => { if (alive) autoFitDays(rootRef.current) }
+    const again = () => {
+      if (!alive) return
+      autoFitDays(rootRef.current)
+      autoFitIncl(rootRef.current)
+    }
     const t = window.setTimeout(again, 0)
     const fonts = (document as Document & { fonts?: FontFaceSet }).fonts
     if (fonts && fonts.ready) fonts.ready.then(again).catch(() => {})
     return () => { alive = false; window.clearTimeout(t) }
-  }, [data])
+  }, [data, incPages])
+
+  // Always re-measure the one-page layout when the content changes, so a quote that
+  // shrinks back down does not keep the split it needed a moment ago.
+  useEffect(() => { setIncPages(1) }, [data])
+
+  // The split decision, measured on the one-page layout. Runs only while incPages is
+  // 1, so it can flip to 2 but never oscillate.
+  useEffect(() => {
+    if (typeof document === 'undefined') return
+    if (incPages !== 1) return
+    if (d.included.length === 0 || d.excluded.length === 0) return
+    let alive = true
+    const check = () => {
+      if (!alive) return
+      const page = rootRef.current ? rootRef.current.querySelector('.inc-page') as HTMLElement | null : null
+      if (page && incOver(page)) setIncPages(2)
+    }
+    check()
+    const t = window.setTimeout(check, 0)
+    const fonts = (document as Document & { fonts?: FontFaceSet }).fonts
+    if (fonts && fonts.ready) fonts.ready.then(check).catch(() => {})
+    return () => { alive = false; window.clearTimeout(t) }
+  }, [data, incPages, d.included.length, d.excluded.length])
 
   type DDay = ItineraryData['days'][number]
 
@@ -396,9 +483,38 @@ const ItineraryDoc = forwardRef<HTMLDivElement, { data: ItineraryData }>(({ data
         </div>
       )}
 
-      {/* Inclusions — own fixed page so long lists never clip the price box */}
-      {(d.included.length > 0 || d.excluded.length > 0) && (
-        <div className="summary-page">
+      {/* Inclusions — own fixed page so long lists never clip the price box.
+          Long lists outgrow even that page, so incPages === 2 gives each list a
+          full-width page of its own rather than clipping the tail (§13). */}
+      {(d.included.length > 0 || d.excluded.length > 0) && (incPages === 2 ? (
+        <>
+          {d.included.length > 0 && (
+            <div className="summary-page inc-page">
+              <div className="sum-block">
+                <div className="sec-eyebrow">The Details</div>
+                <h2 className="fr sec-title">What's Included</h2>
+                <div className="sec-rule" />
+                <div className="inc-grid">
+                  <div className="inc-col">{d.included.map((t, i) => <div className="inc-item" key={i}><span className="mark yes">✓</span>{t}</div>)}</div>
+                </div>
+              </div>
+            </div>
+          )}
+          {d.excluded.length > 0 && (
+            <div className="summary-page inc-page">
+              <div className="sum-block">
+                <div className="sec-eyebrow">The Details</div>
+                <h2 className="fr sec-title">Not Included</h2>
+                <div className="sec-rule" />
+                <div className="inc-grid">
+                  <div className="inc-col">{d.excluded.map((t, i) => <div className="inc-item" key={i}><span className="mark no">✕</span>{t}</div>)}</div>
+                </div>
+              </div>
+            </div>
+          )}
+        </>
+      ) : (
+        <div className="summary-page inc-page">
           <div className="sum-block">
             <div className="sec-eyebrow">The Details</div>
             <h2 className="fr sec-title">What's Included</h2>
@@ -409,7 +525,7 @@ const ItineraryDoc = forwardRef<HTMLDivElement, { data: ItineraryData }>(({ data
             </div>
           </div>
         </div>
-      )}
+      ))}
 
       {/* Pricing table */}
       {d.pricing.show && d.pricing.rows.length > 0 && (() => {

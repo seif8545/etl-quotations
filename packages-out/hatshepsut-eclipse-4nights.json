@@ -1,0 +1,127 @@
+{
+ "title": "Totality from Deir el-Bahari — Four Nights, 30 July to 3 August",
+ "intro": "A short, deliberate trip for someone who has already done Egypt once. No cruise, no full tour, no filler: the two museums you have not seen, the Luxor sites you want to see again, and the eclipse itself from the terraces at Deir el-Bahari rather than in the crush at Karnak. The sleeper train does double duty as transport and accommodation, north and south, which keeps two of the four nights off the hotel bill entirely — worth having in the week when every bed in Luxor is charging a premium. One hotel night in Cairo at the start, one in Luxor the night before totality, and private licensed Egyptologists in both cities. Every entrance ticket is included, and so is the entry visa.",
+ "hero": "luxor-aswan/hypostyle.jpeg",
+ "meta": {
+  "ref": "",
+  "pax": 1,
+  "arrival": "2027-07-30",
+  "departure": "2027-08-03"
+ },
+ "overview": {
+  "days": 5,
+  "nights": 4,
+  "cities": 2
+ },
+ "hotels": [
+  {
+   "nights": 1,
+   "destination": "Cairo & Giza"
+  },
+  {
+   "nights": 2,
+   "destination": "Overnight Sleeper Train"
+  },
+  {
+   "nights": 1,
+   "destination": "Luxor"
+  }
+ ],
+ "arrival": {
+  "on": true,
+  "title": "Arrival in Cairo — Friday 30 July",
+  "description": "Arrival at Cairo International Airport.\nOur representative meets you airside and stays with you through the visa on arrival — which we have included — and the passport and customs formalities.\nPrivate air-conditioned transfer to your hotel.\nNothing scheduled. You know Cairo already, so the evening is simply yours to eat and sleep off the flight.\nOvernight in Cairo.",
+  "photo": "arrivedepart/arrival-plane.jpg",
+  "meals": {
+   "breakfast": false,
+   "lunch": false,
+   "dinner": false
+  },
+  "hotel": "Cairo — budget guesthouse / hostel-style (or equal), bed & breakfast"
+ },
+ "days": [
+  {
+   "uid": "hat-d02-gem-nmec-train",
+   "title": "The Grand Egyptian Museum, the Royal Mummies & the Night Train — Saturday 31 July",
+   "description": "Breakfast and check-out; your bags travel with you today and you will not need a room tonight.\nThe Grand Egyptian Museum with your private Egyptologist: the hanging obelisk at the entrance, the Ramses II atrium, the grand staircase of royal statuary, and the complete Tutankhamun collection shown together for the first time — over five thousand objects with the death mask among them. It did not exist last time you were here, and it takes a morning.\nLunch nearby.\nThe National Museum of Egyptian Civilization at Fustat in the afternoon, and the reason for going: the Royal Mummies Hall. Twenty kings and queens in low light and climate control — Ramses II, Hatshepsut, Seti I — the woman whose temple you will be standing on two days from now among them.\nA light supper, then transfer to Giza station for the sleeper to Luxor. Your own cabin, berth made up while you are at the window, and you wake in Upper Egypt.\nOvernight on board.",
+   "photo": "cairo-giza/inside-gem.jpeg",
+   "sites": [
+    "Grand Egyptian Museum",
+    "Tutankhamun collection",
+    "NMEC, Fustat",
+    "Royal Mummies Hall",
+    "Sleeper train south"
+   ],
+   "guide": true,
+   "meals": {
+    "breakfast": true,
+    "lunch": true,
+    "dinner": true
+   },
+   "hotel": "Overnight sleeper train — private cabin"
+  },
+  {
+   "uid": "hat-d03-east-bank",
+   "title": "The East Bank — the Amun Precinct & the Southern Sanctuary — Sunday 1 August",
+   "description": "Arrival in Luxor early morning, met on the platform and taken to your guesthouse to drop bags, shower and eat.\nThe great precinct of Amun with your Luxor Egyptologist, out early before the heat: the avenue of ram-headed sphinxes, the first pylon, and the Great Hypostyle Hall — one hundred and thirty-four columns, the tallest twenty-one metres, still carrying their painted architraves.\nBeyond the standard route, since you have seen the headline once already: the sacred lake, the Middle Kingdom court at the heart of the complex, the fallen obelisk, and the Botanical Chamber of Tuthmosis III with its carved catalogue of Syrian plants.\nOut of the sun through the worst of the afternoon.\nLate afternoon at the Southern Sanctuary in the middle of town, joined to the Amun precinct by the restored three-kilometre Avenue of Sphinxes, with the Roman and Islamic city built straight over the top of it — best in the last hour of light and after dark.\nOff the beaten path, at no extra cost if you want them instead: the museum on the corniche, the Mummification Museum, or the alabaster workshops at Gurna.\nAn early night. Overnight in Luxor.",
+   "photo": "luxor-aswan/avenue-sphinxes.jpeg",
+   "sites": [
+    "Precinct of Amun",
+    "Great Hypostyle Hall",
+    "Sacred lake",
+    "Botanical Chamber",
+    "Southern Sanctuary"
+   ],
+   "guide": true,
+   "meals": {
+    "breakfast": true,
+    "lunch": false,
+    "dinner": false
+   },
+   "hotel": "Luxor — budget guesthouse / hostel-style (or equal), bed & breakfast"
+  },
+  {
+   "uid": "hat-d04-totality-deir-el-bahari",
+   "title": "Totality from the Terraces at Deir el-Bahari — Monday 2 August",
+   "description": "A pre-dawn crossing to the west bank and check-out; your bags travel with the vehicle, and you are on the bank before the roads start to close.\nThe royal tombs at first light, when the valley is at its emptiest: three on the standard ticket with your private Egyptologist, cut deep into the rock with their corridors of painted text and star-vaulted ceilings intact. Tutankhamun, Seti I and Nefertari are separately ticketed and can be added on the spot.\nThe Valley of the Queens after it — Nefertari's tomb is the finest painted surface in Egypt if you choose to add it, and the valley itself is quiet even today.\nThen up to Deir el-Bahari and the Temple of Hatshepsut, in good time, and you stay. Three colonnaded terraces built straight into the cliff at the head of the valley, facing east across the flood plain — which is exactly the right way to be facing. Shade and water; your guide stays with you or leaves you to it, as you prefer.\nThe partial phases run for over an hour before the light goes wrong and the cliff behind you loses its colour. Then totality, on the terraces of the queen whose face you saw in Cairo on Saturday. Luxor lies close to the point of greatest duration on this eclipse, one of the longest of the century.\nWe wait for the roads to clear rather than fight them, then a late lunch, a shower at a day-use room, and the evening sleeper north. Overnight on board.",
+   "photo": "luxor-aswan/colossi.jpeg",
+   "sites": [
+    "Deir el-Bahari",
+    "Totality from the terraces",
+    "Theban royal tombs",
+    "Valley of the Queens",
+    "Sleeper train north"
+   ],
+   "guide": true,
+   "meals": {
+    "breakfast": true,
+    "lunch": true,
+    "dinner": false
+   },
+   "hotel": "Overnight sleeper train — private cabin"
+  }
+ ],
+ "departure": {
+  "on": true,
+  "title": "Departure — Tuesday 3 August",
+  "description": "Arrival at Giza in the early morning, met on the platform.\nA day-use room to shower, change and eat a proper breakfast before you travel — nobody wants to fly straight off a sleeper.\nTime to spend as you like if your flight is late in the day; say the word and we will put a guide and a car at your disposal for the morning, at extra cost.\nPrivate air-conditioned transfer to Cairo International Airport in good time, with final meet & assist through check-in.\nSafe journey home.",
+  "photo": "arrivedepart/departure-plane.jpg",
+  "meals": {
+   "breakfast": true,
+   "lunch": false,
+   "dinner": false
+  },
+  "hotel": ""
+ },
+ "pp": 0,
+ "sgl": 0,
+ "showPrice": false,
+ "priceTableOn": false,
+ "priceRows": [],
+ "priceColumns": "all",
+ "roomBasis": "single",
+ "flights": [],
+ "category": "other",
+ "included": "Egypt entry visa — USD 36, arranged and paid by us on arrival, as agreed\nMeet & assist by our representative at Cairo International Airport on arrival and departure, and on the platform at both ends of both sleeper journeys\n4 nights as stated — 1 night Cairo, 1 night Luxor, and 2 nights in a private sleeper cabin, so two of the four nights cost you no hotel at all in the week Luxor is charging a premium\nBudget guesthouse / hostel-style accommodation in Cairo and Luxor, chosen for cleanliness, location and air conditioning rather than stars, as you asked\nSleeper train Cairo – Luxor on 31 July and Luxor – Cairo on 2 August, private cabin both ways, with supper and breakfast served on board\nDay-use room in Luxor on 2 August to shower and change before the night train, and one in Cairo on 3 August before your flight\nPrivate licensed Egyptologist guide in Cairo and a second in Luxor, as agreed — never a group\nPrivate air-conditioned vehicle for every transfer and excursion\nAll entrance tickets and passes to everything named in the programme: the Grand Egyptian Museum, the National Museum of Egyptian Civilization including the Royal Mummies Hall, the Amun precinct, the Southern Sanctuary, three tombs in the Theban royal valley, the Valley of the Queens and the Temple of Hatshepsut\nEclipse-day arrangements at Deir el-Bahari on 2 August: pre-dawn departure ahead of the road closures, shade and cold water\nBottled water in the vehicle throughout\nAll local taxes and service charges\n24/7 contact with our Cairo office for the whole five days\nWritten booking confirmation setting out the payment schedule and cancellation terms in full before any deposit is taken",
+ "excluded": "International airfare to and from Egypt — book early; eclipse-week seats will go fast\nAny special eclipse-day permit fee or surcharge set by the Ministry of Tourism & Antiquities for the Deir el-Bahari site on 2 August — not published at the time of quoting, and confirmed in writing as soon as it is\nThe separately ticketed tombs in the Theban valleys — Tutankhamun, Seti I and Nefertari — payable on the spot if you want them\nOptional sunrise hot-air balloon over the west bank\nLunches and dinners other than those listed\nDrinks with meals\nTravel insurance — strongly recommended for a trip booked this far ahead\nTipping and gratuities for the guides and driver\nPersonal expenses and laundry\nAnything not listed under \"Included\""
+}
