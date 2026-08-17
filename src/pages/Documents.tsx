@@ -8,6 +8,8 @@ import type { VoucherData } from './Voucher'
 import { generateInvoiceDocx, invoiceToPdf, duplicateInvoice, hydrateInvoice } from './Invoice'
 import type { InvoiceData } from './Invoice'
 import PackageBuilder from './PackageBuilder'
+import TextBuilder from './TextBuilder'
+import type { TextDocRow } from './TextBuilder'
 import type { PackageState } from './PackageBuilder'
 import type { QuotationDraft } from '../lib/types'
 import {
@@ -64,7 +66,7 @@ function pkgPrice(r: any): string {
   return Number.isFinite(pp) && pp > 0 ? `$${pp.toLocaleString()}` : '—'
 }
 
-const TABS = ['Quotations', 'Packages', 'Letters', 'Vouchers', 'Invoices'] as const
+const TABS = ['Quotations', 'Packages', 'Letters', 'Vouchers', 'Invoices', 'Pages'] as const
 type Tab = (typeof TABS)[number]
 
 export default function Documents({ openQuotation, openInvoice, isAdmin, uid }: {
@@ -85,8 +87,9 @@ export default function Documents({ openQuotation, openInvoice, isAdmin, uid }: 
   const [savedPkgId, setSavedPkgId] = useState<number | null>(null)
   const [agents, setAgents] = useState<{ id: string; full_name: string; email: string }[]>([])
   const [shareRow, setShareRow] = useState<any | null>(null)
+  const [textDoc, setTextDoc] = useState<TextDocRow | null>(null)
 
-  const table = tab === 'Quotations' ? 'q_quotations' : tab === 'Packages' ? 'q_package_docs' : tab === 'Letters' ? 'q_letters' : tab === 'Vouchers' ? 'q_vouchers' : 'q_invoices'
+  const table = tab === 'Quotations' ? 'q_quotations' : tab === 'Packages' ? 'q_package_docs' : tab === 'Letters' ? 'q_letters' : tab === 'Vouchers' ? 'q_vouchers' : tab === 'Pages' ? 'q_text_docs' : 'q_invoices'
 
   async function load() {
     const { data, error } = await supabase.from(table).select('*').order('created_at', { ascending: false })
@@ -205,7 +208,7 @@ export default function Documents({ openQuotation, openInvoice, isAdmin, uid }: 
   }
 
   /** Columns in the current tab — group headings span the lot. */
-  const COLS = (tab === 'Quotations' ? 5 : tab === 'Packages' ? 5 : tab === 'Letters' ? 4 : 5) + 2
+  const COLS = (tab === 'Quotations' ? 5 : tab === 'Packages' ? 5 : tab === 'Letters' ? 4 : tab === 'Pages' ? 4 : 5) + 2
 
   const renderRow = (r: any) => (
     <tr key={r.id} className={busyId === r.id ? 'saving' : ''}>
@@ -241,6 +244,12 @@ export default function Documents({ openQuotation, openInvoice, isAdmin, uid }: 
       })()}
       {tab === 'Letters' && <><td>{r.consignee}</td><td>{r.arrival_date}</td><td>{r.departure_date}</td><td>{r.pax}</td></>}
       {tab === 'Vouchers' && <><td>{r.hotel_name}</td><td>{r.guest_or_group_name}</td><td>{r.from_date}</td><td>{r.to_date}</td><td>{r.singles + r.doubles + r.twins + r.triples}</td></>}
+      {tab === 'Pages' && <>
+        <td>{r.name || <span className="muted">Untitled</span>}</td>
+        <td>{r.data?.pages?.length ?? 0}</td>
+        <td>{r.slug ? <span className="small">/pages/{r.slug}</span> : <span className="muted">—</span>}</td>
+        <td>{r.published ? <span className="tb-live on">Live</span> : <span className="tb-live">Draft</span>}</td>
+      </>}
       {tab === 'Invoices' && <><td>{r.serial}</td><td>{r.client_name}</td><td>{r.issue_date}</td><td>{r.total}</td><td>{r.balance ?? '—'}</td></>}
       <td>
         {new Date(r.created_at).toLocaleDateString('en-GB')}
@@ -276,6 +285,14 @@ export default function Documents({ openQuotation, openInvoice, isAdmin, uid }: 
           <button className="link" onClick={() => (
             tab === 'Letters' ? letterToPdf(r.data) : tab === 'Vouchers' ? voucherToPdf(r.data) : invoiceToPdf(r.data, r.serial)
           ).catch((e: any) => setError(e.message ?? String(e)))}>PDF</button>
+        </>}
+        {tab === 'Pages' && <>
+          {(isAdmin || r.created_by === uid) && (
+            <button className="link" onClick={() => setTextDoc(r as TextDocRow)}>Open</button>
+          )}
+          {r.published && r.slug && (
+            <button className="link" onClick={() => navigator.clipboard?.writeText('https://egypttoplight.net/pages/' + r.slug)}>Copy link</button>
+          )}
         </>}
         {tab === 'Invoices' && r.data && <>
           {/* Edit writes back to this row, so it is offered only to whoever may update it —
@@ -344,6 +361,7 @@ export default function Documents({ openQuotation, openInvoice, isAdmin, uid }: 
                 {tab === 'Packages' && <><th className="c-name">Name</th><th className="c-route">Cities &amp; nights</th><th className="c-dur">Duration</th><th className="c-price">Price</th><th className="c-dates">Dates</th></>}
                 {tab === 'Letters' && <><th>To</th><th>Arrival</th><th>Departure</th><th>Pax</th></>}
                 {tab === 'Vouchers' && <><th>Hotel</th><th>Group</th><th>From</th><th>To</th><th>Rooms</th></>}
+                {tab === 'Pages' && <><th>Name</th><th>Pages</th><th>Link</th><th>Status</th></>}
                 {tab === 'Invoices' && <><th>Serial</th><th>Client</th><th>Issue date</th><th>Total</th><th>Balance</th></>}
                 <th>Created</th><th>Actions</th>
               </tr>
@@ -395,6 +413,7 @@ export default function Documents({ openQuotation, openInvoice, isAdmin, uid }: 
           </div>
         </div>
       )}
+      {textDoc && <TextBuilder saved={textDoc} onClose={() => { setTextDoc(null); load() }} />}
       {pdfDraft && <PackageBuilder draft={pdfDraft} onClose={() => { setPdfDraft(null); load() }} />}
       {savedPkg && <PackageBuilder saved={savedPkg} savedId={savedPkgId ?? undefined} onClose={() => { setSavedPkg(null); setSavedPkgId(null); load() }} />}
     </div>

@@ -10,9 +10,10 @@ import Letter from './pages/Letter'
 import Voucher from './pages/Voucher'
 import Invoice from './pages/Invoice'
 import type { InvoiceData } from './pages/Invoice'
+import TextBuilder from './pages/TextBuilder'
 import Documents from './pages/Documents'
 
-export type Page = 'home' | 'quotation' | 'letter' | 'voucher' | 'invoice' | 'documents' | 'admin'
+export type Page = 'home' | 'quotation' | 'letter' | 'voucher' | 'invoice' | 'textdoc' | 'documents' | 'admin'
 
 export default function App() {
   const [session, setSession] = useState<Session | null>(null)
@@ -72,6 +73,9 @@ export default function App() {
       {page === 'quotation' && <QuotationWizard done={home} initial={editDraft} />}
       {page === 'letter' && <Letter done={home} />}
       {page === 'voucher' && <Voucher done={home} />}
+      {/* A blank Text → Pages document. Saved ones reopen from the Documents list,
+          which mounts the same builder over itself. */}
+      {page === 'textdoc' && <TextBuilder onClose={home} />}
       {page === 'invoice' && (
         /* The editor seeds its state from these props once, on mount. That is safe only
            because leaving the page unmounts it — every open is therefore a fresh mount. */
