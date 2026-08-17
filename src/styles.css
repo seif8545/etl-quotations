@@ -561,6 +561,8 @@ input[type=checkbox] { width: 17px; height: 17px; accent-color: var(--gold); cur
 .tb-warn { font-size: 12px; color: var(--terracotta); background: #fbeeeb; border: 1px solid #f0d4ce; border-radius: 999px; padding: 3px 10px; }
 .tb-zoom { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
 .tb-zoom input { width: 110px; }
+.tb-max { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+.tb-max input { width: 52px; }
 
 .tb-publish { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; background: var(--cream-2); border: 1px solid var(--border); border-radius: 10px; padding: 8px 12px; }
 .tb-publish input { flex: 1 1 240px; min-width: 160px; }

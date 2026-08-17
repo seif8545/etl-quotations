@@ -2,10 +2,12 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { waitForAssets } from '../lib/pdf'
 import { slugify } from './PackageBuilder'
-import TextDoc from './TextDoc'
+import TextDoc, { ItemView } from './TextDoc'
 import type { TextDocView } from './TextDoc'
-import { buildPages, guessTitle } from '../lib/textItinerary'
-import type { TextDocData } from '../lib/textItinerary'
+import {
+  BASE_FS, DEFAULT_MAX_PAGES, buildPages, guessTitle, packMeasured, parseDoc, streamOf,
+} from '../lib/textItinerary'
+import type { TextDocData, TextPage } from '../lib/textItinerary'
 
 /**
  * Paste a block of text, get a paginated A4 document and a shareable link.
@@ -43,16 +45,52 @@ export default function TextBuilder({ saved, onClose }: { saved?: TextDocRow; on
   const [uploads, setUploads] = useState<Record<string, { name: string; url: string }[]>>({})
   const [pickerOpen, setPickerOpen] = useState(false)
   const [urlDraft, setUrlDraft] = useState('')
+  const [maxPages, setMaxPages] = useState<number>(saved?.data?.maxPages ?? DEFAULT_MAX_PAGES)
   const [zoom, setZoom] = useState(0.58)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [overflow, setOverflow] = useState<number[]>([])
+  /** Measured here, stored in the row: the website renderer has no way to size an image. */
+  const [photoWidthPct, setPhotoWidthPct] = useState<number>(saved?.data?.photoWidthPct ?? 100)
 
   const docRef = useRef<HTMLDivElement | null>(null)
   const stageRef = useRef<HTMLDivElement | null>(null)
+  const measureRef = useRef<HTMLDivElement | null>(null)
 
-  const pages = useMemo(() => buildPages(text), [text])
+  const stream = useMemo(() => streamOf(parseDoc(text)), [text])
+  /**
+   * Pages start from the pure estimate and are replaced by the measured pack as soon as the
+   * rig below has laid the stream out. The estimate cannot be trusted on its own: a ten
+   * percent error in characters-per-line is the difference between three pages and four.
+   */
+  const [pages, setPages] = useState<TextPage[]>(() => buildPages(saved?.data?.text ?? '', saved?.data?.maxPages ?? DEFAULT_MAX_PAGES))
+
+  useEffect(() => {
+    const host = measureRef.current
+    const flow = host?.querySelector<HTMLElement>('.tp-flow')
+    if (!host || !flow) { setPages(buildPages(text, maxPages)); return }
+    const run = () => {
+      const measure = (k: number) => {
+        flow.style.fontSize = `${BASE_FS * k}px`
+        const kids = Array.from(flow.children) as HTMLElement[]
+        const tops = kids.map((c) => c.offsetTop)
+        const total = flow.offsetHeight
+        // offsetTop deltas rather than offsetHeight: they include the margins between items
+        // and the collapsing between them, which is what the real flow will do.
+        return kids.map((c, i) => (i + 1 < kids.length ? tops[i + 1] - tops[i] : total - tops[i]))
+      }
+      setPages(stream.length ? packMeasured(stream, measure, maxPages) : [])
+    }
+    run()
+    const t = setTimeout(run, 0)
+    // The webfonts change every wrapped line count, so a pass against the fallback font
+    // would choose the wrong scale.
+    document.fonts?.ready.then(run).catch(() => {})
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stream, maxPages])
+
   const shownTitle = title.trim() || guessTitle(text)
 
   const view: TextDocView = useMemo(() => ({
@@ -102,7 +140,7 @@ export default function TextBuilder({ saved, onClose }: { saved?: TextDocRow; on
   function payload(): TextDocData {
     // `pages` is stored, not just the text: the public renderer prints it verbatim so the
     // parser is never duplicated in the website repo. Re-save after a parser change.
-    return { title: shownTitle, text, photos: photos.slice(0, MAX_PHOTOS), pages }
+    return { title: shownTitle, text, photos: photos.slice(0, MAX_PHOTOS), maxPages, photoWidthPct, pages }
   }
 
   /** Unique-ish slug on insert: suffix rather than fail, exactly as packages do. */
@@ -220,9 +258,22 @@ export default function TextBuilder({ saved, onClose }: { saved?: TextDocRow; on
       <div className="tb">
         <div className="tb-bar">
           <b className="fr">Text → Pages</b>
-          <span className="muted small">{pages.length} page{pages.length === 1 ? '' : 's'}</span>
+          <span className="muted small">
+            {pages.length} page{pages.length === 1 ? '' : 's'}
+            {pages[0] ? ` · ${(BASE_FS * pages[0].scale).toFixed(1)}px type` : ''}
+          </span>
+          <label className="tb-max">Fit into
+            <input type="number" min={1} max={12} value={maxPages}
+              onChange={(e) => setMaxPages(Math.max(1, Math.min(12, +e.target.value || DEFAULT_MAX_PAGES)))} />
+            pages
+          </label>
+          {pages.length > maxPages && (
+            <span className="tb-warn" title="7px is the smallest type this will print at — raise the page target, or cut some text">
+              will not fit in {maxPages} — at the smallest readable type it needs {pages.length}
+            </span>
+          )}
           {overflow.length > 0 && (
-            <span className="tb-warn" title="Add a paragraph break, or split the day in the text">
+            <span className="tb-warn" title="Add a paragraph break, or shorten a day in the text">
               page{overflow.length === 1 ? '' : 's'} {overflow.map((i) => i + 1).join(', ')} still too full
             </span>
           )}
@@ -264,10 +315,12 @@ export default function TextBuilder({ saved, onClose }: { saved?: TextDocRow; on
                 placeholder={'Paste the whole itinerary here.\n\nDay 1 — Arrival in Cairo\nMet at the airport and transferred to the hotel.\nMeals: Dinner\nOvernight in Cairo\n\nDay 02: Giza & the Grand Egyptian Museum\n…'} />
             </label>
             <p className="muted small tb-hint">
-              Day breaks are read from the text — <b>Day 1</b>, <b>DAY 01</b>, <b>day 3:</b>, <b>Day 04 (28 July)</b>,
-              with or without spaces or dates. A line starting <b>Meals:</b> and one starting
-              <b> Hotel:</b>, <b>Stay:</b> or <b>Overnight</b> are lifted into their own area at the foot of the page.
-              Anything before the first day heading becomes an opening page.
+              Days are read from the text — <b>Day 1</b>, <b>DAY 01</b>, <b>DAY 04 | GIZA II Welcome</b>, with or
+              without dates — and run one after another down the page; they do not each get a sheet.
+              A <b>Meals:</b> line and a <b>Hotel:</b> / <b>Stay:</b> / <b>Overnight…</b> line become the chips under
+              each day. <b>Included services</b> / <b>Inclusions</b> and <b>Not included</b> / <b>Exclusions</b> become
+              the two-column list, and <b>OFFERED 4 Star package:</b> blocks become the rate table at the end.
+              Type is sized automatically to land inside the page target.
             </p>
 
             <div className="tb-photos-head">
@@ -285,9 +338,16 @@ export default function TextBuilder({ saved, onClose }: { saved?: TextDocRow; on
             </div>
           </div>
 
+          {/* The measuring rig — off-screen, never printed, never exported. */}
+          <div className="tdoc tdoc-measure" ref={measureRef} aria-hidden="true">
+            <div className="tp-flow" style={{ fontSize: `${BASE_FS}px` }}>
+              {stream.map((it, i) => <ItemView it={it} key={i} />)}
+            </div>
+          </div>
+
           <div className="tb-preview">
             <div className="tb-stage" ref={stageRef} style={{ transform: `scale(${zoom})` }}>
-              <TextDoc ref={docRef} data={view} onOverflow={setOverflow} />
+              <TextDoc ref={docRef} data={view} onOverflow={setOverflow} onPhotoWidth={setPhotoWidthPct} />
             </div>
           </div>
         </div>
