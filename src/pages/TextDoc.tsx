@@ -28,10 +28,14 @@ export interface TextDocView {
   contact: TextDocContact
 }
 
-/* Column arithmetic, spelled out so it is obvious that it adds to 794. Wider text column
-   than the first version: the whole point is density, and 496px of justified prose is what
-   makes a fifteen-day programme land in three pages instead of five. */
-const PAD_X = 34, COL_PHOTO = 132, GAP = 18, COL_TEXT = 496, COL_MARK = 62
+/* Column arithmetic, spelled out so it is obvious that both variants add to 794.
+   WITH photos:    34 + 132 + 18 + 496 + 18 + 62 + 34
+   WITHOUT photos: 34 +   0 +  0 + 646 + 18 + 62 + 34
+   The second one matters more than it looks. Reserving the photo column when there are no
+   photos costs 150px of a 726px content width — and because the packer buys page count with
+   type size, that empty margin was what forced a fifteen-day programme down to 7.4px. No
+   photos now means a wider measure and roughly 9.5px for the same three pages. */
+const PAD_X = 34, COL_PHOTO = 132, GAP = 18, COL_TEXT = 496, COL_TEXT_WIDE = 646, COL_MARK = 62
 
 const CSS = `
 .tdoc { width: 794px; background: #fffefa; color: #12243b; font-family: Inter, system-ui, sans-serif; }
@@ -43,8 +47,12 @@ const CSS = `
    type scale, reads back each item's real height, and packs pages from that — so the page
    count is decided by the actual wrapped text in the actual webfonts, not by an estimate.
    Off-screen rather than display:none, because a hidden box has no layout to measure. */
-.tdoc-measure { position: absolute; left: -12000px; top: 0; width: ${COL_TEXT}px; visibility: hidden;
-  pointer-events: none; height: auto; overflow: visible; }
+.tdoc-measure { position: absolute; left: -12000px; top: 0; visibility: hidden;
+  pointer-events: none; height: auto; overflow: visible; display: block; }
+/* Its width is set inline to the exact column width being tried — measuring 496px of prose and
+   then printing it in a 240px column chooses the wrong scale, and getting it the wrong way
+   round clips the bottom of every page. */
+.tdoc-measure .tp-flow { flex: 0 0 auto; }
 
 .tp-pill { align-self: center; display: flex; align-items: baseline; gap: 8px;
   border: 1px solid #e3d7b6; background: #fff; border-radius: 999px; padding: 6px 18px 7px; }
@@ -59,8 +67,18 @@ const CSS = `
 .tp-cols { flex: 1; min-height: 0; display: flex; gap: ${GAP}px; margin-top: 16px; }
 .tp-photos { width: ${COL_PHOTO}px; flex: 0 0 ${COL_PHOTO}px; overflow: hidden; display: flex; flex-direction: column; gap: 10px; }
 .tp-photos img { display: block; width: 100%; height: auto; border-radius: 3px; border: 1px solid #eadfc4; }
-.tp-body { width: ${COL_TEXT}px; flex: 0 0 ${COL_TEXT}px; min-height: 0; }
-.tp-flow { flex: 0 0 auto; }
+/* align-items:flex-start is load-bearing: the default (stretch) makes each .tp-flow as tall as
+   the row, so offsetHeight reports the CONTAINER height and the overflow check silently reads
+   zero on every page — the same class of measure-the-wrong-box bug as section 11. */
+.tp-body { width: ${COL_TEXT}px; flex: 0 0 ${COL_TEXT}px; min-height: 0; display: flex; gap: ${GAP}px; align-items: flex-start; }
+/* No photos: drop the column entirely and hand its width to the text. */
+.tp.no-photos .tp-photos { display: none; }
+.tp.no-photos .tp-cols { gap: ${GAP}px; }
+.tp.no-photos .tp-body { width: ${COL_TEXT_WIDE}px; flex: 0 0 ${COL_TEXT_WIDE}px; }
+/* One .tp-flow per text column — and there is exactly one column. Two was tried and rejected:
+   it saves sheets but reads like a newspaper, and readable type across a single measure is
+   worth the extra pages. */
+.tp-flow { flex: 1 1 0; min-width: 0; }
 .tp-marks { width: ${COL_MARK}px; flex: 0 0 ${COL_MARK}px; display: flex; flex-direction: column; align-items: center; gap: 22px; padding-top: 2px; }
 .tp-marks svg { display: block; }
 .tp-dots { flex: 1; width: 1px; background-image: linear-gradient(#dcd0b2 40%, rgba(0,0,0,0) 0%); background-size: 1px 7px; background-repeat: repeat-y; }
@@ -170,13 +188,16 @@ function fitPages(root: HTMLElement): number[] {
   const over: number[] = []
   Array.from(root.querySelectorAll<HTMLElement>('.tp')).forEach((page, i) => {
     const cols = page.querySelector<HTMLElement>('.tp-cols')
-    const flow = page.querySelector<HTMLElement>('.tp-flow')
-    if (!cols || !flow) return
-    const base = Number(flow.dataset.fs) || BASE_FS
+    const flows = Array.from(page.querySelectorAll<HTMLElement>('.tp-flow'))
+    if (!cols || !flows.length) return
+    const base = Number(flows[0].dataset.fs) || BASE_FS
     const room = cols.clientHeight
+    // Both columns of a page move together — a page with two different type sizes side by side
+    // reads as a mistake, not as a fit.
     for (let step = 0; step <= 5; step++) {
-      flow.style.fontSize = `${(base * Math.pow(0.96, step)).toFixed(3)}px`
-      if (flow.offsetHeight <= room) return
+      const fs = `${(base * Math.pow(0.96, step)).toFixed(3)}px`
+      flows.forEach((f) => { f.style.fontSize = fs })
+      if (Math.max(...flows.map((f) => f.offsetHeight)) <= room) return
     }
     over.push(i)
   })
@@ -309,7 +330,7 @@ const TextDoc = forwardRef<HTMLDivElement, {
           const Mark = MARKS[i % MARKS.length]
           const fs = BASE_FS * (p.scale || 1)
           return (
-            <div className="tp" key={i}>
+            <div className={data.photos.length ? 'tp' : 'tp no-photos'} key={i}>
               <div className="tp-pill"><b>EGYPT TOP LIGHT</b><span>TRAVEL</span></div>
               {i === 0 && (
                 <div className="tp-doctitle">
@@ -324,11 +345,13 @@ const TextDoc = forwardRef<HTMLDivElement, {
                   ))}
                 </div>
                 <div className="tp-body">
-                  {/* One inline px value sets the whole page's density; the fit pass nudges
-                      this and only this. data-fs keeps the packer's choice for a re-run. */}
-                  <div className="tp-flow" data-fs={fs} style={{ fontSize: `${fs}px` }}>
-                    {p.items.map((it, j) => <ItemView it={it} key={j} />)}
-                  </div>
+                  {/* One inline px value sets each column's density; the fit pass nudges that
+                      and only that. data-fs keeps the packer's choice for a re-run. */}
+                  {(p.cols && p.cols.length ? p.cols : [[]]).map((col, ci) => (
+                    <div className="tp-flow" data-fs={fs} style={{ fontSize: `${fs}px` }} key={ci}>
+                      {col.map((it, j) => <ItemView it={it} key={j} />)}
+                    </div>
+                  ))}
                 </div>
                 <div className="tp-marks">
                   <Mark />
@@ -350,5 +373,5 @@ const TextDoc = forwardRef<HTMLDivElement, {
   },
 )
 
-export { AVAIL, AVAIL_FIRST }
+export { AVAIL, AVAIL_FIRST, COL_TEXT, COL_TEXT_WIDE }
 export default TextDoc

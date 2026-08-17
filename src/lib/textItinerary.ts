@@ -44,7 +44,11 @@ export interface OfferRow {
 export interface TextPage {
   /** Type scale chosen by the packer so the whole document lands inside `maxPages`. */
   scale: number
-  items: Item[]
+  /**
+   * One entry per text column. Always a single entry now — see `colWidth` — but kept as an
+   * array so the renderers do not have to change if that is ever revisited.
+   */
+  cols: Item[][]
 }
 
 export interface TextDocData {
@@ -52,8 +56,8 @@ export interface TextDocData {
   text: string
   /** 0 to 4 photo paths, document-level, stacked down the left column of every page. */
   photos: string[]
-  /** Page target the packer was given, kept so a re-save reproduces the same document. */
-  maxPages?: number
+  /** Body type scale the document was built at, so a re-save reproduces it. */
+  scale?: number
   /**
    * Left-column photo width as a percentage, measured in the browser and stored so the public
    * renderer can reproduce it — nothing on the edge can size an image, and CSS alone cannot
@@ -235,7 +239,24 @@ export function parseDoc(text: string): ParsedDoc {
 
 export const PAGE_W = 794
 export const PAGE_H = 1123
-export const COL_TEXT = 496          // the centre column, px — see TextDoc.tsx
+/** Text measure with the photo column present, and without it. See TextDoc.tsx. */
+export const COL_TEXT = 496
+export const COL_TEXT_WIDE = 646
+/** Gutter between the two text columns. */
+export const COL_GAP = 18
+
+/**
+ * The width the text column actually gets: wider when there are no photos to make room for.
+ *
+ * ONE COLUMN, ALWAYS. Two columns was tried and rejected — it buys page count at the cost of a
+ * newspaper look, and the decision is that readable type across a single measure is worth extra
+ * sheets. The `columns` argument survives only so `packWithHeights` stays general; nothing
+ * calls it with 2.
+ */
+export function colWidth(columns: number, hasPhotos: boolean): number {
+  const total = hasPhotos ? COL_TEXT : COL_TEXT_WIDE
+  return columns >= 2 ? Math.floor((total - COL_GAP) / 2) : total
+}
 /** Base body size at scale 1. The packer scales around this to hit the page target. */
 export const BASE_FS = 10
 export const LINE_H = 1.5
@@ -246,32 +267,32 @@ const CHAR_EM = 0.55
 export const AVAIL = 975
 export const AVAIL_FIRST = 903
 
-const lines = (s: string, fs: number, w = COL_TEXT) =>
+const lines = (s: string, fs: number, w: number = COL_TEXT) =>
   Math.max(1, Math.ceil(s.length / Math.max(8, Math.floor(w / (fs * CHAR_EM)))))
 
-/** Estimated printed height of one item at a given type scale. */
-function itemH(it: Item, k: number): number {
+/** Estimated printed height of one item at a given type scale and column width. */
+function itemH(it: Item, k: number, w: number = COL_TEXT): number {
   const fs = BASE_FS * k
   const lh = fs * LINE_H
   switch (it.t) {
     case 'day': {
       const labelH = fs * 1.75 + 2
-      const titleH = it.title ? lines(it.title, fs * 0.92) * (fs * 0.92 * 1.35) : 0
+      const titleH = it.title ? lines(it.title, fs * 0.92, w) * (fs * 0.92 * 1.35) : 0
       return labelH + titleH + fs * 1.5 + 6      // + rule and margins
     }
     case 'p':
-      return lines(it.text, fs) * lh + fs * 0.42
+      return lines(it.text, fs, w) * lh + fs * 0.42
     case 'chips':
       return fs * 1.6 + 8
     case 'h':
       return fs * 1.5 + fs * 1.6 + 8
     case 'two': {
-      const w = (COL_TEXT - 18) / 2
-      const side = (xs: string[]) => xs.reduce((s, x) => s + lines(x, fs * 0.94, w) * (fs * 0.94 * 1.42) + 3, 0)
+      const half = (w - 18) / 2
+      const side = (xs: string[]) => xs.reduce((s, x) => s + lines(x, fs * 0.94, half) * (fs * 0.94 * 1.42) + 3, 0)
       return fs * 1.9 + Math.max(side(it.left), side(it.right)) + 12
     }
     case 'table': {
-      const cat = 96, rate = 118, hotels = COL_TEXT - cat - rate - 16
+      const cat = 96, rate = 118, hotels = Math.max(80, w - cat - rate - 16)
       const rowH = (r: OfferRow) => Math.max(
         lines(r.category, fs, cat) * lh,
         lines(r.rate, fs, rate) * lh,
@@ -307,37 +328,48 @@ export function streamOf(doc: ParsedDoc): Item[] {
 }
 
 /**
- * Pack a stream onto pages, given each item's height in order.
+ * Pack a stream into columns and pages, given each item's height in order.
  *
- * A day heading is never left alone at the foot of a page: if its first paragraph will not
+ * Columns fill left to right, pages top to bottom: with `columns = 2` the reader goes down the
+ * left column and back up to the right, like a magazine. The title block on page 1 spans the
+ * full width, so every column on that page is shorter.
+ *
+ * A day heading is never left alone at the foot of a column: if its first paragraph will not
  * follow it, both move on together. Everything else may break anywhere, which is the whole
  * point of flowing text.
  *
- * Heights are a parameter rather than computed here so the browser can supply MEASURED ones
- * — see `packMeasured`. The estimator below is only the opening guess.
+ * Heights are a parameter rather than computed here so the browser can supply MEASURED ones at
+ * the real column width — see `packMeasured`. The estimator is only the opening guess.
  */
-export function packWithHeights(stream: Item[], heights: number[], k: number): TextPage[] {
+export function packWithHeights(stream: Item[], heights: number[], k: number, columns = 1): TextPage[] {
+  const n = Math.max(1, Math.min(2, Math.floor(columns) || 1))
   const pages: TextPage[] = []
+  let page: Item[][] = []
   let cur: Item[] = []
   let h = 0
-  const room = () => (pages.length === 0 ? AVAIL_FIRST : AVAIL)
-  const flush = () => { pages.push({ scale: k, items: cur }); cur = []; h = 0 }
   const at = (i: number) => (Number.isFinite(heights[i]) ? heights[i] : 0)
+  const room = () => (pages.length === 0 ? AVAIL_FIRST : AVAIL)
+  const endCol = () => {
+    page.push(cur); cur = []; h = 0
+    if (page.length >= n) { pages.push({ scale: k, cols: page }); page = [] }
+  }
 
   for (let i = 0; i < stream.length; i++) {
     let need = at(i)
-    // Keep a heading with the first line under it.
     if (stream[i].t === 'day' && stream[i + 1] && stream[i + 1].t === 'p') need += at(i + 1)
-    if (cur.length && h + need > room()) flush()
+    if (cur.length && h + need > room()) endCol()
     cur.push(stream[i])
     h += at(i)
   }
-  if (cur.length) flush()
+  if (cur.length) endCol()
+  // A half-filled last page still needs its remaining column to exist, so the renderer can
+  // lay out the pair and the reader does not see a lone column stretched across the sheet.
+  if (page.length) { while (page.length < n) page.push([]); pages.push({ scale: k, cols: page }) }
   return pages
 }
 
-const packAt = (stream: Item[], k: number): TextPage[] =>
-  packWithHeights(stream, stream.map((it) => itemH(it, k)), k)
+const packAt = (stream: Item[], k: number, columns = 1): TextPage[] =>
+  packWithHeights(stream, stream.map((it) => itemH(it, k, colWidth(columns, true))), k, columns)
 
 /**
  * The browser-measured version: `measure(k)` renders the whole stream at that scale and
@@ -352,45 +384,41 @@ const packAt = (stream: Item[], k: number): TextPage[] =>
 export function packMeasured(
   stream: Item[],
   measure: (k: number) => number[],
-  maxPages: number = DEFAULT_MAX_PAGES,
+  scale: number = DEFAULT_SCALE,
 ): TextPage[] {
-  const cap = Math.max(1, Math.min(24, Math.floor(maxPages) || DEFAULT_MAX_PAGES))
-  let last: TextPage[] = []
-  for (const k of SCALES) {
-    last = packWithHeights(stream, measure(k), k)
-    if (last.length <= cap) return last
-  }
-  return last
+  const k = Number(scale) > 0 ? Number(scale) : DEFAULT_SCALE
+  return packWithHeights(stream, measure(k), k, 1)
 }
 
 /**
- * Type scales tried largest first. 15px down to 7px against a 10px base — 7px is the floor
- * at which a printed A4 is still comfortably readable, and 15px the ceiling past which a
- * short programme starts looking like a poster.
+ * Body type sizes offered in the builder, against the 10px base.
+ *
+ * The page count is NOT a constraint any more, it is an outcome: the size is chosen, the
+ * document runs as long as it runs. Shrinking type to hit a page target is how a fifteen-day
+ * programme ended up at 7.4px, which read as unusable in a PDF. Four or five readable sheets
+ * beat three unreadable ones.
  */
-export const SCALES = [1.5, 1.4, 1.3, 1.2, 1.12, 1.05, 1, 0.95, 0.9, 0.86, 0.82, 0.78, 0.74, 0.7]
+export const SIZE_CHOICES: { label: string; scale: number }[] = [
+  { label: 'Compact — 11px', scale: 1.1 },
+  { label: 'Normal — 12.5px', scale: 1.25 },
+  { label: 'Comfortable — 14px', scale: 1.4 },
+  { label: 'Large — 16px', scale: 1.6 },
+]
 
-export const DEFAULT_MAX_PAGES = 3
+export const DEFAULT_SCALE = 1.25
 
 /**
- * The largest type that still fits the document into `maxPages`.
+ * Pack at the chosen type size, using heights measured in the browser.
  *
- * Chosen by packing at each scale rather than by predicting one, because the answer is not
- * monotonic in any single measurement — the day headings and the two-column list block
- * scale differently from the prose. When even the smallest scale overruns, the smallest is
- * used and the document simply runs longer: too many pages is a judgement call, text cut
- * off the bottom of a fixed-height page is a bug.
+ * `measure(k)` renders the whole stream at that scale in the real fonts and returns each item's
+ * real height. The estimate cannot be trusted on its own — the sandbox has no Inter, Inter is
+ * narrower than the fallback, and a ten percent error in characters-per-line moves a page break
+ * — so the estimator only fills in before the first measurement lands.
  */
-export function buildPages(text: string, maxPages: number = DEFAULT_MAX_PAGES): TextPage[] {
+export function buildPages(text: string, scale: number = DEFAULT_SCALE): TextPage[] {
   const stream = streamOf(parseDoc(text))
   if (!stream.length) return []
-  const cap = Math.max(1, Math.min(24, Math.floor(maxPages) || DEFAULT_MAX_PAGES))
-  let last: TextPage[] = []
-  for (const k of SCALES) {
-    last = packAt(stream, k)
-    if (last.length <= cap) return last
-  }
-  return last
+  return packAt(stream, Number(scale) > 0 ? Number(scale) : DEFAULT_SCALE, 1)
 }
 
 /**

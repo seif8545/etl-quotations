@@ -1000,3 +1000,66 @@ both landing on page 3. A 2-page target on the same text correctly refuses and r
 horizontal scroll. `tsc --noEmit` exits 0; `node --check` clean.
 
 Still not clicked in the real app, and the PDF has still not been exported for real.
+
+### §16 REVISED AGAIN — readability beats page count, and one column only
+
+Two more turns of feedback landed on the same point, so it is settled policy now:
+
+1. **The text flows** — days run one after another, no page break at a day heading. (First cut
+   put one day per page and produced fifteen sheets of four lines each.)
+2. **ONE column, always.** Two columns was built, measured and rejected. It genuinely works —
+   the fifteen-day programme fits three sheets at 11.2px instead of 7.4px, because page height
+   is eaten by the NUMBER of paragraphs and halving the measure halves the height — but it reads
+   like a newspaper. The decision is a single centred measure.
+3. **The page count is an outcome, not a constraint.** The "fit into N pages" control is gone.
+   Chasing three pages is exactly what drove the type to 7.4px and made the PDF unusable. The
+   builder now has **Text size** — Compact 11px / Normal 12.5px / Comfortable 14px / Large 16px,
+   default Normal — and the document runs as long as it runs. Four, five, six sheets is fine.
+
+Measured on the real fifteen-day Egypt + Jordan text, single column: **5 pages at 11px**,
+**6 at 12.5px**, **6 at 14px**. A two-day text is 1 page at any of them.
+
+**The empty photo column was a real bug, not just waste.** With no photos chosen, 132px of a
+726px content width was reserved for nothing — and since type size buys page count, that empty
+margin was directly costing font size. `.tp.no-photos` now drops the column and hands the width
+to the text: the measure goes 496 → **646px**. Both variants still add to 794:
+
+```
+with photos:    34 + 132 + 18 + 496 + 18 + 62 + 34
+without photos: 34 +   0 +  0 + 646 + 18 + 62 + 34
+```
+
+`colWidth(columns, hasPhotos)` is the single source of that number, and the measuring rig is set
+to it inline before every measurement. Measuring one width and printing another is how a page
+ends up clipped.
+
+### Two measuring traps found while doing this
+
+- **`align-items: flex-start` on `.tp-body` is load-bearing.** With flex's default `stretch`,
+  each `.tp-flow` is as tall as the row, so `offsetHeight` reports the CONTAINER height and the
+  overflow check reads exactly zero on every page — `flow 937 / room 937` on all three, which
+  looks like a perfect fit and is actually no measurement at all. Same class of bug as §11.
+- **Widening the measure barely helps; splitting it does.** 496 → 646px cut the total stack
+  height by 2%, because ~120 of these bullets are one line either way. Worth knowing before
+  anyone tries to buy pages back with width again.
+
+### Current shape of the data
+
+`data = { title, text, photos[], scale, photoWidthPct, pages[] }`, and
+`pages[i] = { scale, cols: [items] }`. `cols` stays an array even though it always has one entry,
+so the renderers need no change if that is ever revisited. The website renderer also still
+accepts the original `pages[i].items` shape, so nothing saved by an earlier build breaks.
+
+`photoWidthPct` is measured in the browser and **stored**, because the public renderer runs on
+the edge where nothing can size an image and CSS alone cannot cap a stack's height without
+cropping or distorting it. Without it the web pages grew 48px past A4.
+
+### Verified in headless Chromium, every variant
+
+Every page exactly 1123px; flow height inside the column on every page; four 1:2 portrait photos
+scaled to 86% and clearing the footer; the two-column Included / Not included block and the
+Offered-packages rate table both landing correctly; the public HTML rendering at exactly 1123px
+per page with the stored photo width applied; 400px-wide mobile with no horizontal scroll.
+`tsc --noEmit` exits 0, `node --check` clean on both website files.
+
+Still not clicked in the real app, and the PDF still not exported for real.

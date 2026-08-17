@@ -5,7 +5,7 @@ import { slugify } from './PackageBuilder'
 import TextDoc, { ItemView } from './TextDoc'
 import type { TextDocView } from './TextDoc'
 import {
-  BASE_FS, DEFAULT_MAX_PAGES, buildPages, guessTitle, packMeasured, parseDoc, streamOf,
+  BASE_FS, DEFAULT_SCALE, SIZE_CHOICES, buildPages, colWidth, guessTitle, packMeasured, parseDoc, streamOf,
 } from '../lib/textItinerary'
 import type { TextDocData, TextPage } from '../lib/textItinerary'
 
@@ -45,8 +45,12 @@ export default function TextBuilder({ saved, onClose }: { saved?: TextDocRow; on
   const [uploads, setUploads] = useState<Record<string, { name: string; url: string }[]>>({})
   const [pickerOpen, setPickerOpen] = useState(false)
   const [urlDraft, setUrlDraft] = useState('')
-  const [maxPages, setMaxPages] = useState<number>(saved?.data?.maxPages ?? DEFAULT_MAX_PAGES)
-  const [zoom, setZoom] = useState(0.58)
+  /**
+   * Body type size. The page count is an OUTCOME of this, not a constraint on it: chasing a
+   * page target is what produced a 7px fifteen-day programme that was unusable as a PDF.
+   */
+  const [scale, setScale] = useState<number>(saved?.data?.scale ?? DEFAULT_SCALE)
+  const [zoom, setZoom] = useState(0.72)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
@@ -64,14 +68,17 @@ export default function TextBuilder({ saved, onClose }: { saved?: TextDocRow; on
    * rig below has laid the stream out. The estimate cannot be trusted on its own: a ten
    * percent error in characters-per-line is the difference between three pages and four.
    */
-  const [pages, setPages] = useState<TextPage[]>(() => buildPages(saved?.data?.text ?? '', saved?.data?.maxPages ?? DEFAULT_MAX_PAGES))
+  const [pages, setPages] = useState<TextPage[]>(() => buildPages(saved?.data?.text ?? '', saved?.data?.scale ?? DEFAULT_SCALE))
 
   useEffect(() => {
     const host = measureRef.current
     const flow = host?.querySelector<HTMLElement>('.tp-flow')
-    if (!host || !flow) { setPages(buildPages(text, maxPages)); return }
+    if (!host || !flow) { setPages(buildPages(text, scale)); return }
     const run = () => {
+      // The rig is set to the exact width of the column being tried, then read back. Measuring
+      // one width and printing another is how a page ends up clipped.
       const measure = (k: number) => {
+        host.style.width = `${colWidth(1, photos.length > 0)}px`
         flow.style.fontSize = `${BASE_FS * k}px`
         const kids = Array.from(flow.children) as HTMLElement[]
         const tops = kids.map((c) => c.offsetTop)
@@ -80,7 +87,7 @@ export default function TextBuilder({ saved, onClose }: { saved?: TextDocRow; on
         // and the collapsing between them, which is what the real flow will do.
         return kids.map((c, i) => (i + 1 < kids.length ? tops[i + 1] - tops[i] : total - tops[i]))
       }
-      setPages(stream.length ? packMeasured(stream, measure, maxPages) : [])
+      setPages(stream.length ? packMeasured(stream, measure, scale) : [])
     }
     run()
     const t = setTimeout(run, 0)
@@ -89,7 +96,9 @@ export default function TextBuilder({ saved, onClose }: { saved?: TextDocRow; on
     document.fonts?.ready.then(run).catch(() => {})
     return () => clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stream, maxPages])
+    // photos.length is a dependency because it changes the text column's width, and the
+    // rig has to be re-measured at the width the document will actually print at.
+  }, [stream, scale, photos.length])
 
   const shownTitle = title.trim() || guessTitle(text)
 
@@ -140,7 +149,10 @@ export default function TextBuilder({ saved, onClose }: { saved?: TextDocRow; on
   function payload(): TextDocData {
     // `pages` is stored, not just the text: the public renderer prints it verbatim so the
     // parser is never duplicated in the website repo. Re-save after a parser change.
-    return { title: shownTitle, text, photos: photos.slice(0, MAX_PHOTOS), maxPages, photoWidthPct, pages }
+    return {
+      title: shownTitle, text, photos: photos.slice(0, MAX_PHOTOS),
+      scale, photoWidthPct, pages,
+    }
   }
 
   /** Unique-ish slug on insert: suffix rather than fail, exactly as packages do. */
@@ -262,16 +274,11 @@ export default function TextBuilder({ saved, onClose }: { saved?: TextDocRow; on
             {pages.length} page{pages.length === 1 ? '' : 's'}
             {pages[0] ? ` · ${(BASE_FS * pages[0].scale).toFixed(1)}px type` : ''}
           </span>
-          <label className="tb-max">Fit into
-            <input type="number" min={1} max={12} value={maxPages}
-              onChange={(e) => setMaxPages(Math.max(1, Math.min(12, +e.target.value || DEFAULT_MAX_PAGES)))} />
-            pages
+          <label className="tb-max">Text size
+            <select value={String(scale)} onChange={(e) => setScale(Number(e.target.value) || DEFAULT_SCALE)}>
+              {SIZE_CHOICES.map((c) => <option key={c.scale} value={c.scale}>{c.label}</option>)}
+            </select>
           </label>
-          {pages.length > maxPages && (
-            <span className="tb-warn" title="7px is the smallest type this will print at — raise the page target, or cut some text">
-              will not fit in {maxPages} — at the smallest readable type it needs {pages.length}
-            </span>
-          )}
           {overflow.length > 0 && (
             <span className="tb-warn" title="Add a paragraph break, or shorten a day in the text">
               page{overflow.length === 1 ? '' : 's'} {overflow.map((i) => i + 1).join(', ')} still too full
