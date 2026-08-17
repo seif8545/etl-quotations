@@ -65,7 +65,12 @@ const CSS = `
 .tp-doctitle .tp-rule { width: 58px; height: 2px; background: #c8960a; margin: 11px auto 0; }
 
 .tp-cols { flex: 1; min-height: 0; display: flex; gap: ${GAP}px; margin-top: 16px; }
-.tp-photos { width: ${COL_PHOTO}px; flex: 0 0 ${COL_PHOTO}px; overflow: hidden; display: flex; flex-direction: column; gap: 10px; }
+/* justify-content:center balances the stack against the text instead of hanging it from the
+   top — four photos rarely fill the column exactly, and the leftover gap always ended up at the
+   bottom, which read as a mistake. The shrink pass keeps the stack inside the column, so
+   centring can never push a photo past either edge. */
+.tp-photos { width: ${COL_PHOTO}px; flex: 0 0 ${COL_PHOTO}px; overflow: hidden;
+  display: flex; flex-direction: column; justify-content: center; gap: 10px; }
 .tp-photos img { display: block; width: 100%; height: auto; border-radius: 3px; border: 1px solid #eadfc4; }
 /* align-items:flex-start is load-bearing: the default (stretch) makes each .tp-flow as tall as
    the row, so offsetHeight reports the CONTAINER height and the overflow check silently reads

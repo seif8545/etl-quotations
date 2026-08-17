@@ -58,6 +58,8 @@ export interface TextDocData {
   photos: string[]
   /** Body type scale the document was built at, so a re-save reproduces it. */
   scale?: number
+  /** What the PDF is called on the client's disk. Falls back to the title. */
+  filename?: string
   /**
    * Left-column photo width as a percentage, measured in the browser and stored so the public
    * renderer can reproduce it — nothing on the edge can size an image, and CSS alone cannot
@@ -85,12 +87,99 @@ const MEAL_RE = /^[\s>*_#\-•·]*(?:included\s+)?meals?\s*[:\-–—]\s*(.+)$/i
  */
 const STAY_RE = /^[\s>*_#\-•·]*(?:stay|hotel|hotels|accommodation|accommodations|overnight|lodging)\s*(?:[:\-–—]\s*|\s+(?=\w))(.+)$/i
 
-/** Every way the two lists get labelled. Bare "Included" / "Excluded" included. */
-const INC_RE = /^[\s>*_#\-•·]*(?:what'?s\s+)?inclusions?|^[\s>*_#\-•·]*included(?:\s+(?:services?|items?))?\s*:?\s*$/i
-const EXC_RE = /^[\s>*_#\-•·]*(?:what'?s\s+)?exclusions?|^[\s>*_#\-•·]*(?:not\s+included|excluded)(?:\s+(?:services?|items?))?\s*:?\s*$/i
+/**
+ * `overnight …` ANYWHERE inside a bullet, not only at the start of one.
+ *
+ * This is how most of these itineraries actually read — "Check-in and relax after your journey
+ * and overnight in Cairo", "Dinner on board and Overnight on the West Bank" — so matching only
+ * at line start left half the days with no Stay chip at all. The bullet keeps its text; the
+ * place is simply also surfaced in the chip strip, which is where a reader looks for it.
+ */
+const OVERNIGHT_IN_TEXT = /overnight\s+(?:(aboard|on\s+board)\b|(?:in|at|on|beside|near)\s+([^.,;]+))/i
 
-/** `OFFERED 4 Star package :` → category "4 Star". */
-const OFFER_RE = /^[\s>*_#\-•·]*offer(?:ed|ing)?\s*[:\-–—]?\s*(.*?)\s*(?:package|programme|program|option)?\s*:?\s*$/i
+/**
+ * Turn a captured place into a chip label.
+ *
+ * "on board." must not become "board" — which is what stripping the leading preposition alone
+ * produced — and a leading "the" reads badly in a chip. Everything a boat can be called maps to
+ * the same "On board".
+ */
+function tidyStay(raw: string): string {
+  let out = stripSep(String(raw || '')).replace(/\.$/, '').trim()
+  if (/^(?:on\s+board|aboard|on\s+the\s+(?:boat|ship|dahabiya|cruise|vessel))\b/i.test(out)) return 'On board'
+  out = out.replace(/^(?:in|at|on|aboard|beside|near)\s+/i, '')
+  out = out.replace(/^the\s+/i, '')
+  return out.trim()
+}
+
+/**
+ * The two list headings, in every wording these documents use.
+ *
+ * Both are anchored at both ends: a heading is a line of its own. The previous version left the
+ * first alternative unanchored, so a sentence beginning "Inclusions are subject to change"
+ * became a heading and swallowed the rest of the document into the list.
+ *
+ * EXC must be tested BEFORE INC — "NOT INCLUDED" contains "included".
+ */
+const HEAD_LEAD = String.raw`^[\s>*_#\-•·]*(?:what(?:(?:'|\u2019)?s|\s+is)\s+)?(?:the\s+)?(?:package|price|tour|trip|programme|program|rate|cost)?\s*`
+const HEAD_TAIL = String.raw`\s*:?\s*$`
+const INC_RE = new RegExp(
+  HEAD_LEAD +
+  String.raw`(?:inclusions?|includes?|included(?:\s+(?:services?|items?|in\s+the\s+(?:price|rate|cost|package)))?|services?\s+included)` +
+  HEAD_TAIL, 'i')
+const EXC_RE = new RegExp(
+  HEAD_LEAD +
+  String.raw`(?:exclusions?|excludes?|excluding|excluded(?:\s+(?:services?|items?))?|not\s+included(?:\s+in\s+the\s+(?:price|rate|cost|package))?|does\s+not\s+include)` +
+  HEAD_TAIL, 'i')
+
+/**
+ * A hotel tier, however it is written: `4 Star`, `5★`, `5*`, `Five Star`, `Deluxe`, `Superior`.
+ *
+ * The boundaries are hand-rolled rather than `\b`, because `\b` after `★` or `*` never matches
+ * (neither is a word character) — which silently lost every `5★ PACKAGE` heading. The trailing
+ * lookahead still stops `4x4` from reading as a four-star anything.
+ */
+const TIER_RE = /(?:^|[^a-z0-9])(\d\s*(?:\*|\u2605|stars?)|(?:three|four|five)[\s-]*stars?|deluxe|superior|standard|luxury|budget|economy|first\s+class)(?![a-z])/i
+
+/** Headings arrive in caps; a table cell should not shout. */
+const titleCase = (x: string) =>
+  x.toLowerCase().replace(/\b[a-z]/g, (c) => c.toUpperCase())
+
+/** The structural words that make a short line a heading rather than prose. */
+const OFFER_WORD_RE = /\b(?:offer(?:ed|ing)?|packages?|programmes?|programs?|options?|tiers?|categor(?:y|ies)|rates?)\b/i
+
+/**
+ * Does this line open an offered-package block, and under what name?
+ *
+ * Requires a structural word AND either a tier or a trailing colon — both halves matter. A
+ * tier alone is not enough: "Enjoy a luxury dinner" and "Wadi Rum 4x4 Jeep Safari and luxury
+ * desert camp" are prose, and treating either as a heading would silently swallow the rest of
+ * the itinerary into a price table. Long lines are rejected outright for the same reason.
+ *
+ * Accepts: `OFFERED 4 Star package :` · `4 Star package:` · `5★ PACKAGE` · `Option 2 — Deluxe`
+ * · `OFFERED PACKAGE:` (unnamed, becomes "Package") · `Package rates — Superior`.
+ */
+function offerHeading(line: string): string | null {
+  if (line.length > 72) return null
+  if (!OFFER_WORD_RE.test(line)) return null
+  const tier = TIER_RE.exec(line)
+  if (!tier && !/[:\-\u2013\u2014]\s*$/.test(line)) return null
+  if (tier) {
+    // The tier IS the category — "4 Star", not "Offered 4 Star package".
+    const t = tier[1]
+      .replace(/\s*(?:\*|\u2605)\s*/g, ' star ')
+      .replace(/\s{2,}/g, ' ')
+      .trim()
+      .replace(/stars\b/i, 'star')
+    return titleCase(t)
+  }
+  const cat = line
+    .replace(OFFER_WORD_RE, ' ')
+    .replace(/[:\-\u2013\u2014]/g, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .trim()
+  return titleCase(tidyTitle(cat)) || 'Package'
+}
 
 /** A price line inside an offer block: `Rate per person in Double Occupancy $ 5720 USD`. */
 const RATE_RE = /(?:rate|price|per\s+person|pp\b)/i
@@ -198,9 +287,9 @@ export function parseDoc(text: string): ParsedDoc {
     if (doc.days.length) {
       if (EXC_RE.test(line)) { mode = 'exc'; continue }
       if (INC_RE.test(line)) { mode = 'inc'; continue }
-      const om = OFFER_RE.exec(line)
-      if (om && /\b(star|deluxe|standard|superior|luxury|budget|category)\b/i.test(line)) {
-        offer = { category: tidyTitle(om[1] || 'Package').replace(/\s*package\s*$/i, ''), rate: '', hotels: [] }
+      const cat = offerHeading(line)
+      if (cat) {
+        offer = { category: cat, rate: '', hotels: [] }
         doc.offers.push(offer)
         mode = 'offer'
         continue
@@ -212,8 +301,12 @@ export function parseDoc(text: string): ParsedDoc {
     if (mode === 'offer' && offer) {
       const clean = stripUrls(line)
       if (!clean) continue
-      if (!offer.rate && RATE_RE.test(clean)) offer.rate = tidyRate(clean)
-      else offer.hotels.push(clean)
+      if (RATE_RE.test(clean) && /\d/.test(clean)) {
+        // A tier can quote more than one occupancy; keep them all in the one rate cell rather
+        // than losing everything after the first, or filing them under hotels.
+        const r = tidyRate(clean)
+        offer.rate = offer.rate ? `${offer.rate} · ${r}` : r
+      } else offer.hotels.push(clean)
       continue
     }
 
@@ -223,12 +316,23 @@ export function parseDoc(text: string): ParsedDoc {
     const stay = STAY_RE.exec(line)
     if (stay && target) {
       // "Overnight in Cairo" / "Overnight at a desert camp" — the chip wants the place.
-      target.stay = stripSep(stay[1]).replace(/^(?:in|at|on|beside|near)\s+/i, '').replace(/\.$/, '')
+      target.stay = tidyStay(stay[1])
       continue
     }
     if (target) target.bullets.push(line)
     else if (!doc.title) doc.title = line
     else doc.lead.push(line)
+  }
+
+  // A day with no explicit Stay line usually still says where the night is spent, inside its
+  // prose. Read the LAST such mention: a day that moves on ("…leave Luxor, overnight in Aswan")
+  // ends where it ends.
+  for (const d of doc.days) {
+    if (d.stay) continue
+    for (let i = d.bullets.length - 1; i >= 0; i--) {
+      const m = OVERNIGHT_IN_TEXT.exec(d.bullets[i])
+      if (m) { d.stay = m[1] ? 'On board' : tidyStay(m[2]); break }
+    }
   }
 
   if (!doc.title) doc.title = doc.days.length ? 'Itinerary' : 'Untitled'

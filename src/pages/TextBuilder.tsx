@@ -36,6 +36,8 @@ export interface TextDocRow {
 
 export default function TextBuilder({ saved, onClose }: { saved?: TextDocRow; onClose: () => void }) {
   const [title, setTitle] = useState(saved?.data?.title ?? '')
+  /** What the downloaded PDF is called. Blank falls back to the title. */
+  const [filename, setFilename] = useState(saved?.data?.filename ?? '')
   const [text, setText] = useState(saved?.data?.text ?? '')
   const [photos, setPhotos] = useState<string[]>(saved?.data?.photos ?? [])
   const [rowId, setRowId] = useState<number | null>(saved?.id ?? null)
@@ -151,7 +153,7 @@ export default function TextBuilder({ saved, onClose }: { saved?: TextDocRow; on
     // parser is never duplicated in the website repo. Re-save after a parser change.
     return {
       title: shownTitle, text, photos: photos.slice(0, MAX_PHOTOS),
-      scale, photoWidthPct, pages,
+      scale, filename: filename.trim(), photoWidthPct, pages,
     }
   }
 
@@ -213,6 +215,19 @@ export default function TextBuilder({ saved, onClose }: { saved?: TextDocRow; on
   const link = slug ? `https://egypttoplight.net/pages/${slug}` : ''
 
   /**
+   * The name the client sees on the attachment.
+   *
+   * Spaces and dashes are kept — "Pam & Steve - Egypt & Jordan 15 Days.pdf" is what someone
+   * wants in their inbox, not "Pam_Steve_Egypt_Jordan_15_Days.pdf". Only the characters a
+   * filesystem actually rejects are replaced, and a .pdf the user typed is not doubled.
+   */
+  function downloadName(): string {
+    const raw = (filename.trim() || shownTitle || 'itinerary').replace(/\.pdf$/i, '')
+    const safe = raw.replace(/[\\/:*?"<>|]+/g, '-').replace(/\s{2,}/g, ' ').trim().slice(0, 120)
+    return (safe || 'itinerary') + '.pdf'
+  }
+
+  /**
    * Per-page capture, the same pipeline PackageBuilder settled on: one html2canvas per
    * A4 block rather than one tall canvas sliced by html2pdf. It sidesteps the
    * scroll-offset bug entirely (handoff §8-I) because each page is captured on its own.
@@ -255,7 +270,7 @@ export default function TextBuilder({ saved, onClose }: { saved?: TextDocRow; on
           if (i > 0) pdf.addPage([W, H], 'portrait')
           pdf.addImage(crop(raw).toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, W, H)
         }
-        pdf.save((shownTitle || 'itinerary').replace(/[^\w\-]+/g, '_') + '.pdf')
+        pdf.save(downloadName())
       } finally {
         scrolled.forEach(([el, t, l]) => { el.scrollTop = t; el.scrollLeft = l })
         window.scrollTo(winX, winY)
@@ -313,8 +328,12 @@ export default function TextBuilder({ saved, onClose }: { saved?: TextDocRow; on
 
         <div className="tb-body">
           <div className="tb-edit">
-            <label>Document title <span className="muted small">(optional — the first line is used otherwise)</span>
+            <label>Document title <span className="muted small">(printed at the top of page 1)</span>
               <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder={guessTitle(text)} />
+            </label>
+
+            <label>File name <span className="muted small">(what the client's download is called)</span>
+              <input value={filename} onChange={(e) => setFilename(e.target.value)} placeholder={downloadName()} />
             </label>
 
             <label>Itinerary text
