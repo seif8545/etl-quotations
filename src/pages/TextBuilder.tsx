@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { waitForAssets } from '../lib/pdf'
+import { downloadBlob } from '../lib/excel'
+import { buildTextDocx } from '../lib/textDocx'
 import { slugify } from './PackageBuilder'
 import TextDoc, { ItemView } from './TextDoc'
 import type { TextDocView } from './TextDoc'
@@ -59,6 +61,14 @@ export default function TextBuilder({ saved, onClose }: { saved?: TextDocRow; on
   const [overflow, setOverflow] = useState<number[]>([])
   /** Measured here, stored in the row: the website renderer has no way to size an image. */
   const [photoWidthPct, setPhotoWidthPct] = useState<number>(saved?.data?.photoWidthPct ?? 100)
+  /**
+   * The wordmark for the pill, and for the Word file's header.
+   *
+   * Read once and held as a data URL — the same thing PackageBuilder does for the cover, for
+   * the same reason: html2canvas snapshots the DOM as it stands, so a logo still in flight
+   * exports as an empty pill. The path is the fallback so the preview is never blank.
+   */
+  const [logoUrl, setLogoUrl] = useState('/images/logo.png')
 
   const docRef = useRef<HTMLDivElement | null>(null)
   const stageRef = useRef<HTMLDivElement | null>(null)
@@ -109,7 +119,23 @@ export default function TextBuilder({ saved, onClose }: { saved?: TextDocRow; on
     photos: photos.slice(0, MAX_PHOTOS).map(photoSrc),
     pages,
     contact: CONTACT,
-  }), [shownTitle, photos, pages])
+    logoUrl,
+  }), [shownTitle, photos, pages, logoUrl])
+
+  useEffect(() => {
+    let dead = false
+    fetch('/images/logo.png')
+      .then((r) => (r.ok ? r.blob() : Promise.reject(new Error('logo ' + r.status))))
+      .then((b) => new Promise<string>((res, rej) => {
+        const fr = new FileReader()
+        fr.onload = () => res(String(fr.result))
+        fr.onerror = () => rej(fr.error)
+        fr.readAsDataURL(b)
+      }))
+      .then((u) => { if (!dead) setLogoUrl(u) })
+      .catch(() => { /* keep the path — the preview still shows the pill */ })
+    return () => { dead = true }
+  }, [])
 
   useEffect(() => {
     fetch('/images/tours/manifest.json').then((r) => r.json()).then(setLibrary).catch(() => {})
@@ -221,10 +247,10 @@ export default function TextBuilder({ saved, onClose }: { saved?: TextDocRow; on
    * wants in their inbox, not "Pam_Steve_Egypt_Jordan_15_Days.pdf". Only the characters a
    * filesystem actually rejects are replaced, and a .pdf the user typed is not doubled.
    */
-  function downloadName(): string {
-    const raw = (filename.trim() || shownTitle || 'itinerary').replace(/\.pdf$/i, '')
+  function downloadName(ext: 'pdf' | 'docx' = 'pdf'): string {
+    const raw = (filename.trim() || shownTitle || 'itinerary').replace(/\.(pdf|docx?)$/i, '')
     const safe = raw.replace(/[\\/:*?"<>|]+/g, '-').replace(/\s{2,}/g, ' ').trim().slice(0, 120)
-    return (safe || 'itinerary') + '.pdf'
+    return (safe || 'itinerary') + '.' + ext
   }
 
   /**
@@ -234,6 +260,27 @@ export default function TextBuilder({ saved, onClose }: { saved?: TextDocRow; on
    * The preview transform is dropped to 1 for the duration — html2canvas reads layout,
    * and capturing a scaled ancestor produces a scaled, misplaced page.
    */
+  /**
+   * The same document as a Word file — reflowing, editable, and not a picture of the PDF.
+   *
+   * It is built from `pages` for one reason only: that is where the item stream lives after
+   * the packer has run. The stored page BREAKS are ignored (see textDocx.ts) because they
+   * describe an A4 sheet, and Word will paginate the text itself the moment anyone edits a
+   * line. So the .docx page count can differ from the PDF's, by design.
+   */
+  const exportWord = () => run(async () => {
+    if (!pages.length) throw new Error('Nothing to export yet.')
+    const blob = buildTextDocx({
+      title: shownTitle,
+      pages,
+      contact: CONTACT,
+      // Only a data URL carries the image into the file; the '/images/logo.png' fallback is
+      // skipped by the builder, which then prints the set-type wordmark instead.
+      logoDataUrl: logoUrl.startsWith('data:') ? logoUrl : undefined,
+    })
+    downloadBlob(blob, downloadName('docx'))
+  })
+
   const exportPdf = () => run(async () => {
     const node = docRef.current
     const stage = stageRef.current
@@ -306,6 +353,7 @@ export default function TextBuilder({ saved, onClose }: { saved?: TextDocRow; on
           </label>
           <button className="primary" disabled={busy} onClick={save}>{busy ? 'Working…' : rowId ? 'Save changes' : 'Save'}</button>
           <button disabled={busy} onClick={exportPdf}>Download PDF</button>
+          <button disabled={busy} onClick={exportWord}>Download Word</button>
           <button className="link" onClick={onClose}>Close</button>
         </div>
 

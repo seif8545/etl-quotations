@@ -10,12 +10,26 @@ export interface VoucherData {
   fromDate: string; toDate: string
   singles: number; doubles: number; twins: number; triples: number
   guestNames: string[] // sequential: singles first, then doubles (2 each), twins (2), triples (3)
+  /**
+   * Free text printed between the dates table and the rooms table — room basis, meal basis, a
+   * split stay, anything the hotel needs told.
+   *
+   * The template used to carry a HARD-CODED line there ("Room No 1 : TWIN Room Based on soft
+   * all inclusive") inside a row pinned to an exact 257-twip height, which clipped it: it had
+   * never printed on a single voucher, and it was wrong for every job but the one it was typed
+   * for. That row now grows and the line is this field.
+   *
+   * Blank prints nothing. It is deliberately not defaulted from the rooming inputs — the rooms
+   * table underneath already lists room, type and guest, and the only things worth saying here
+   * (bed & breakfast, full board, two blocks with a gap) are not in the data.
+   */
+  roomNote: string
 }
 
 export const emptyVoucher = (): VoucherData => ({
   hotelId: null, hotelName: '', hotelAddress: '', hotelTel: '', hotelFax: '',
   groupName: '', nationality: '', fromDate: '', toDate: '',
-  singles: 0, doubles: 0, twins: 0, triples: 0, guestNames: [],
+  singles: 0, doubles: 0, twins: 0, triples: 0, guestNames: [], roomNote: '',
 })
 
 interface Room { no: string; type: 'Single' | 'Double' | 'Twin' | 'Triple'; capacity: number; guests: string[] }
@@ -49,6 +63,11 @@ export async function generateVoucherDocx(d: VoucherData): Promise<Blob> {
     group_name: d.groupName, nationality: d.nationality,
     from_date: fmtDate(d.fromDate), to_date: fmtDate(d.toDate),
     nights: nightsOf(d),
+    // Defaulted here, not only in the form: Documents.tsx re-renders a SAVED row's `data`
+    // straight into this function, and every voucher saved before this field existed has no
+    // roomNote at all. docxtemplater prints the literal word "undefined" for a tag with no
+    // value, so a missing one would reach a client's voucher.
+    room_note: String(d.roomNote ?? '').trim(),
     sgl: d.singles, dbl_twin: d.doubles + d.twins, tpl: d.triples,
     total_rooms: d.singles + d.doubles + d.twins + d.triples,
     rooms: rooms.map((r) => ({
@@ -80,6 +99,9 @@ export function printVoucher(d: VoucherData) {
       <tr><td>${fmtDate(d.fromDate)}</td><td>${fmtDate(d.toDate)}</td><td>${nightsOf(d)}</td>
       <td>${d.singles}</td><td>${d.doubles + d.twins}</td><td>${d.triples}</td>
       <td>${d.singles + d.doubles + d.twins + d.triples}</td></tr></table>
+    ${String(d.roomNote ?? '').trim()
+      ? `<p>${String(d.roomNote).trim().split('\n').map((l) => l.replace(/&/g, '&amp;').replace(/</g, '&lt;')).join('<br/>')}</p>`
+      : ''}
     <table><tr><th>Room Number</th><th>Name of Guests in Room</th><th>Room Type</th></tr>${rows}</table>`)
 }
 
@@ -109,7 +131,10 @@ export async function saveVoucher(d: VoucherData) {
 interface Hotel { id: number; name: string; address: string; tel: string; fax: string }
 
 export default function Voucher({ done, initial }: { done: () => void; initial?: VoucherData }) {
-  const [d, setD] = useState<VoucherData>(initial ?? emptyVoucher())
+  // Spread over the empty shape rather than trusting `initial`: a row saved before a field
+  // existed would otherwise put `undefined` into a controlled input, and React switches that
+  // input to uncontrolled mid-edit. Same reasoning as hydrateInvoice.
+  const [d, setD] = useState<VoucherData>(() => ({ ...emptyVoucher(), ...(initial ?? {}) }))
   const [hotels, setHotels] = useState<Hotel[]>([])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -179,6 +204,11 @@ export default function Voucher({ done, initial }: { done: () => void; initial?:
         <label>Double rooms<input type="number" min={0} value={d.doubles} onChange={(e) => up({ doubles: +e.target.value })} /></label>
         <label>Twin rooms<input type="number" min={0} value={d.twins} onChange={(e) => up({ twins: +e.target.value })} /></label>
         <label>Triple rooms<input type="number" min={0} value={d.triples} onChange={(e) => up({ triples: +e.target.value })} /></label>
+        <label style={{ gridColumn: '1 / -1' }}>
+          Room / meal note <span className="muted small">(optional — prints under the dates, one line each)</span>
+          <textarea rows={3} value={d.roomNote} onChange={(e) => up({ roomNote: e.target.value })}
+            placeholder={'Room No 1   :   SINGLE Room   Based on bed & breakfast.\nSplit stay — 2 nights 07 Nov → 09 Nov and 2 nights 13 Nov → 15 Nov.'} />
+        </label>
       </div>
       {!d.hotelId && d.hotelName.trim() && (
         <button className="link" onClick={saveHotelToDirectory}>Save "{d.hotelName}" to hotel directory</button>

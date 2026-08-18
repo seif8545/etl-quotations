@@ -26,6 +26,13 @@ export interface TextDocView {
   photos: string[]
   pages: TextPage[]
   contact: TextDocContact
+  /**
+   * The wordmark printed in the pill at the top of every page, exactly as the package PDF's
+   * cover does it. It arrives as a data URL — see the loader in TextBuilder: a path renders
+   * fine on screen but html2canvas rasterises the pill before a late image has decoded, and
+   * the export came out with an empty pill. Blank falls back to the set-type wordmark.
+   */
+  logoUrl?: string
 }
 
 /* Column arithmetic, spelled out so it is obvious that both variants add to 794.
@@ -58,6 +65,12 @@ const CSS = `
   border: 1px solid #e3d7b6; background: #fff; border-radius: 999px; padding: 6px 18px 7px; }
 .tp-pill b { font-family: Fraunces, Georgia, serif; font-size: 14px; letter-spacing: 2.2px; color: #0e2a47; font-weight: 600; }
 .tp-pill span { font-size: 8px; letter-spacing: 3.6px; color: #c8960a; }
+/* The logo variant: the wordmark IS the pill's content, so the padding tightens and the
+   baseline alignment goes away — an img on a baseline sits a pixel high inside a rounded
+   box, which reads as a wonky badge at this size. Height is fixed and width is left to the
+   ratio; the file is 5.4:1, so 24px tall is ~130px wide and the pill matches the PDF cover. */
+.tp-pill.logo { align-items: center; gap: 0; padding: 7px 20px; }
+.tp-pill.logo img { display: block; height: 24px; width: auto; }
 
 /* The document title, page 1 only. AVAIL_FIRST in the packer is AVAIL minus this block. */
 .tp-doctitle { text-align: center; margin: 16px 0 0; }
@@ -336,7 +349,13 @@ const TextDoc = forwardRef<HTMLDivElement, {
           const fs = BASE_FS * (p.scale || 1)
           return (
             <div className={data.photos.length ? 'tp' : 'tp no-photos'} key={i}>
-              <div className="tp-pill"><b>EGYPT TOP LIGHT</b><span>TRAVEL</span></div>
+              {data.logoUrl
+                ? (
+                  <div className="tp-pill logo">
+                    <img src={data.logoUrl} crossOrigin="anonymous" alt="Egypt Top Light Travel" />
+                  </div>
+                )
+                : <div className="tp-pill"><b>EGYPT TOP LIGHT</b><span>TRAVEL</span></div>}
               {i === 0 && (
                 <div className="tp-doctitle">
                   <h1>{data.title}</h1>
