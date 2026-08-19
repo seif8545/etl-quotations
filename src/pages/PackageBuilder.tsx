@@ -73,6 +73,17 @@ export const ovPhotos = (ov: CityOverride | undefined): string[] | undefined => 
 /** Full serializable state of a built package — stored in q_package_docs so packages can be re-opened. */
 export interface PackageState {
   title: string; intro: string; hero: string
+  /**
+   * A name for YOUR list, never printed anywhere.
+   *
+   * `title` is what the client reads and `meta.ref` prints on the cover, so neither can be
+   * used to tell two otherwise identical quotes apart — and they do pile up: five published
+   * links once carried the same 7-day eclipse itinerary at five different prices, all titled
+   * "Egypt Solar Eclipse Tour 2027 Double", distinguishable only by slug. This is the field
+   * that says which is which ("Kim Bradley · 5250 deluxe"). It reaches Documents and the
+   * builder and stops there — deliberately absent from the `data` memo the renderers read.
+   */
+  internalLabel?: string
   meta: { ref: string; pax: number; arrival: string; departure: string }
   overview: { days: number; nights: number; cities: number }
   hotels: { nights: number; destination: string }[]
@@ -369,7 +380,13 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
   const [priceColumnsMode, setPriceColumnsMode] = useState<PriceColumnsMode>(saved?.priceColumns ?? 'all')
   const [included, setIncluded] = useState(saved?.included ?? '')
   const [excluded, setExcluded] = useState(saved?.excluded ?? '')
-  const [flights, setFlights] = useState<FlightInsert[]>(saved?.flights ?? [])
+  /**
+   * Read-only now. Nothing in the builder writes to this any more — the transfer picker is
+   * gone — but a package saved while it existed keeps its strips, so the array is still loaded,
+   * still merged into the day prose by the `data` memo below, and still written back on save.
+   * Deleting it would silently drop a line from every one of those published pages.
+   */
+  const [flights] = useState<FlightInsert[]>(saved?.flights ?? [])
   const [roomBasis, setRoomBasis] = useState(saved?.roomBasis ?? 'double')
   
   const [manifest, setManifest] = useState<Record<string, string[]>>({})
@@ -439,6 +456,8 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
   const [hotels, setHotels] = useState<{ nights: number; destination: string }[]>((saved?.hotels ?? (draft?.accommodation ?? []).filter((a) => a.nights > 0)) as { nights: number; destination: string }[])
   const totalNights = hotels.reduce((s, h) => s + h.nights, 0)
   const [meta, setMeta] = useState(saved?.meta ?? { ref: draft?.groupRef ?? '', pax: draft?.pax ?? 0, arrival: draft?.arrivalDate ?? '', departure: draft?.departureDate ?? '' })
+  /** Your own name for this package — Documents and this bar only, never the document. */
+  const [internalLabel, setInternalLabel] = useState(saved?.internalLabel ?? draft?.groupRef ?? '')
 
   useEffect(() => {
     loadRefData().then((r) => {
@@ -490,21 +509,11 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
         'Personal expenses and optional excursions', 'Anything not listed under "Included"',
       ].join('\n'))
 
-      const xferRegionIds = new Set(r.regions.filter((rg) => rg.name === 'Domestic Flights' || rg.name === 'Road Transfers').map((rg) => rg.id))
-      
-      if (xferRegionIds.size) {
-        const eff = effectiveSelections(draft)
-        setFlights(r.transfers
-          .filter((t) => xferRegionIds.has(t.region_id) && (eff.transferCounts[t.id] ?? 0) > 0)
-          .map((t) => {
-            const isCar = /^Car/.test(t.name)
-            const route = t.name.replace(/^(?:Flight|Car)\s*[—-]\s*/, '')
-            const text = isCar
-              ? `Private air-conditioned road transfer from ${route}.`
-              : `Domestic flight from ${route}, followed by a private transfer to your hotel.`
-            return { id: t.id, label: `${route} (${isCar ? 'car' : 'flight'})`, text, targetUid: '', position: 'end' as const }
-          }))
-      }
+      // The quotation's Domestic Flights / Road Transfers lines used to be pulled in here as
+      // slottable "inter-city transfer" strips. That is gone: the flights are written into the
+      // day prose where they belong, and the picker was one more thing to fill in for a line
+      // the day already said. Rows saved before this keep their `flights` array and still
+      // render — see the merge loop in the `data` memo — but nothing creates new ones.
     }).catch((e) => setError(e.message ?? String(e)))
     
     fetch('/images/tours/manifest.json').then((r) => r.json()).then(setManifest).catch(() => {})
@@ -545,8 +554,6 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
 
   const updateRow = (i: number, patch: Partial<PriceRow>) => setPriceRows((rs) => rs.map((r, j) => (j === i ? { ...r, ...patch } : r)))
   
-  const setFlightTarget = (id: number, targetUid: string, position: 'start' | 'end') => setFlights((fs) => fs.map((f) => (f.id === id ? { ...f, targetUid, position } : f)))
-  const removeFlight = (id: number) => setFlights((fs) => fs.filter((f) => f.id !== id))
 
   async function loadUploads() {
     try {
@@ -691,7 +698,7 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
 
   function buildState(): PackageState {
     return {
-      title, intro, hero, meta,
+      title, intro, hero, meta, internalLabel: internalLabel.trim(),
       overview: { days: data.overview.days, nights: data.overview.nights, cities: data.overview.cities },
       hotels, days, arrival, departure,
       pp, sgl, showPrice, included, excluded, priceTableOn, priceRows, priceColumns: priceColumnsMode, flights,
@@ -1337,12 +1344,6 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
     }
   }
 
-  const daySlots = [
-    ...(arrival.on ? [{ uid: '__arrival', title: arrival.title }] : []),
-    ...days.map((d) => ({ uid: d.uid, title: d.title })),
-    ...(departure.on ? [{ uid: '__departure', title: departure.title }] : []),
-  ]
-
   const autoCity = useMemo(() => {
     const out: Record<string, { bullets: string[]; photo: string; photos: string[]; siteCount: number }> = {}
     const order: string[] = []
@@ -1481,6 +1482,15 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
               <label>Arrival <input type="date" value={meta.arrival} onChange={(e) => setMeta((m) => ({ ...m, arrival: e.target.value }))} /></label>
               <label>Departure <input type="date" value={meta.departure} onChange={(e) => setMeta((m) => ({ ...m, departure: e.target.value }))} /></label>
               <label>Guests <input type="number" min={1} value={meta.pax} onChange={(e) => setMeta((m) => ({ ...m, pax: Math.max(1, Number(e.target.value) || 1) }))} style={{ width: 64 }} /></label>
+            </div>
+            {/* Internal label. Sits with the trip facts rather than with the title, so it is
+                obvious it belongs to the file and not to the document the client reads. */}
+            <div className="b-trip-dates">
+              <label style={{ flex: 1 }}>Internal label{' '}
+                <span className="muted small">(your list only — never printed)</span>
+                <input value={internalLabel} onChange={(e) => setInternalLabel(e.target.value)}
+                  placeholder="e.g. Kim Bradley · eclipse 5250 deluxe" style={{ width: '100%' }} />
+              </label>
             </div>
             <div className="b-trip-accom">
               <b>Accommodation nights</b>
@@ -1697,32 +1707,10 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
 
           {days.length === 0 && <p className="muted">No day-by-day items yet. Add tour-day presets or select sites in the quotation and they'll appear here as days.</p>}
 
-          {flights.length > 0 && (
-            <section className="b-sec">
-              <div className="b-day-head">
-                <h4>Inter-city transfers</h4>
-                <button className="link danger" onClick={() => setFlights([])}>Remove all</button>
-              </div>
-              <p className="muted small">Slot each inter-city flight or road transfer into a day — it appears as a bullet at the start or end of that day, or remove ones you don't need.</p>
-              {flights.map((f) => (
-                <div key={f.id} className="flight-row">
-                  <b>{f.label}</b>
-                  <select value={f.targetUid ? `${f.targetUid}|${f.position}` : ''} onChange={(e) => {
-                    const v = e.target.value
-                    if (!v) setFlightTarget(f.id, '', 'end')
-                    else { const [uid, pos] = v.split('|'); setFlightTarget(f.id, uid, pos as 'start' | 'end') }
-                  }}>
-                    <option value="">— not shown —</option>
-                    {daySlots.flatMap((slot, si) => [
-                      <option key={slot.uid + '|start'} value={`${slot.uid}|start`}>Start of Day {si + 1} — {slot.title}</option>,
-                      <option key={slot.uid + '|end'} value={`${slot.uid}|end`}>End of Day {si + 1} — {slot.title}</option>,
-                    ])}
-                  </select>
-                  <button className="link danger" onClick={() => removeFlight(f.id)}>Remove</button>
-                </div>
-              ))}
-            </section>
-          )}
+          {/* The "Inter-city transfers" section stood here: one row per flight or road transfer
+              with a picker for which day it attached to, and whether it printed at the start or
+              the end of it. Removed — the day's own text already carries the journey, and a
+              second place to say it was redundant. A row saved with strips still prints them. */}
 
           <FixedDayEditor label="Departure day" day={departure} set={setDeparture} onPickPhoto={() => setPicker({ target: 'departure' })} />
 

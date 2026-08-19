@@ -219,6 +219,13 @@ export default function Documents({ openQuotation, openInvoice, isAdmin, uid }: 
         return <>
           <td className="c-name">
             <span className="pkg-name">{r.name}</span>
+            {/* The internal label, when the package carries one. It goes ABOVE the ref line and
+                in the row's own voice, because its whole job is telling apart packages whose
+                name, dates and ref are identical — which is exactly when this column is
+                useless without it. Never printed on the document; see PackageState. */}
+            {r.data?.internalLabel && (
+              <span className="pkg-sub small" style={{ color: '#8a6604' }}>{r.data.internalLabel}</span>
+            )}
             <span className="pkg-sub muted small">
               {r.group_ref ? `Ref ${r.group_ref}` : 'No ref'}{r.pax ? ` · ${r.pax} pax` : ''}
             </span>
