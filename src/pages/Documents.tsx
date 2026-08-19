@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase, loadRefData } from '../lib/supabase'
 import { generateQuotationXlsx, downloadBlob } from '../lib/excel'
-import { generateLetterDocx, letterToPdf } from './Letter'
+import { generateLetterDocx, letterToPdf, letterFileName } from './Letter'
 import type { LetterData } from './Letter'
-import { generateVoucherDocx, voucherToPdf } from './Voucher'
+import { generateVoucherDocx, voucherToPdf, voucherFileName } from './Voucher'
 import type { VoucherData } from './Voucher'
-import { generateInvoiceDocx, invoiceToPdf, duplicateInvoice, hydrateInvoice } from './Invoice'
+import { generateInvoiceDocx, invoiceToPdf, duplicateInvoice, hydrateInvoice, invoiceFileName } from './Invoice'
 import type { InvoiceData } from './Invoice'
 import PackageBuilder from './PackageBuilder'
 import TextBuilder from './TextBuilder'
@@ -182,7 +182,15 @@ export default function Documents({ openQuotation, openInvoice, isAdmin, uid }: 
         : tab === 'Vouchers'
         ? await generateVoucherDocx(row.data as VoucherData)
         : await generateInvoiceDocx(row.data as InvoiceData, row.serial)
-      downloadBlob(blob, tab === 'Letters' ? 'GuaranteeLetter.docx' : tab === 'Vouchers' ? 'HotelVoucher.docx' : 'Invoice.docx')
+      // Named from the row, not from the tab: two invoices downloaded in a row used to be
+      // Invoice.docx and Invoice(1).docx, and nothing in either name said whose they were.
+      // Letters keep their fixed name — a guarantee letter's own consignee column is the
+      // filename's only candidate and it is already in the document.
+      downloadBlob(blob, tab === 'Letters'
+        ? letterFileName(row.data as LetterData, 'docx')
+        : tab === 'Vouchers'
+        ? voucherFileName(row.data as VoucherData, 'docx')
+        : invoiceFileName(row.data as InvoiceData, row.serial, 'docx'))
     } catch (e: any) { setError(e.message ?? String(e)) }
     setBusyId(null)
   }

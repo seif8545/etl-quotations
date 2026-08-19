@@ -759,6 +759,34 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
         return
       }
 
+      /**
+       * The published-slug guard.
+       *
+       * A published slug is the only thing a client's link depends on, and nothing used to
+       * warn before it moved: /packages/egypt-solar-eclipse-tour-2027-2 was sent to someone
+       * and then 404'd because the row holding it was renamed (handoff §17c). Both ways of
+       * breaking a live link — renaming it, and unpublishing it — now have to be confirmed
+       * out loud, with the URL that is about to die spelled out.
+       *
+       * Only fires when the package is ALREADY live. Editing the slug of a draft, or of a
+       * package that has never been published, is free and stays free.
+       */
+      if (published && slug && nextSlug !== slug) {
+        const ok = window.confirm(
+          `This package is LIVE at /packages/${slug}\n\n` +
+          `Renaming the link to "${nextSlug}" makes the old address return 404 for everyone ` +
+          `who already has it — including any client you sent it to.\n\nRename it anyway?`
+        )
+        if (!ok) { setPubErr(''); return }
+      }
+      if (published && nextPublished === false) {
+        const ok = window.confirm(
+          `Unpublishing makes /packages/${slug} return 404 for everyone who already has the ` +
+          `link, including any client you sent it to.\n\nUnpublish anyway?`
+        )
+        if (!ok) { setPubErr(''); return }
+      }
+
       const row: Record<string, unknown> = {
         slug: nextSlug || null,
         published: nextPublished,
@@ -790,7 +818,23 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
     }
   }
 
-  async function savePackage(asNewVersion = false) {
+  /**
+   * @param autosave true only for the write that follows a PDF export. That path exists to keep
+   *        an already-saved row in step with what was just exported, so it must not start
+   *        refusing to run — an old package has no internal label and exporting its PDF is not
+   *        the moment to demand one. Every explicit Save does demand it.
+   */
+  async function savePackage(asNewVersion = false, autosave = false) {
+    if (!autosave && !internalLabel.trim()) {
+      setSavedMsg('')
+      setError(
+        'Give this package an internal label before saving — it is the field that tells two ' +
+        'identical quotes apart in Documents, and it is never printed. It is at the top of the ' +
+        'builder, beside the dates.'
+      )
+      return
+    }
+    setError('')
     try {
       const st = buildState()
       const row = {
@@ -911,7 +955,7 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
       // so every export from an unsaved builder created another row. That is
       // where the duplicate q_package_docs rows came from. Exporting a PDF is
       // not a request to create a package.
-      if (currentId) await savePackage(false)
+      if (currentId) await savePackage(false, true)
 
     } catch (e: any) {
       setError(e.message ?? String(e))

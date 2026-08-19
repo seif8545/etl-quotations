@@ -41,6 +41,27 @@ export const fmtDate = (d: string) => {
   return dt.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
+/**
+ * A download filename built out of the document's own facts.
+ *
+ * Everything used to arrive as `Invoice.docx` or `HotelVoucher.docx`, so the second download
+ * of the day overwrote the first and nothing in the folder said whose it was. Parts are joined
+ * with an em dash and blanks are dropped, so a client-less invoice is still
+ * `Invoice 20260819-001.docx` rather than `— Invoice 20260819-001.docx`.
+ *
+ * Only the characters Windows and macOS actually reject are replaced — "Mr. Nicolas Josson —
+ * Sheraton Cairo Hotel & Casino Voucher.docx" is what belongs in an inbox, ampersand and all.
+ * Trailing dots and spaces go last: Windows refuses to create a file whose name ends in
+ * either, and it surfaces as a download that simply never appears.
+ */
+export function docName(parts: Array<string | number | null | undefined>, ext: 'pdf' | 'docx'): string {
+  const clean = parts
+    .map((p) => String(p ?? '').replace(/[\\/:*?"<>|\r\n\t]+/g, ' ').replace(/\s{2,}/g, ' ').trim())
+    .filter(Boolean)
+  const stem = (clean.join(' — ') || 'document').slice(0, 120).replace(/[ .]+$/, '')
+  return `${stem || 'document'}.${ext}`
+}
+
 /* ---- Render a filled .docx to a PDF that mirrors the Word layout ---- */
 function loadScriptOnce(src: string): Promise<void> {
   return new Promise((resolve, reject) => {

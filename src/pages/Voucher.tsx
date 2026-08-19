@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { renderDocx, printHtml, fmtDate, docxBlobToPdf } from '../lib/docx'
+import { renderDocx, printHtml, fmtDate, docxBlobToPdf, docName } from '../lib/docx'
 import { downloadBlob } from '../lib/excel'
 
 export interface VoucherData {
@@ -76,10 +76,15 @@ export async function generateVoucherDocx(d: VoucherData): Promise<Blob> {
   })
 }
 
+/** Guest and property, because a voucher is only ever about one of each — and a folder full
+ *  of files called HotelVoucher.docx is a folder where each download ate the last. */
+export const voucherFileName = (d: VoucherData, ext: 'pdf' | 'docx') =>
+  docName([d.groupName, `${d.hotelName || 'Hotel'} Voucher`], ext)
+
 /** Hotel voucher as a PDF that mirrors the Word document. */
 export async function voucherToPdf(d: VoucherData) {
   const blob = await generateVoucherDocx(d)
-  await docxBlobToPdf(blob, 'HotelVoucher.pdf')
+  await docxBlobToPdf(blob, voucherFileName(d, 'pdf'))
 }
 
 export function printVoucher(d: VoucherData) {
@@ -173,7 +178,7 @@ export default function Voucher({ done, initial }: { done: () => void; initial?:
     try {
       const blob = await generateVoucherDocx(d)
       if (save) await saveVoucher(d)
-      downloadBlob(blob, 'HotelVoucher.docx')
+      downloadBlob(blob, voucherFileName(d, 'docx'))
       if (save) done()
     } catch (e: any) { setError(e.message ?? String(e)) }
     setBusy(false)

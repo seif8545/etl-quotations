@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { renderDocx, printHtml, fmtDate, docxBlobToPdf } from '../lib/docx'
+import { renderDocx, printHtml, fmtDate, docxBlobToPdf, docName } from '../lib/docx'
 import { downloadBlob } from '../lib/excel'
 
 export interface Guest {
@@ -40,17 +40,27 @@ export async function generateLetterDocx(d: LetterData): Promise<Blob> {
   return renderDocx('/templates/guarantee_letter_tpl.docx', letterTemplateData(d))
 }
 
-/** Guarantee letter as a PDF that mirrors the Word document. */
+/** Who it is addressed to — a guarantee letter names one consignee and nothing else
+ *  distinguishes two of them on disk. */
+export const letterFileName = (d: LetterData, ext: 'pdf' | 'docx') =>
+  docName([d.to, 'Guarantee Letter'], ext)
+
+/**
+ * Guarantee letter as a PDF, rendered in the browser.
+ *
+ * This used to POST the .docx to /api/convert, the ConvertAPI proxy. That path is gone from
+ * the app entirely: the function needs CONVERTAPI_SECRET bound on the Pages project, and Vite
+ * does not run Pages Functions at all, so the button failed under `npm run dev` and again in
+ * production. The hotel voucher had always rendered client-side and always worked.
+ *
+ * `firstPageOnly` is deliberately NOT set. A letter with a long name list legitimately runs to
+ * a second page, and capping the capture at one page would silently drop guests off the end of
+ * a document whose whole purpose is listing them. The exporter already trims trailing pages
+ * that carry nothing but header and footer.
+ */
 export async function letterToPdf(d: LetterData) {
-  const docxBlob = await generateLetterDocx(d)
-  const formData = new FormData()
-  formData.append('File', docxBlob, 'GuaranteeLetter.docx')
-  // Conversion runs through our serverless proxy so the ConvertAPI secret stays
-  // server-side (Cloudflare Pages Function -> functions/api/convert.js).
-  const response = await fetch('/api/convert', { method: 'POST', body: formData })
-  if (!response.ok) throw new Error('PDF conversion failed. Please try again.')
-  const pdfBlob = await response.blob()
-  downloadBlob(pdfBlob, 'GuaranteeLetter.pdf')
+  const blob = await generateLetterDocx(d)
+  await docxBlobToPdf(blob, letterFileName(d, 'pdf'))
 }
 
 export function printLetter(d: LetterData) {
@@ -109,7 +119,7 @@ export default function Letter({ done, initial }: { done: () => void; initial?: 
     try {
       const blob = await generateLetterDocx(d)
       if (save) await saveLetter(d)
-      downloadBlob(blob, 'GuaranteeLetter.docx')
+      downloadBlob(blob, letterFileName(d, 'docx'))
       if (save) done()
     } catch (e: any) { setError(e.message ?? String(e)) }
     setBusy(false)

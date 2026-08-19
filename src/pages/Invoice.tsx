@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { renderDocx, fmtDate } from '../lib/docx'
+import { renderDocx, fmtDate, docName, docxBlobToPdf } from '../lib/docx'
 import { downloadBlob } from '../lib/excel'
 
 /** One priced line item: a free-text label + a number rate (Extra Details / Deductions). */
@@ -208,18 +208,29 @@ export async function generateInvoiceDocx(d: InvoiceData, serial: string): Promi
   return renderDocx('/templates/invoice_tpl.docx', invoiceTemplateData(d, serial))
 }
 
-/** Invoice as a PDF that mirrors the Word document exactly — converted server-side
- *  (same ConvertAPI proxy Letter.tsx uses via functions/api/convert.js) rather than
- *  the browser-side html2canvas screenshot trick, which mis-renders this doc's
- *  wide item table (squeezed/clipped output, spurious extra page). */
+/** What the client's copy is called, on disk and in their inbox. The serial is part of it
+ *  because two invoices against one file are routine — see duplicateInvoice above. */
+export const invoiceFileName = (d: InvoiceData, serial: string, ext: 'pdf' | 'docx') =>
+  docName([d.clientName, `Invoice${serial ? ' ' + serial : ''}`], ext)
+
+/**
+ * Invoice as a PDF, rendered in the browser — the same path the hotel voucher uses.
+ *
+ * It used to POST the .docx to /api/convert (the ConvertAPI proxy in functions/api/convert.js)
+ * because the browser renderer mis-laid this document out: squeezed item table, clipped
+ * columns, a spurious extra page. But that proxy needs CONVERTAPI_SECRET bound on the Pages
+ * project, and it does not exist AT ALL under `npm run dev` — Vite does not run Pages
+ * Functions — so the button failed both locally and live while the voucher's browser-side
+ * export worked every time.
+ *
+ * The old layout complaint is very likely the bug fixed on 19 Aug: the inclusions text was
+ * landing in a 9 cm column as a 24-line block, which stretched the item table past the sheet.
+ * With that trimmed the document captures cleanly. If a squeezed PDF ever comes back, look at
+ * the item table growing again before you look at this function.
+ */
 export async function invoiceToPdf(d: InvoiceData, serial: string) {
-  const docxBlob = await generateInvoiceDocx(d, serial)
-  const formData = new FormData()
-  formData.append('File', docxBlob, 'Invoice.docx')
-  const response = await fetch('/api/convert', { method: 'POST', body: formData })
-  if (!response.ok) throw new Error('PDF conversion failed. Please try again.')
-  const pdfBlob = await response.blob()
-  downloadBlob(pdfBlob, 'Invoice.pdf')
+  const blob = await generateInvoiceDocx(d, serial)
+  await docxBlobToPdf(blob, invoiceFileName(d, serial, 'pdf'))
 }
 
 /** The columns mirrored out of `data` so the Documents list can show an invoice without
@@ -329,12 +340,12 @@ export default function Invoice({ done, initial, savedId, savedSerial }: {
       const id = await saveInvoice(d, serial)
       setRowId(id); setLockedSerial(serial)
     }
-    downloadBlob(blob, 'Invoice.docx')
+    downloadBlob(blob, invoiceFileName(d, serial, 'docx'))
     if (save) done()
   })
 
   const downloadWord = () => run(async () => {
-    downloadBlob(await generateInvoiceDocx(d, serial), 'Invoice.docx')
+    downloadBlob(await generateInvoiceDocx(d, serial), invoiceFileName(d, serial, 'docx'))
   })
 
   const downloadPdf = () => run(() => invoiceToPdf(d, serial))
