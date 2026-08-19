@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { renderDocx, printHtml, fmtDate, docxBlobToPdf, docName } from '../lib/docx'
+import { renderDocx, printHtml, fmtDate, docName, docxBlobToPdf } from '../lib/docx'
 import { downloadBlob } from '../lib/excel'
 
 export interface Guest {
@@ -46,21 +46,28 @@ export const letterFileName = (d: LetterData, ext: 'pdf' | 'docx') =>
   docName([d.to, 'Guarantee Letter'], ext)
 
 /**
- * Guarantee letter as a PDF, rendered in the browser.
+ * Guarantee letter as a PDF — a photograph of the Word document.
  *
- * This used to POST the .docx to /api/convert, the ConvertAPI proxy. That path is gone from
- * the app entirely: the function needs CONVERTAPI_SECRET bound on the Pages project, and Vite
- * does not run Pages Functions at all, so the button failed under `npm run dev` and again in
- * production. The hotel voucher had always rendered client-side and always worked.
+ * This one was the hardest to trust: docx-preview appeared to drop the Name, Date of birth and
+ * Passport columns entirely. They were never dropped. The company stamp is an anchored image
+ * that Word draws behind the text, docx-preview leaves in normal flow, and its white background
+ * was covering three columns of passenger detail. docxBlobToPdf now lifts text above pictures,
+ * so the stamp sits behind the table exactly as Word prints it.
  *
- * `firstPageOnly` is deliberately NOT set. A letter with a long name list legitimately runs to
- * a second page, and capping the capture at one page would silently drop guests off the end of
- * a document whose whole purpose is listing them. The exporter already trims trailing pages
- * that carry nothing but header and footer.
+ * The DocSheets fallback stays wired for one reason: if docx-preview cannot be reached or
+ * renders nothing, a guarantee letter still has to come out, because it is the document a
+ * consulate asks for. It looks different. It is better than no letter.
  */
 export async function letterToPdf(d: LetterData) {
-  const blob = await generateLetterDocx(d)
-  await docxBlobToPdf(blob, letterFileName(d, 'pdf'))
+  const name = letterFileName(d, 'pdf')
+  try {
+    const blob = await generateLetterDocx(d)
+    await docxBlobToPdf(blob, name)
+  } catch (err) {
+    console.warn('[letter] Word render failed, falling back to the plain sheet:', err)
+    const { exportSheetPdf, LetterSheet } = await import('./DocSheets')
+    await exportSheetPdf((logoUrl) => <LetterSheet d={d} logoUrl={logoUrl} />, name)
+  }
 }
 
 export function printLetter(d: LetterData) {

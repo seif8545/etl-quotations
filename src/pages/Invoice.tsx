@@ -214,19 +214,12 @@ export const invoiceFileName = (d: InvoiceData, serial: string, ext: 'pdf' | 'do
   docName([d.clientName, `Invoice${serial ? ' ' + serial : ''}`], ext)
 
 /**
- * Invoice as a PDF, rendered in the browser — the same path the hotel voucher uses.
+ * Invoice as a PDF — a photograph of the Word document, template and all.
  *
- * It used to POST the .docx to /api/convert (the ConvertAPI proxy in functions/api/convert.js)
- * because the browser renderer mis-laid this document out: squeezed item table, clipped
- * columns, a spurious extra page. But that proxy needs CONVERTAPI_SECRET bound on the Pages
- * project, and it does not exist AT ALL under `npm run dev` — Vite does not run Pages
- * Functions — so the button failed both locally and live while the voucher's browser-side
- * export worked every time.
- *
- * The old layout complaint is very likely the bug fixed on 19 Aug: the inclusions text was
- * landing in a 9 cm column as a 24-line block, which stretched the item table past the sheet.
- * With that trimmed the document captures cleanly. If a squeezed PDF ever comes back, look at
- * the item table growing again before you look at this function.
+ * ConvertAPI is gone (trial over, and the proxy never existed under `npm run dev`), so this goes
+ * through docxBlobToPdf, which lays the .docx out in the browser and captures it. The invoice
+ * template happens to use only features docx-preview implements, so the result is the Word
+ * document: letterhead, the cyan item table, TOTAL / Paid / Balance, bank block, on one page.
  */
 export async function invoiceToPdf(d: InvoiceData, serial: string) {
   const blob = await generateInvoiceDocx(d, serial)

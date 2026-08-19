@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { renderDocx, printHtml, fmtDate, docxBlobToPdf, docName } from '../lib/docx'
+import { renderDocx, printHtml, fmtDate, docName, docxBlobToPdf } from '../lib/docx'
 import { downloadBlob } from '../lib/excel'
 
 export interface VoucherData {
@@ -81,7 +81,10 @@ export async function generateVoucherDocx(d: VoucherData): Promise<Blob> {
 export const voucherFileName = (d: VoucherData, ext: 'pdf' | 'docx') =>
   docName([d.groupName, `${d.hotelName || 'Hotel'} Voucher`], ext)
 
-/** Hotel voucher as a PDF that mirrors the Word document. */
+/** Hotel voucher as a PDF — a photograph of the Word document, so the letterhead and the
+ *  template's own tables are what the hotel receives. Two known blemishes from docx-preview,
+ *  recorded in docxBlobToPdf: the floating rooms table renders narrow and the stamp is lost.
+ *  Both need the template re-authored with inline tables, not a code change. */
 export async function voucherToPdf(d: VoucherData) {
   const blob = await generateVoucherDocx(d)
   await docxBlobToPdf(blob, voucherFileName(d, 'pdf'))

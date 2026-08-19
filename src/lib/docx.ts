@@ -1,6 +1,6 @@
 import PizZip from 'pizzip'
 import Docxtemplater from 'docxtemplater'
-import { getHtml2Pdf, waitForAssets } from './pdf'
+import { getHtml2Canvas, getJsPdf, waitForAssets } from './pdf'
 
 /** Fill a docx template (placeholder tags) and return a Blob. */
 export async function renderDocx(templateUrl: string, data: Record<string, unknown>): Promise<Blob> {
@@ -86,64 +86,145 @@ function getDocxPreview(): Promise<any> {
   return docxPreviewP
 }
 
-/** Render a filled .docx blob to a PDF that looks like the Word document, and download it.
- *  `firstPageOnly` forces a single-page export (drops every page after the first,
- *  regardless of content) — use for documents that must never spill to page 2, since
- *  a "blank" trailing page still carries header/footer text and would otherwise
- *  survive the empty-page trim below, leaving multiple pages bundled into one
- *  capture (which is what produces a squeezed/garbled PDF). */
+/**
+ * Render a filled .docx to a PDF and download it — a photograph of the Word document.
+ *
+ * The document is laid out by docx-preview and captured with html2canvas, then assembled by
+ * jsPDF at the TEMPLATE's own page size (these templates are US Letter, not A4). Four things had
+ * to be corrected before this produced anything sendable, each proven against the real files:
+ *
+ * 1. `breakPages: false`. Left on, docx-preview starts a fresh page per Word SECTION. The hotel
+ *    voucher has three continuous sections, so a one-page document arrived as three, with the
+ *    letterhead alone on page 1 and the tables on page 3.
+ * 2. The section boxes are collapsed. Each one reserves a full page of height plus its own top
+ *    and bottom margins, which puts a page of whitespace between every section.
+ * 3. The column gap is clamped. docx-preview writes the SECTION's `w:space` as the CSS column
+ *    gap; the voucher's second section carries `w:space="8352"` — 5.8 inches — beside real
+ *    per-column widths that Word uses instead. A 556px gap in a 676px box left sixty pixels a
+ *    column, which is why that block came out one word per line.
+ * 4. Text is lifted above images. Word draws an anchored stamp BEHIND the text; docx-preview
+ *    leaves it in normal flow, so the stamp's white background painted over whatever it covered
+ *    — which is why the guarantee letter's Name, Date of birth and Passport cells looked empty.
+ *    They were never empty: the values were in the DOM, laid out, black, and hidden under a
+ *    picture. `mix-blend-mode: multiply` on top of that lets the stamp show through the text
+ *    rather than the other way round.
+ * 5. Floating tables are unfloated. A Word floating table (tblpPr) becomes float:left, and the
+ *    next table then wraps beside it — the voucher's rooms table was squeezed to 184px in the
+ *    right margin. Word stacks them.
+ * 6. `overflow: visible` on the sections. docx-preview clips each one, and once the box is
+ *    collapsed to its content that crops anything sitting past the flow, the stamp included.
+ * 7. A sheet a little past one page is scaled onto one page rather than spilling a footer strip.
+ *
+ * Every one of those is a correction applied to the RENDERED DOM. Not one line of the templates
+ * changed, so what Word prints is exactly what it printed before — which was the requirement.
+ *
+ * If a future template comes out wrong, diff it against these seven: the cause has each time
+ * been docx-preview implementing a Word feature differently, never the capture.
+ */
 export async function docxBlobToPdf(blob: Blob, filename: string, opts?: { firstPageOnly?: boolean }): Promise<void> {
-  const [docx, html2pdf] = await Promise.all([getDocxPreview(), getHtml2Pdf()])
-  // Off-screen absolute WRAPPER (font-size:0 kills baseline whitespace) with a
-  // STATIC inner holder. html2canvas must capture a static node, not the
-  // -99999px wrapper, or the captured region is offset and comes out blank.
-  const wrap = document.createElement('div')
-  wrap.style.position = 'absolute'
-  wrap.style.left = '-99999px'
-  wrap.style.top = '0'
-  wrap.style.fontSize = '0'
-  wrap.style.lineHeight = '0'
-  const holder = document.createElement('div')
-  holder.style.background = '#ffffff'
-  holder.style.display = 'inline-block'
-  wrap.appendChild(holder)
-  document.body.appendChild(wrap)
+  const [docx, html2canvas, jsPDFCtor] = await Promise.all([getDocxPreview(), getHtml2Canvas(), getJsPdf()])
+  const host = document.createElement('div')
+  // On-screen but behind the app: html2canvas has to lay the node out to photograph it.
+  host.style.position = 'fixed'
+  host.style.left = '0'
+  host.style.top = '0'
+  host.style.zIndex = '-1'
+  host.style.pointerEvents = 'none'
+  host.style.background = '#ffffff'
+  host.style.display = 'inline-block'
+  document.body.appendChild(host)
   try {
-    await docx.renderAsync(blob, holder, null, {
+    await docx.renderAsync(blob, host, null, {
       className: 'docx', inWrapper: false, ignoreWidth: false, ignoreHeight: false,
-      breakPages: true, experimental: true, useBase64URL: true,
+      breakPages: false, experimental: true, useBase64URL: true,
       renderHeaders: true, renderFooters: true,
     })
-    if (!holder.firstChild || holder.offsetHeight < 10) {
+    const sections = Array.from(host.querySelectorAll<HTMLElement>('.docx'))
+    if (!sections.length || host.offsetHeight < 10) {
       throw new Error('The Word document did not render for PDF export.')
     }
-    const pages = Array.from(holder.querySelectorAll('.docx')) as HTMLElement[]
-    if (opts?.firstPageOnly) {
-      // Keep exactly the first page — everything after it (even a "blank" page
-      // that only carries header/footer boilerplate) is dropped outright.
-      for (let i = pages.length - 1; i >= 1; i--) pages[i].remove()
-    } else {
-      // Multi-section templates render a blank final page — drop trailing empties.
-      for (let i = pages.length - 1; i > 0; i--) {
-        const el = pages[i]
-        const hasContent = (el.textContent || '').trim().length > 0 || !!el.querySelector('img')
-        if (!hasContent) el.remove(); else break
+
+    // The template's own page size, read off the first section before it is collapsed.
+    const cs = getComputedStyle(sections[0])
+    const pageW = (parseFloat(cs.width) || 794) * 0.75
+    const pageH = (parseFloat(cs.minHeight) || 1123) * 0.75
+
+    // Text above pictures, and pictures multiplied so a white-boxed stamp cannot hide anything.
+    const fixes = document.createElement('style')
+    fixes.textContent =
+      '.docx p, .docx table, .docx tr, .docx td { position: relative; z-index: 2; }' +
+      '.docx img { position: relative; z-index: 1; mix-blend-mode: multiply; }'
+    host.appendChild(fixes)
+
+    for (const t of Array.from(host.querySelectorAll<HTMLElement>('table'))) {
+      const f = getComputedStyle(t).float
+      if (f === 'left' || f === 'right') t.style.float = 'none'
+    }
+
+    for (const el of Array.from(host.querySelectorAll<HTMLElement>('*'))) {
+      const s2 = getComputedStyle(el)
+      if (parseInt(s2.columnCount) > 1) {
+        const w = parseFloat(s2.width) || 0
+        const gap = parseFloat(s2.columnGap) || 0
+        if (w > 0 && gap > w * 0.12) el.style.columnGap = `${Math.round(w * 0.06)}px`
       }
     }
-    // Wait for embedded images (stamp, letterhead) to decode before capture.
-    await waitForAssets(holder)
-    // Capture the single remaining page element exactly (no extra spill page).
-    const remaining = holder.querySelectorAll('.docx')
-    const target: HTMLElement = remaining.length === 1 ? (remaining[0] as HTMLElement) : holder
-    await html2pdf().set({
-      margin: 0,
-      filename,
-      image: { type: 'jpeg', quality: 0.98 },
-      html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false, windowWidth: holder.scrollWidth },
-      jsPDF: { unit: 'pt', format: 'a4', orientation: 'portrait' },
-      pagebreak: { mode: ['css', 'legacy'] },
-    }).from(target).save()
+    sections.forEach((el, i) => {
+      el.style.minHeight = '0'
+      el.style.overflow = 'visible'
+      if (i > 0) el.style.paddingTop = '0'
+      if (i < sections.length - 1) el.style.paddingBottom = '0'
+    })
+    if (opts?.firstPageOnly) sections.slice(1).forEach((el) => el.remove())
+
+    await waitForAssets(host)
+    await new Promise((r) => setTimeout(r, 30))
+
+    const canvas: HTMLCanvasElement = await html2canvas(host, {
+      scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false,
+    })
+    const pdf = new jsPDFCtor({ unit: 'pt', format: [pageW, pageH], orientation: 'portrait' })
+    const bandH = Math.round(canvas.width * (pageH / pageW))
+    let placed = 0
+
+    if (canvas.height > bandH && canvas.height <= bandH * 1.15) {
+      const f = bandH / canvas.height
+      const w = pageW * f
+      pdf.addImage(canvas.toDataURL('image/jpeg', 0.95), 'JPEG', (pageW - w) / 2, 0, w, pageH)
+      placed = 1
+    } else {
+      const bands = Math.max(1, Math.ceil(canvas.height / bandH))
+      for (let i = 0; i < bands; i++) {
+        const y = i * bandH
+        const h = Math.min(bandH, canvas.height - y)
+        if (h <= 0) continue
+        const cut = document.createElement('canvas')
+        cut.width = canvas.width
+        cut.height = h
+        const cx = cut.getContext('2d')
+        if (!cx) continue
+        cx.fillStyle = '#ffffff'
+        cx.fillRect(0, 0, cut.width, cut.height)
+        cx.drawImage(canvas, 0, y, canvas.width, h, 0, 0, canvas.width, h)
+        if (!hasInk(cx, cut.width, cut.height)) continue
+        if (placed > 0) pdf.addPage([pageW, pageH], 'portrait')
+        pdf.addImage(cut.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, pageW, (h / canvas.width) * pageW)
+        placed++
+      }
+    }
+    if (!placed) throw new Error('The Word document rendered blank, so no PDF was produced.')
+    pdf.save(filename)
   } finally {
-    document.body.removeChild(wrap)
+    host.remove()
   }
+}
+
+/** Is anything drawn on this canvas? Every tenth pixel finds a line of text; scanning all of a
+ *  1600×2200 band on every export does not. */
+function hasInk(cx: CanvasRenderingContext2D, w: number, h: number): boolean {
+  const { data } = cx.getImageData(0, 0, w, h)
+  for (let i = 0; i < data.length; i += 40) {
+    if (data[i] < 245 || data[i + 1] < 245 || data[i + 2] < 245) return true
+  }
+  return false
 }
