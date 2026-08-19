@@ -153,7 +153,12 @@ export async function docxBlobToPdf(blob: Blob, filename: string, opts?: { first
     const fixes = document.createElement('style')
     fixes.textContent =
       '.docx p, .docx table, .docx tr, .docx td { position: relative; z-index: 2; }' +
-      '.docx img { position: relative; z-index: 1; mix-blend-mode: multiply; }'
+      '.docx img { position: relative; z-index: 1; mix-blend-mode: multiply; }' +
+      // html2canvas re-measures every run in whatever font the machine actually has, and where
+      // its measurement disagrees with the layout it will break INSIDE a word: a real letter to
+      // Air Arabia came out reading "the visa arrangem / ent upon arrival". Words are not
+      // breakable in any of these documents.
+      '.docx, .docx * { word-break: normal; overflow-wrap: normal; hyphens: none; }'
     host.appendChild(fixes)
 
     for (const t of Array.from(host.querySelectorAll<HTMLElement>('table'))) {
