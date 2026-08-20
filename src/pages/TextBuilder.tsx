@@ -38,8 +38,20 @@ export interface TextDocRow {
 
 export default function TextBuilder({ saved, onClose }: { saved?: TextDocRow; onClose: () => void }) {
   const [title, setTitle] = useState(saved?.data?.title ?? '')
-  /** What the downloaded PDF is called. Blank falls back to the title. */
+  /**
+   * What the downloaded file is called. REQUIRED — neither export runs without it.
+   *
+   * It used to be optional with a fallback chain behind it, and the fallback is what shipped: a
+   * document with no Title and no heading in its text downloaded as a generic name, every time,
+   * for every itinerary in the folder. A name the client can find the file by is not a nicety on
+   * an attachment you are about to email, so it is now a field you have to fill.
+   *
+   * It fills ITSELF from the title (see the effect below) so that requirement is never a wall —
+   * type a title and the name is already there, ready to be overridden.
+   */
   const [filename, setFilename] = useState(saved?.data?.filename ?? '')
+  /** Has the name been typed in by hand? Once it has, the title stops driving it. */
+  const [filenameTouched, setFilenameTouched] = useState(!!saved?.data?.filename)
   const [text, setText] = useState(saved?.data?.text ?? '')
   const [photos, setPhotos] = useState<string[]>(saved?.data?.photos ?? [])
   const [rowId, setRowId] = useState<number | null>(saved?.id ?? null)
@@ -113,6 +125,19 @@ export default function TextBuilder({ saved, onClose }: { saved?: TextDocRow; on
   }, [stream, scale, photos.length])
 
   const shownTitle = title.trim() || guessTitle(text)
+
+  /**
+   * The file name follows the document's name until someone types over it.
+   *
+   * This is what makes the field's being required harmless: paste an itinerary, and the name is
+   * already "Egypt Solar Eclipse & Nile Discovery" before you look at it. Once it has been edited
+   * by hand, `filenameTouched` latches and the title stops touching it — otherwise a title tweak
+   * would silently rewrite a name that was chosen deliberately.
+   */
+  useEffect(() => {
+    if (!filenameTouched) setFilename(shownTitle)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shownTitle, filenameTouched])
 
   const view: TextDocView = useMemo(() => ({
     title: shownTitle,
@@ -247,21 +272,26 @@ export default function TextBuilder({ saved, onClose }: { saved?: TextDocRow; on
    * wants in their inbox, not "Pam_Steve_Egypt_Jordan_15_Days.pdf". Only the characters a
    * filesystem actually rejects are replaced, and a .pdf the user typed is not doubled.
    */
-  function downloadName(ext: 'pdf' | 'docx' = 'pdf'): string {
-    // Four sources, in order of how specific they are. The last two exist because "itinerary.docx"
-    // is not a filename anyone can find again: if the Title field is empty and the pasted text has
-    // no heading for guessTitle to find, the name came out generic for every document in the
-    // folder, and the second download of the day overwrote the first.
-    const raw = (
-      filename.trim()
-      || shownTitle.trim()
-      || (saved?.name ?? '').trim()
-      || 'Egypt Top Light Travel — Itinerary'
-    ).replace(/\.(pdf|docx?)$/i, '')
-    const safe = raw.replace(/[\\/:*?"<>|\r\n\t]+/g, '-').replace(/\s{2,}/g, ' ').trim()
+  /** The File name field, cleaned for a filesystem. Empty in, empty out — there is no fallback
+   *  name any more, because a fallback name is what everything downloaded as. */
+  function safeStem(): string {
+    return filename.trim().replace(/\.(pdf|docx?)$/i, '')
+      .replace(/[\\/:*?"<>|\r\n\t]+/g, '-')
+      .replace(/\s{2,}/g, ' ')
+      .trim()
+      .slice(0, 120)
       .replace(/[ .]+$/, '')   // Windows will not create a name ending in a dot or a space
-      .slice(0, 120).replace(/[ .]+$/, '')
-    return (safe || 'Egypt Top Light Travel — Itinerary') + '.' + ext
+  }
+
+  function downloadName(ext: 'pdf' | 'docx' = 'pdf'): string {
+    return safeStem() + '.' + ext
+  }
+
+  /** Throws unless there is a real name to download under. Called by both exports. */
+  function requireName(): void {
+    if (!safeStem()) {
+      throw new Error('Give the file a name before downloading — it is the "File name" field above. It fills itself in from the document title.')
+    }
   }
 
   /**
@@ -280,6 +310,7 @@ export default function TextBuilder({ saved, onClose }: { saved?: TextDocRow; on
    * line. So the .docx page count can differ from the PDF's, by design.
    */
   const exportWord = () => run(async () => {
+    requireName()
     if (!pages.length) throw new Error('Nothing to export yet.')
     // The photos have to be FETCHED AND RE-ENCODED before the file is built. A .docx cannot
     // reference a URL — every picture is a part inside the zip — which is why the first version
@@ -303,6 +334,7 @@ export default function TextBuilder({ saved, onClose }: { saved?: TextDocRow; on
   })
 
   const exportPdf = () => run(async () => {
+    requireName()
     const node = docRef.current
     const stage = stageRef.current
     if (!node || !pages.length) throw new Error('Nothing to export yet.')
@@ -401,9 +433,19 @@ export default function TextBuilder({ saved, onClose }: { saved?: TextDocRow; on
               <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder={guessTitle(text)} />
             </label>
 
-            <label>File name <span className="muted small">(what the client's download is called)</span>
-              <input value={filename} onChange={(e) => setFilename(e.target.value)} placeholder={downloadName()} />
+            <label>File name <span className="muted small">(required — what the client's download is called)</span>
+              <input
+                value={filename}
+                onChange={(e) => { setFilenameTouched(true); setFilename(e.target.value) }}
+                placeholder="Pam & Steve — Egypt & Jordan 15 Days"
+                style={!filename.trim() ? { borderColor: '#c0392b' } : undefined}
+              />
             </label>
+            {!filename.trim() && (
+              <p className="muted small" style={{ color: '#c0392b', marginTop: -8 }}>
+                Needed before either download. Type a document title above and this fills itself in.
+              </p>
+            )}
 
             <label>Itinerary text
               <textarea className="tb-text" value={text} onChange={(e) => setText(e.target.value)}
