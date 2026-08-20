@@ -455,7 +455,19 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
 
   const [hotels, setHotels] = useState<{ nights: number; destination: string }[]>((saved?.hotels ?? (draft?.accommodation ?? []).filter((a) => a.nights > 0)) as { nights: number; destination: string }[])
   const totalNights = hotels.reduce((s, h) => s + h.nights, 0)
-  const [meta, setMeta] = useState(saved?.meta ?? { ref: draft?.groupRef ?? '', pax: draft?.pax ?? 0, arrival: draft?.arrivalDate ?? '', departure: draft?.departureDate ?? '' })
+  /**
+   * `meta.ref` PRINTS ON THE PUBLIC PAGE, under the title, as "Egypt Top Light Travel · <ref>".
+   *
+   * It used to be seeded from the quotation's group reference, which is a client's name. So a
+   * package built for one traveller printed their name on a link, and — worse — every package
+   * cloned from it printed that same name: Shelly Howie's extended eclipse page publicly read
+   * "Lee Marie Tormos – Eclipse 2027 | Extended 9-Night Option". There is no field in this builder
+   * for it, so nobody could see it, let alone correct it.
+   *
+   * The client reference belongs in `internalLabel`, which is private and is where it now goes.
+   * This starts empty, and the insert path in savePackage() blanks it so no clone can inherit one.
+   */
+  const [meta, setMeta] = useState(saved?.meta ?? { ref: '', pax: draft?.pax ?? 0, arrival: draft?.arrivalDate ?? '', departure: draft?.departureDate ?? '' })
   /** Your own name for this package — Documents and this bar only, never the document. */
   const [internalLabel, setInternalLabel] = useState(saved?.internalLabel ?? draft?.groupRef ?? '')
 
@@ -860,8 +872,13 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
           const suffix = `-${n}`
           candidate = base.slice(0, 60 - suffix.length) + suffix
         }
+        // A new row never inherits a printed reference. This is the clone path too ("Save as new
+        // version"), and a clone carrying the previous client's name into a public subtitle is
+        // exactly how Shelly Howie's page came to read "Lee Marie Tormos". Whoever this package
+        // is for is recorded in the internal label, which is not published.
+        const fresh = { ...row, group_ref: '', data: { ...st, meta: { ...st.meta, ref: '' } } }
         const { data: ins, error: e } = await supabase.from('q_package_docs')
-          .insert({ ...row, slug: candidate, created_by: u.user?.id }).select('id').single()
+          .insert({ ...fresh, slug: candidate, created_by: u.user?.id }).select('id').single()
         if (!e) {
           if (ins?.id) setCurrentId(ins.id)
           setSavedMsg(asNewVersion ? 'Saved as new version' : 'Saved to Packages')

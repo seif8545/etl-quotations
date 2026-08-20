@@ -56,17 +56,26 @@ export const letterFileName = (d: LetterData, ext: 'pdf' | 'docx') =>
  *
  * The DocSheets fallback stays wired for one reason: if docx-preview cannot be reached or
  * renders nothing, a guarantee letter still has to come out, because it is the document a
- * consulate asks for. It looks different. It is better than no letter.
+ * consulate asks for. It looks different — no stamp, no letterhead block, our own layout — and it
+ * is better than no letter.
+ *
+ * It now SAYS SO. The fallback used to fire silently, which meant a letter with no company stamp
+ * looked like a bug in the stamp rather than a document that had quietly been produced by the
+ * other renderer. Anything downloaded from the fallback needs to be looked at before it is sent.
+ *
+ * @returns true when the real Word template was photographed, false when the fallback ran.
  */
-export async function letterToPdf(d: LetterData) {
+export async function letterToPdf(d: LetterData): Promise<boolean> {
   const name = letterFileName(d, 'pdf')
   try {
     const blob = await generateLetterDocx(d)
     await docxBlobToPdf(blob, name)
+    return true
   } catch (err) {
     console.warn('[letter] Word render failed, falling back to the plain sheet:', err)
     const { exportSheetPdf, LetterSheet } = await import('./DocSheets')
     await exportSheetPdf((logoUrl) => <LetterSheet d={d} logoUrl={logoUrl} />, name)
+    return false
   }
 }
 
@@ -174,7 +183,16 @@ export default function Letter({ done, initial }: { done: () => void; initial?: 
         <button className="primary" disabled={busy} onClick={() => generate(true)}>
           {busy ? 'Working…' : 'Generate Word + Save'}
         </button>
-        <button disabled={busy} onClick={async () => { setBusy(true); setError(''); try { await letterToPdf(d) } catch (e: any) { setError(e.message ?? String(e)) } setBusy(false) }}>Download PDF</button>
+        <button disabled={busy} onClick={async () => {
+          setBusy(true); setError('')
+          try {
+            const fromWord = await letterToPdf(d)
+            // A letter produced by the fallback has no company stamp. Say it out loud rather than
+            // letting a consulate-facing document go out looking subtly wrong.
+            if (!fromWord) setError('The PDF came from the backup layout, so it has no company stamp. Check it before sending, or download the Word file instead.')
+          } catch (e: any) { setError(e.message ?? String(e)) }
+          setBusy(false)
+        }}>Download PDF</button>
         <button className="link" onClick={done}>Cancel</button>
       </div>
     </div>

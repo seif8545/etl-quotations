@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { waitForAssets } from '../lib/pdf'
 import { downloadBlob } from '../lib/excel'
-import { buildTextDocx } from '../lib/textDocx'
+import { buildTextDocx, loadDocxPhotos } from '../lib/textDocx'
 import { slugify } from './PackageBuilder'
 import TextDoc, { ItemView } from './TextDoc'
 import type { TextDocView } from './TextDoc'
@@ -248,9 +248,20 @@ export default function TextBuilder({ saved, onClose }: { saved?: TextDocRow; on
    * filesystem actually rejects are replaced, and a .pdf the user typed is not doubled.
    */
   function downloadName(ext: 'pdf' | 'docx' = 'pdf'): string {
-    const raw = (filename.trim() || shownTitle || 'itinerary').replace(/\.(pdf|docx?)$/i, '')
-    const safe = raw.replace(/[\\/:*?"<>|]+/g, '-').replace(/\s{2,}/g, ' ').trim().slice(0, 120)
-    return (safe || 'itinerary') + '.' + ext
+    // Four sources, in order of how specific they are. The last two exist because "itinerary.docx"
+    // is not a filename anyone can find again: if the Title field is empty and the pasted text has
+    // no heading for guessTitle to find, the name came out generic for every document in the
+    // folder, and the second download of the day overwrote the first.
+    const raw = (
+      filename.trim()
+      || shownTitle.trim()
+      || (saved?.name ?? '').trim()
+      || 'Egypt Top Light Travel — Itinerary'
+    ).replace(/\.(pdf|docx?)$/i, '')
+    const safe = raw.replace(/[\\/:*?"<>|\r\n\t]+/g, '-').replace(/\s{2,}/g, ' ').trim()
+      .replace(/[ .]+$/, '')   // Windows will not create a name ending in a dot or a space
+      .slice(0, 120).replace(/[ .]+$/, '')
+    return (safe || 'Egypt Top Light Travel — Itinerary') + '.' + ext
   }
 
   /**
@@ -270,6 +281,11 @@ export default function TextBuilder({ saved, onClose }: { saved?: TextDocRow; on
    */
   const exportWord = () => run(async () => {
     if (!pages.length) throw new Error('Nothing to export yet.')
+    // The photos have to be FETCHED AND RE-ENCODED before the file is built. A .docx cannot
+    // reference a URL — every picture is a part inside the zip — which is why the first version
+    // of this export silently produced a text-only document however many photos were chosen.
+    const wanted = photos.slice(0, MAX_PHOTOS).map(photoSrc)
+    const plates = await loadDocxPhotos(wanted)
     const blob = buildTextDocx({
       title: shownTitle,
       pages,
@@ -277,8 +293,13 @@ export default function TextBuilder({ saved, onClose }: { saved?: TextDocRow; on
       // Only a data URL carries the image into the file; the '/images/logo.png' fallback is
       // skipped by the builder, which then prints the set-type wordmark instead.
       logoDataUrl: logoUrl.startsWith('data:') ? logoUrl : undefined,
+      photos: plates,
     })
     downloadBlob(blob, downloadName('docx'))
+    const missed = wanted.length - plates.length
+    if (missed > 0) {
+      setNotice(`Word file downloaded, but ${missed} of ${wanted.length} photo${wanted.length === 1 ? '' : 's'} could not be read and was left out.`)
+    }
   })
 
   const exportPdf = () => run(async () => {

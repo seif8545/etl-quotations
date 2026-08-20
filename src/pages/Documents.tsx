@@ -299,7 +299,11 @@ export default function Documents({ openQuotation, openInvoice, isAdmin, uid }: 
           <button className="link" onClick={() => word(r)}>Word</button>
           <button className="link" onClick={() => (
             tab === 'Letters' ? letterToPdf(r.data) : tab === 'Vouchers' ? voucherToPdf(r.data) : invoiceToPdf(r.data, r.serial)
-          ).catch((e: any) => setError(e.message ?? String(e)))}>PDF</button>
+          ).then((fromWord) => {
+            // letterToPdf resolves false when it had to use the backup layout, which has no
+            // company stamp. The other two resolve undefined.
+            if (fromWord === false) setError('That letter PDF came from the backup layout, so it has no company stamp. Check it before sending, or download the Word file.')
+          }).catch((e: any) => setError(e.message ?? String(e)))}>PDF</button>
         </>}
         {tab === 'Pages' && <>
           {(isAdmin || r.created_by === uid) && (

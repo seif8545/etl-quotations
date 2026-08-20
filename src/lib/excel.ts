@@ -179,11 +179,26 @@ export async function generateQuotationXlsx(d: QuotationDraft, ref: RefData): Pr
   })
 }
 
+/**
+ * Save a Blob under a given name.
+ *
+ * The anchor is put IN the document and the URL is revoked on a later tick, neither of which is
+ * decoration. A detached anchor's click is ignored outright by Firefox and Safari, and revoking
+ * the object URL in the same tick as the click races the browser's own read of it: the download
+ * then arrives under a generated name, or as a zero-byte file, or not at all. Both are the classic
+ * causes of "the filename I asked for isn't the filename I got".
+ */
 export function downloadBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
   a.download = filename
+  a.rel = 'noopener'
+  a.style.display = 'none'
+  document.body.appendChild(a)
   a.click()
-  URL.revokeObjectURL(url)
+  setTimeout(() => {
+    a.remove()
+    URL.revokeObjectURL(url)
+  }, 4000)
 }

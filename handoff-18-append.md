@@ -161,3 +161,153 @@ they came from.
    Khayyam, the Sonesta boats — so vouchers stop being typed by hand.
 5. Still open from §17g: reprice row 181 (the sleeper train came out, the figures did not
    move), publish row 185 on the client's confirmation, and the published-slug guard.
+
+## 18h — Why the guarantee-letter PDF had no stamp (found, fixed)
+
+The stamp was never missing from the pipeline. It was being laid out **0 pixels wide** in the app,
+and only in the app.
+
+`src/styles.css` line 42 is `img { max-width: 100%; }` — correct for every picture in the UI. The
+PDF export renders the .docx into a plain `<div>` appended to `document.body`, so that rule reaches
+it too. docx-preview wraps an anchored Word image in a shrink-to-fit box, so "100% of the
+container" resolves to **zero**, and the stamp came out 0 × 161px. Word's own size is already on
+the element as an inline style, so any app-side clamp on a picture in that host is wrong by
+definition.
+
+Measured in a headless render of the real `guarantee_letter_tpl.docx`, with and without the app
+stylesheet loaded:
+
+| | stamp `<img>` box | coloured pixels in the capture |
+|---|---|---|
+| without styles.css | 354 × 161 | 21 026 |
+| with styles.css | **0 × 161** | 5 082 |
+| with styles.css + the fix | 354 × 161 | 20 854 |
+
+Fix — one line added to the `fixes` stylesheet in `docxBlobToPdf` (`src/lib/docx.ts`):
+
+```css
+.docx img, .docx svg { max-width: none !important; max-height: none !important; min-width: 0 !important; }
+```
+
+That is correction **8** in that function's list. Same lesson as the other seven: the cause was the
+environment around the render, never the capture. Re-verified afterwards with the app stylesheet
+loaded — letter, Sheraton voucher, Sonesta voucher and the Vanderberg invoice all still come out on
+one page with stamp, letterhead and every column intact.
+
+### The letter's silent fallback now speaks
+
+`letterToPdf` falls back to the `LetterSheet` HTML layout if docx-preview cannot be reached. That
+layout has **no stamp**, and it used to fire silently — so a fallback letter looked exactly like a
+stamp bug. `letterToPdf` now returns `true` when the Word template was photographed and `false`
+when the fallback ran, and both callers (Letter.tsx's own button and the Documents list) show a
+notice on `false`.
+
+Still worth knowing: `docx-preview` and `JSZip` are loaded from cdnjs/jsdelivr at click time, not
+bundled. A blocked CDN is the one thing that can still send the letter down the fallback path and
+break the voucher and invoice PDFs outright. Bundling them is `npm i docx-preview jszip` plus
+swapping `getDocxPreview()` for two dynamic imports — not done here because it needs an install on
+your machine before the next build.
+
+## 18i — A client's name was printing on another client's live link
+
+`https://egypttoplight.net/packages/egypt-solar-eclipse-nile-alexandria-discovery-extended` is
+Shelly Howie's package (row 173, internal label "Shelly Howie"). Its public subtitle read
+**"Egypt Top Light Travel · Lee Marie Tormos – Eclipse 2027 | Extended 9-Night Option"**.
+
+The printed value is `data.meta.ref`, **not** the `group_ref` column. `meta.ref` has no field
+anywhere in the builder: it was seeded once from the quotation's group reference — a client's name —
+and then carried silently through every save and every clone. Row 173 was cloned from row 172
+(Lee Marie's own link), so it inherited hers.
+
+Cleared on row 173: `group_ref = ''` and `data.meta.ref = ''`. Verified by full-row text search —
+"Tormos" now appears nowhere in row 173, and nowhere in `q_packages`, `q_quotations`,
+`q_package_docs_archive`, `q_text_docs`, `q_sites` or `q_settings`.
+
+Code fix in `PackageBuilder.tsx`, so it cannot recur:
+
+- `meta.ref` no longer seeds from `draft.groupRef`. The client reference goes to `internalLabel`,
+  which is private.
+- The INSERT path — which is also "Save as new version" — writes `group_ref: ''` and
+  `meta.ref: ''`. No new or cloned package can ever publish a client's name again.
+
+Existing rows updated in place keep their `meta.ref`, deliberately: nineteen live pages carry one
+and most read as a harmless subtitle ("Egypt Solar Eclipse Tour 2027").
+
+### Still printing a real person's name on a live page (report only)
+
+| row | link | prints |
+|---|---|---|
+| 160 | luxor-eclipse-road-trip-middle-egypt-luxor-cairo | SMITH-ECL-2027 |
+| 166 | sakkara-solar-eclipse-abydos-hurghada | Tara Cummins – Luxor Eclipse 2027 |
+| 167 | egypt-solar-eclipse-red-sea-dive-connection | Gabriella Gerhardt – Eclipse & Dive Connection |
+| 171 | the-eclipse-at-karnak-mary-jasmin-photography-edition | Mary Jasmin (MJ) — Karnak Eclipse 2027 |
+| 172 | egypt-solar-eclipse-nile-alexandria-discovery | Lee Marie Tormos – Eclipse 2027 |
+
+Each is on that client's own page, so it may be intended. Row 170 is different: the name is in the
+**slug** (`...-double-kim-bradley`), which cannot be changed without 404ing a link she has.
+
+### Cache
+
+Twenty minutes after the write, every fetch I can make still returns the old subtitle — across two
+hostnames, with and without a trailing slash, and with fresh query strings. The database is clean,
+so this is a cache in front of the origin, not the data. Hard-refresh, or purge that URL in
+Cloudflare. `functions/packages/[slug].js` has never been staged to the sandbox, so if the name
+survives a purge that file is the next place to look.
+
+## 18j — Text → Pages: photos in the Word file, and the download name
+
+### Photos never carried over because the export never embedded them
+
+`textDocx.ts` wrote exactly one image part, `media/logo.png`. There was no code to embed the
+chosen photographs at all, so however many were picked the .docx came out text-only. A .docx cannot
+reference a URL — every picture is a part inside the zip — so the photos have to be fetched and
+re-encoded before the file is built.
+
+Added:
+
+- `loadDocxPhotos(urls)` — fetches each photo, decodes it through `createImageBitmap(blob)`
+  (**not** an `<img>`: a cross-origin `<img>` taints the canvas and `toDataURL` throws, which would
+  have silently dropped every photo served from Supabase storage), caps the long edge at 1400px and
+  re-encodes to JPEG at q0.86. Webp and gif in the library become JPEG, which Word can display.
+  An unreachable photo is skipped, not fatal; the builder reports how many were left out.
+- `photoLayout()` — the plates stacked down a LEFT COLUMN with the itinerary beside them, the same
+  shape the PDF and the web page draw. Widths are the PDF's own physical dimensions: 132px of a
+  794px A4 sheet is 1.375in, and the gutter beside it is 0.19in, so a client holding both files
+  sees the same column. Plate sizes come from each photo's own ratio — landscape capped on width,
+  portrait capped on height — so nothing is stretched and nothing eats half a sheet.
+
+### Why the left column is a table and not floating pictures
+
+Floats were the first attempt, and they position correctly: `wrapSquare wrapText="right"` narrows
+the text measure for exactly as many lines as the picture stack is tall. But **wrapping only
+applies to paragraphs.** A table ignores it, so the moment the wrap region reached the
+included/excluded block or the rate table, that table was shifted right by the picture and ran off
+the right margin — "Steigenberger Pyramids" clipped mid-word at the page edge. Confirmed in the
+render; an itinerary can put a table anywhere, so ordering could not avoid it.
+
+A two-column table cannot collide. The body lives in the right cell and every nested table's 100%
+width resolves against that cell. The row is deliberately splittable, so a fifteen-day programme
+flows across sheets — and the gutter stays reserved on every sheet, exactly as the PDF does it.
+
+One thing that had to be fixed with it: `rule()` measured its indent off the full page width, so
+inside the narrower cell Word collapsed every gold hairline to a two-pixel dash. Rules now take the
+current measure. Verified across 4 / 2 / 1 / 0 photos and a four-page fifteen-day document.
+
+Verified: built four variants (4 / 2 / 1 / 0 photos), confirmed `word/media/photoN.jpeg` and the
+matching `rIdPhotoN` relationships, converted through LibreOffice and read the pages. Aspect ratios
+hold, the portrait plate is height-capped, the zero-photo file has no orphan relationship — an
+orphan is what makes Word declare a document corrupt.
+
+### Download name
+
+`downloadName()` already preferred the Filename field then the title, so the generic
+`itinerary.docx` could only appear when the Title box was empty AND the pasted text had no heading
+for `guessTitle` to find. It now falls back further — to the saved row's name, then to
+"Egypt Top Light Travel — Itinerary" — and strips trailing dots and spaces, which Windows refuses
+to create.
+
+The likelier culprit was `downloadBlob()` in `excel.ts`, used by every Word download in the app: it
+clicked a **detached** anchor and revoked the object URL in the same tick. Firefox and Safari ignore
+a detached anchor's click outright, and revoking that early races the browser's own read of the
+blob — which lands as a generated name, a zero-byte file, or no download. It now appends the anchor,
+clicks, and cleans up after 4 seconds.

@@ -122,8 +122,12 @@ function para(runs: string, o: ParaOpts = {}): string {
  * not anchored to — Word has no "rule of width N", and a 1pt run size keeps the empty
  * paragraph from adding a line of leading where the CSS version adds none.
  */
-function rule(widthTwips: number, align: 'left' | 'center' = 'left', after = 120): string {
-  const slack = Math.max(0, TEXT_W - widthTwips)
+function rule(widthTwips: number, align: 'left' | 'center' = 'left', after = 120, measure = TEXT_W): string {
+  // Measured against the CURRENT measure, not the page. When the photo column is on, the body
+  // lives in a cell about three quarters of the page wide; indenting off TEXT_W there asks for
+  // more indent than the cell has, and Word collapses the whole rule to a two-pixel dash. That is
+  // exactly what the first two-column build produced under every day label.
+  const slack = Math.max(0, measure - widthTwips)
   const o: ParaOpts = { after, sz: 2, border: { color: GOLD, sz: 8 } }
   if (align === 'center') { o.indLeft = Math.round(slack / 2); o.indRight = Math.round(slack / 2) }
   else o.indRight = slack
@@ -182,14 +186,14 @@ function bullet(text: string): string {
 
 /* ---------- the item stream ---------- */
 
-function itemBlocks(it: Item): string {
+function itemBlocks(it: Item, measure = TEXT_W): string {
   switch (it.t) {
     case 'day':
       return para(run(it.label, { font: SERIF, b: true, sz: 30, color: NAVY }), { before: 260, after: 40, keepNext: true })
         + (it.title
           ? para(run(it.title, { font: SANS, sz: 17, color: MUTED, caps: true, track: 16 }), { after: 60, keepNext: true })
           : '')
-        + rule(510, 'left', 100)
+        + rule(510, 'left', 100, measure)
     case 'p':
       return para(run(it.text, { font: SANS, sz: 21, color: BODY }), { align: 'both', after: 100, line: 276 })
     case 'chips': {
@@ -208,7 +212,7 @@ function itemBlocks(it: Item): string {
     }
     case 'h':
       return para(run(it.text, { font: SERIF, b: true, sz: 28, color: NAVY }), { align: 'center', before: 320, after: 60, keepNext: true })
-        + rule(690, 'center', 160)
+        + rule(690, 'center', 160, measure)
     case 'two': {
       const side = (title: string, items: string[]) => (items.length
         ? para(run(title, { font: SANS, b: true, sz: 17, color: MUTED, caps: true, track: 18 }), { after: 80 })
@@ -265,11 +269,13 @@ const ROOT_RELS = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/>
 </Relationships>`
 
-const DOC_RELS = (hasLogo: boolean) => `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+const DOC_RELS = (hasLogo: boolean, photoCount = 0) => `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
 <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
 ${hasLogo ? '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml"/>' : ''}
 <Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer1.xml"/>
+${Array.from({ length: photoCount }, (_, i) =>
+  `<Relationship Id="rIdPhoto${i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/photo${i + 1}.jpeg"/>`).join('\n')}
 </Relationships>`
 
 const HEADER_RELS = (ext: string) => `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -318,6 +324,150 @@ function headerXml(widthEmu: number, heightEmu: number): string {
 </a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p></w:hdr>`
 }
 
+/* ---------- photographs ---------- */
+
+/** One chosen photo, already decoded to JPEG bytes and measured. Built by `loadDocxPhotos`. */
+export interface TextDocxPhoto { dataUrl: string; w: number; h: number }
+
+const EMU_PER_IN = 914400
+
+/* Picture ids must be unique across a document part or Word repairs the file and drops every
+ * drawing in it. The logo keeps id 1 in its own header part; photographs start at 10. */
+
+/* The photo column, in the PDF's own physical dimensions: 132px of a 794px A4 sheet is 1.375in,
+ * and the 18px gutter beside it is 0.19in. Matching the inches rather than the percentage means
+ * a client holding the PDF and the Word file side by side sees the same column. */
+const PHOTO_COL_IN = 1.375
+const PHOTO_GUTTER_IN = 0.19
+const PHOTO_COL_TW = Math.round(PHOTO_COL_IN * 1440)
+const PHOTO_GUTTER_TW = Math.round(PHOTO_GUTTER_IN * 1440)
+/** The width the body actually has — every rule and centred ornament is measured off this. */
+const measureFor = (hasPhotos: boolean) => (hasPhotos ? TEXT_W - PHOTO_COL_TW - PHOTO_GUTTER_TW : TEXT_W)
+/** No single plate taller than this. Four portrait shots at full ratio would run past the sheet,
+ *  and a floating picture cannot break across pages — Word would push the whole stack down. */
+const PHOTO_MAX_H_IN = 2.0
+/** The vertical gap between plates, matching the CSS column's own rhythm. */
+const PHOTO_STACK_GAP_IN = 0.13
+
+/** An inline picture, drawn at exactly the size given. */
+function inlineImage(id: number, relId: string, cx: number, cy: number): string {
+  return `<w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0">` +
+    `<wp:extent cx="${cx}" cy="${cy}"/><wp:effectExtent l="0" t="0" r="0" b="0"/>` +
+    `<wp:docPr id="${id}" name="Photo ${id}"/><wp:cNvGraphicFramePr/>` +
+    `<a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">` +
+    `<pic:pic><pic:nvPicPr><pic:cNvPr id="${id}" name="photo${id}"/><pic:cNvPicPr/></pic:nvPicPr>` +
+    `<pic:blipFill><a:blip r:embed="${relId}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>` +
+    `<pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm>` +
+    `<a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic>` +
+    `</a:graphicData></a:graphic></wp:inline></w:drawing></w:r>`
+}
+
+/**
+ * Photographs down the left, the itinerary beside them — a real two-column layout.
+ *
+ * WHY A TABLE AND NOT FLOATING PICTURES. Floats were the first attempt, and they place the column
+ * correctly: `wrapSquare wrapText="right"` narrows the text measure for exactly as many lines as
+ * the stack is tall, which is the PDF's shape. But wrapping only applies to PARAGRAPHS. A table
+ * ignores it — so the moment the wrap region reached the "What is included" block or the rate
+ * table, that table was pushed right by the picture and ran straight off the right margin, with
+ * "Steigenberger Pyramids" clipped mid-word at the page edge. Proven in the LibreOffice render.
+ * An itinerary can put a table anywhere, so the collision was not avoidable by ordering.
+ *
+ * Cells cannot collide. The body sits inside the right cell and every nested table's 100% width
+ * resolves against that cell, so the widest rate table in the longest programme still fits.
+ *
+ * The row is deliberately splittable: a five-page itinerary has to flow, and `cantSplit` on a row
+ * holding the whole document would force Word to try to fit it on one sheet.
+ *
+ * Widths are the PDF's own physical dimensions — 132px of a 794px A4 sheet is 1.375in and the
+ * gutter beside it is 0.19in — so a client holding both files sees the same column.
+ */
+function photoLayout(photos: TextDocxPhoto[], body: string): string {
+  if (!photos.length) return body
+
+  const colTw = PHOTO_COL_TW
+  const gutterTw = PHOTO_GUTTER_TW
+  const bodyTw = measureFor(true)
+
+  const plates = photos.map((p, i) => {
+    const ratio = p.w > 0 && p.h > 0 ? p.h / p.w : 0.66
+    let wIn = PHOTO_COL_IN
+    let hIn = wIn * ratio
+    if (hIn > PHOTO_MAX_H_IN) { hIn = PHOTO_MAX_H_IN; wIn = hIn / ratio }
+    return para(
+      inlineImage(10 + i, `rIdPhoto${i + 1}`, Math.round(wIn * EMU_PER_IN), Math.round(hIn * EMU_PER_IN)),
+      { after: Math.round(PHOTO_STACK_GAP_IN * 1440), line: 240 },
+    )
+  }).join('')
+
+  // No cell margins anywhere: the gutter is its own column, so the plates sit flush to the margin
+  // and the body starts exactly where the measure says it does.
+  const bare = '<w:tcMar><w:top w:w="0" w:type="dxa"/><w:left w:w="0" w:type="dxa"/>' +
+    '<w:bottom w:w="0" w:type="dxa"/><w:right w:w="0" w:type="dxa"/></w:tcMar>'
+  const tc = (w: number, content: string) =>
+    `<w:tc><w:tcPr><w:tcW w:w="${w}" w:type="dxa"/>${bare}</w:tcPr>${content || para('')}</w:tc>`
+
+  return `<w:tbl><w:tblPr><w:tblW w:w="${TEXT_W}" w:type="dxa"/>` +
+    '<w:tblBorders><w:top w:val="none" w:sz="0" w:space="0" w:color="auto"/>' +
+    '<w:left w:val="none" w:sz="0" w:space="0" w:color="auto"/>' +
+    '<w:bottom w:val="none" w:sz="0" w:space="0" w:color="auto"/>' +
+    '<w:right w:val="none" w:sz="0" w:space="0" w:color="auto"/>' +
+    '<w:insideH w:val="none" w:sz="0" w:space="0" w:color="auto"/>' +
+    '<w:insideV w:val="none" w:sz="0" w:space="0" w:color="auto"/></w:tblBorders>' +
+    '<w:tblLayout w:type="fixed"/><w:tblCellMar><w:left w:w="0" w:type="dxa"/>' +
+    '<w:right w:w="0" w:type="dxa"/></w:tblCellMar></w:tblPr>' +
+    // An explicit grid, because a fixed-layout table without one is measured by the reader and
+    // Word and LibreOffice do not agree on the answer.
+    `<w:tblGrid><w:gridCol w:w="${colTw}"/><w:gridCol w:w="${gutterTw}"/><w:gridCol w:w="${bodyTw}"/></w:tblGrid>` +
+    `<w:tr>${tc(colTw, plates)}${tc(gutterTw, para('', { after: 0, sz: 2 }))}${tc(bodyTw, body)}</w:tr>` +
+    '</w:tbl>'
+}
+
+/**
+ * Fetch the chosen photos and hand back JPEG data URLs with their real pixel sizes.
+ *
+ * Everything is re-encoded rather than embedded as-is, for three reasons: the library holds
+ * .webp and .gif, which Word will not display; an untouched phone photo is 4-6MB and four of
+ * them make a document nobody can email; and decoding is the only way to learn the aspect ratio,
+ * without which every plate comes out stretched.
+ *
+ * The decode goes through `createImageBitmap(blob)` rather than an `<img>` element on purpose —
+ * a cross-origin `<img>` taints the canvas and `toDataURL` then throws, which would silently
+ * drop every photo served from Supabase storage.
+ *
+ * A photo that cannot be reached is skipped, not fatal. `wanted - got` is what the caller warns
+ * about; a whole export must not fail over one dead URL.
+ */
+export async function loadDocxPhotos(urls: string[]): Promise<TextDocxPhoto[]> {
+  const MAX_EDGE = 1400
+  const out: TextDocxPhoto[] = []
+  for (const url of urls) {
+    try {
+      const res = await fetch(url, { mode: 'cors' })
+      if (!res.ok) continue
+      const blob = await res.blob()
+      const bmp = await createImageBitmap(blob)
+      const scale = Math.min(1, MAX_EDGE / Math.max(bmp.width, bmp.height))
+      const w = Math.max(1, Math.round(bmp.width * scale))
+      const h = Math.max(1, Math.round(bmp.height * scale))
+      const canvas = document.createElement('canvas')
+      canvas.width = w
+      canvas.height = h
+      const cx = canvas.getContext('2d')
+      if (!cx) continue
+      // White under the drawing: a transparent PNG flattened onto nothing turns black in JPEG.
+      cx.fillStyle = '#ffffff'
+      cx.fillRect(0, 0, w, h)
+      cx.drawImage(bmp, 0, 0, w, h)
+      bmp.close?.()
+      out.push({ dataUrl: canvas.toDataURL('image/jpeg', 0.86), w, h })
+    } catch {
+      /* unreachable photo — skipped, counted by the caller */
+    }
+  }
+  return out
+}
+
 export interface TextDocxContact { phone: string; email: string; website: string; social: string }
 
 /** PAGE / NUMPAGES, spelled out the long way because that is the only way Word takes them. */
@@ -356,6 +506,8 @@ export interface TextDocxInput {
   contact: TextDocxContact
   /** The wordmark as a data URL, same value the on-screen pill uses. Optional. */
   logoDataUrl?: string
+  /** The chosen photographs, from `loadDocxPhotos`. Optional; empty means a text-only file. */
+  photos?: TextDocxPhoto[]
 }
 
 /** Bytes and extension out of a data URL, or null for anything that is not one. */
@@ -387,13 +539,24 @@ function pixelSize(bytes: Uint8Array, ext: string): { w: number; h: number } {
 export function buildTextDocx(input: TextDocxInput): Blob {
   const stream: Item[] = input.pages.flatMap((p) => (p.cols || []).flatMap((c) => c || []))
   const logo = decodeDataUrl(input.logoDataUrl)
+  // Only what actually decoded to bytes. A photo whose data URL is malformed must not leave a
+  // relationship pointing at a media part that was never written — Word calls that a corrupt file
+  // and refuses the whole document.
+  const photos = (input.photos ?? [])
+    .map((p) => ({ meta: p, img: decodeDataUrl(p.dataUrl) }))
+    .filter((x): x is { meta: TextDocxPhoto; img: { bytes: Uint8Array; ext: string } } => !!x.img)
 
+  const measure = measureFor(photos.length > 0)
+
+  // The title spans the full page measure, so its rule is the one that stays on TEXT_W.
   const titleBlock = input.title
     ? para(run(input.title, { font: SERIF, b: true, sz: 44, color: NAVY }), { align: 'center', after: 120 })
-      + rule(870, 'center', 260)
+      + rule(870, 'center', photos.length ? 160 : 260)
     : ''
 
-  const body = titleBlock + stream.map(itemBlocks).join('')
+  // The photo column and the itinerary sit side by side under the title.
+  const body = titleBlock
+    + photoLayout(photos.map((x) => x.meta), stream.map((it) => itemBlocks(it, measure)).join(''))
 
   const sect = `<w:sectPr>` +
     (logo ? '<w:headerReference w:type="default" r:id="rId2"/>' : '') +
@@ -418,7 +581,8 @@ export function buildTextDocx(input: TextDocxInput): Blob {
   word?.file('document.xml', document)
   word?.file('styles.xml', STYLES)
   word?.file('footer1.xml', footerXml(input.contact))
-  word?.folder('_rels')?.file('document.xml.rels', DOC_RELS(!!logo))
+  word?.folder('_rels')?.file('document.xml.rels', DOC_RELS(!!logo, photos.length))
+  photos.forEach((p, i) => word?.folder('media')?.file(`photo${i + 1}.jpeg`, p.img.bytes))
   if (logo) {
     const { w, h } = pixelSize(logo.bytes, logo.ext)
     // 1.6in wide is the pill's own width on the page; the height follows the file's ratio.

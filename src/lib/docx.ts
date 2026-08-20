@@ -154,6 +154,15 @@ export async function docxBlobToPdf(blob: Blob, filename: string, opts?: { first
     fixes.textContent =
       '.docx p, .docx table, .docx tr, .docx td { position: relative; z-index: 2; }' +
       '.docx img { position: relative; z-index: 1; mix-blend-mode: multiply; }' +
+      // The app's own stylesheet reaches this host — it is a div in the app's document, not an
+      // iframe. `img { max-width: 100% }` in styles.css is the sensible rule for every picture in
+      // the UI and it DESTROYS an anchored Word image: docx-preview wraps the stamp in a
+      // shrink-to-fit box, so "100% of the container" resolves to ZERO and the stamp is laid out
+      // 0px wide by 161px tall. Measured: 265.66pt wide without the stylesheet, 0px with it. That
+      // is why the guarantee letter came out of the app with no stamp while it rendered correctly
+      // in every isolated test. Word's own sizing is already on the element as an inline style, so
+      // any app-side clamp on a picture in here is wrong by definition.
+      '.docx img, .docx svg { max-width: none !important; max-height: none !important; min-width: 0 !important; }' +
       // html2canvas re-measures every run in whatever font the machine actually has, and where
       // its measurement disagrees with the layout it will break INSIDE a word: a real letter to
       // Air Arabia came out reading "the visa arrangem / ent upon arrival". Words are not
