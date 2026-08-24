@@ -24,6 +24,10 @@ import type { PackageCategory } from '../lib/packageCategories'
 
 import type { Segment, SegmentOverride, SegSourceDay } from '../lib/segments'
 
+import { importFromText } from '../lib/packageImport'
+
+import type { ImportResult, ImportNote } from '../lib/packageImport'
+
 interface Meals { breakfast: boolean; lunch: boolean; dinner: boolean }
 
 interface EditableDay { uid: string; title: string; description: string; photo: string; sites: string[]; guide: boolean; meals: Meals; hotel: string; dayLabel?: string }
@@ -197,6 +201,14 @@ const newUid = () => (typeof crypto !== 'undefined' && crypto.randomUUID ? crypt
 
 const CONTACT = { phone: '+20 105 537 6633', email: 'info@egypttoplight.net', website: 'egypttoplight.net', social: '@egypttoplighttravel' }
 
+/** The four kinds of importer note, and how loudly each is shown. */
+const NOTE_LOOK: Record<ImportNote['kind'], { colour: string; label: string }> = {
+  warn: { colour: '#f3b0b0', label: 'CHECK' },
+  added: { colour: '#f0d79a', label: 'ADDED' },
+  guess: { colour: '#cfd8e6', label: 'ASSUMED' },
+  info: { colour: '#bfe6c0', label: 'READ' },
+}
+
 function MealTicker({ meals, onChange }: { meals: Meals; onChange: (m: Meals) => void }) {
   const items: [keyof Meals, string][] = [['breakfast', 'Breakfast'], ['lunch', 'Lunch'], ['dinner', 'Dinner']]
   const none = !meals.breakfast && !meals.lunch && !meals.dinner
@@ -363,7 +375,11 @@ function FixedDayEditor({ label, day, set, onPickPhoto }: { label: string; day: 
   )
 }
 
-export default function PackageBuilder({ draft, saved, savedId, onClose }: { draft?: QuotationDraft; saved?: PackageState; savedId?: number; onClose: () => void }) {
+/**
+ * @param importFirst opens straight into the paste panel. Set by the "Text → Package"
+ *        entry on the home screen, which starts from nothing but a block of text.
+ */
+export default function PackageBuilder({ draft, saved, savedId, importFirst, onClose }: { draft?: QuotationDraft; saved?: PackageState; savedId?: number; importFirst?: boolean; onClose: () => void }) {
 
   const [ref, setRef] = useState<RefData | null>(null)
   const [title, setTitle] = useState(saved?.title ?? (draft?.name || 'Egypt Travel Package'))
@@ -470,6 +486,19 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
   const [meta, setMeta] = useState(saved?.meta ?? { ref: '', pax: draft?.pax ?? 0, arrival: draft?.arrivalDate ?? '', departure: draft?.departureDate ?? '' })
   /** Your own name for this package — Documents and this bar only, never the document. */
   const [internalLabel, setInternalLabel] = useState(saved?.internalLabel ?? draft?.groupRef ?? '')
+
+  /* ── Build from pasted text ──────────────────────────────────────────────
+     Two steps on purpose. "Read the text" only parses — it returns a preview and a list
+     of everything the importer assumed, and touches no builder state. "Apply" is the
+     step that overwrites the document. Nothing in either step writes to the database:
+     the package still has to be saved, and published, by hand. ─────────────────── */
+  const [importOpen, setImportOpen] = useState(Boolean(importFirst))
+  const [importText, setImportText] = useState('')
+  const [impDetail, setImpDetail] = useState(true)
+  const [impProtect, setImpProtect] = useState(true)
+  const [preview, setPreview] = useState<ImportResult | null>(null)
+  const [impErr, setImpErr] = useState('')
+  const [impMsg, setImpMsg] = useState('')
 
   useEffect(() => {
     loadRefData().then((r) => {
@@ -707,6 +736,62 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
       roomBasis,
     }
   }, [title, intro, hero, days, arrival, departure, pp, sgl, showPrice, priceTableOn, priceRows, priceColumnsMode, included, excluded, draft, saved, hotels, totalNights, ref, meta, flights, roomBasis, manifest]) 
+
+  /* ── Build from pasted text: the two actions ──────────────────────────── */
+
+  function readImport() {
+    setImpErr(''); setImpMsg('')
+    try {
+      const r = importFromText(importText, { manifest, detail: impDetail, protective: impProtect })
+      if (!r.days.length && !r.arrival.on && !r.departure.on) {
+        setPreview(null)
+        setImpErr('No days were found. Each day has to start a line with "Day 1", "DAY 01", "Day 3 —" or similar.')
+        return
+      }
+      setPreview(r)
+    } catch (e: any) {
+      setPreview(null)
+      setImpErr(e?.message ?? String(e))
+    }
+  }
+
+  /**
+   * Overwrite the document with what was read.
+   *
+   * Everything the importer produces is applied together — a half-applied package (new days,
+   * old price table) is worse than either. The internal label is the one exception: a label
+   * already typed is the agent's own and is left alone.
+   *
+   * Compact-sheet overrides are cleared, because they are keyed to the OLD cities. Left in
+   * place, a Cairo override would rename a block on an Alexandria sheet.
+   */
+  function applyImport() {
+    const r = preview
+    if (!r) return
+    setTitle(r.title)
+    setIntro(r.intro)
+    setHero(r.hero)
+    setDays(r.days)
+    setArrival(r.arrival)
+    setDeparture(r.departure)
+    setIncluded(r.included)
+    setExcluded(r.excluded)
+    setPriceTableOn(r.priceTableOn)
+    if (r.priceRows.length) setPriceRows(r.priceRows)
+    setPriceColumnsMode(r.priceColumns)
+    setPp(r.pp)
+    setSgl(r.sgl)
+    setShowPrice(r.showPrice)
+    if (r.hotels.length) setHotels(r.hotels)
+    setRoomBasis(r.roomBasis)
+    setMeta((m) => ({ ...m, pax: r.pax }))
+    if (!internalLabel.trim()) setInternalLabel(r.internalLabel)
+    setSegOverrides([]); setCityOv({}); setExtraCities([])
+    setPreview(null)
+    setImportOpen(false)
+    setImpMsg('Applied. Check the days and the price table, then Save — the package stays a draft until you press Publish.')
+    setTimeout(() => setImpMsg(''), 9000)
+  }
 
   function buildState(): PackageState {
     return {
@@ -1538,6 +1623,136 @@ export default function PackageBuilder({ draft, saved, savedId, onClose }: { dra
         </div>
 
         <div className="builder-body">
+
+          {/* ── Build from pasted text ──────────────────────────────────────
+              The same idea as Text → Pages, aimed at the package instead of at
+              A4 sheets: a supplier's programme goes in, day cards with their own
+              photographs and chips come out. Reading is separate from applying,
+              and applying is separate from saving, so nothing a parser guessed
+              can reach a client without someone having looked at it. */}
+          <section className="b-sec b-import">
+            <div className="b-day-head">
+              <h4>Build from pasted text</h4>
+              <span className="muted small">
+                Paste the programme — days, meals, rate, includes and excludes. It reads the days,
+                picks the photographs and writes the cover; you check it and press Apply.
+              </span>
+              <button className="link" onClick={() => setImportOpen((o) => !o)}>
+                {importOpen ? 'Hide' : days.length || arrival.on ? 'Replace from text' : 'Open'}
+              </button>
+            </div>
+
+            {impMsg && <div className="small" style={{ color: '#bfe6c0', padding: '2px 0 8px' }}>{impMsg}</div>}
+
+            {importOpen && (
+              <div style={{ display: 'grid', gap: 10 }}>
+                <textarea
+                  value={importText}
+                  onChange={(e) => setImportText(e.target.value)}
+                  rows={12}
+                  spellCheck={false}
+                  placeholder={'5 Days / 4 Nights – Cairo & Alexandria Experience\n\nDAY 01 | ARRIVAL IN CAIRO\n\u2022 Upon arrival at Cairo International Airport…\n\u2022 Overnight in Cairo.\nMeals : Optional Dinner with EXTRA cost 55 USD\n\nDAY 02 | GIZA PYRAMIDS …\n\nRate for Solo Traveller 1500$ USD 4 Star --- STAY INN PYRAMIDS or Equal\nRate Includes : \u2022 Meet and assist at Cairo Airport …\nRate excludes: \u2022 Entry Visa …'}
+                  style={{ width: '100%', fontFamily: 'ui-monospace, Menlo, Consolas, monospace', fontSize: 12, lineHeight: 1.5 }}
+                />
+                <div style={{ display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap', fontSize: 13 }}>
+                  <label style={{ display: 'flex', gap: 6, alignItems: 'center' }}
+                    title="Adds one factual sentence about a named site to any day whose supplied prose is too thin to sell. Every insertion is listed below.">
+                    <input type="checkbox" checked={impDetail} onChange={(e) => setImpDetail(e.target.checked)} />
+                    Fill out thin days with a house detail line
+                  </label>
+                  <label style={{ display: 'flex', gap: 6, alignItems: 'center' }}
+                    title="Interior pyramid and tomb fees, the Royal Mummies supplement, event tickets, dive gear — stated only when the programme contains the thing they refer to.">
+                    <input type="checkbox" checked={impProtect} onChange={(e) => setImpProtect(e.target.checked)} />
+                    Add the house exclusions
+                  </label>
+                  <span className="spacer" style={{ flex: 1 }} />
+                  {importText.trim() && <button className="link" onClick={() => { setImportText(''); setPreview(null); setImpErr('') }}>Clear</button>}
+                  <button className={preview ? undefined : 'primary'} disabled={!importText.trim()} onClick={readImport}>
+                    {preview ? 'Read it again' : 'Read the text'}
+                  </button>
+                </div>
+
+                {impErr && <div className="error">{impErr}</div>}
+
+                {preview && (
+                  <div style={{ border: '1px solid rgba(255,255,255,.18)', borderRadius: 6, padding: 12, display: 'grid', gap: 10 }}>
+                    <div style={{ display: 'flex', gap: 12, alignItems: 'baseline', flexWrap: 'wrap' }}>
+                      <b>{preview.title}</b>
+                      <span className="muted small">
+                        {preview.counts.days} days · {preview.counts.nights} nights · {preview.counts.cities} cit{preview.counts.cities === 1 ? 'y' : 'ies'}
+                        {preview.pp ? ` · ${preview.pp.toLocaleString('en-US')} USD` : ' · no rate read'}
+                        {` · ${preview.pax} guest${preview.pax === 1 ? '' : 's'}`}
+                      </span>
+                    </div>
+
+                    <div className="small" style={{ opacity: .85, lineHeight: 1.5 }}>{preview.intro}</div>
+
+                    <div style={{ display: 'grid', gap: 4, fontSize: 12 }}>
+                      {preview.arrival.on && (
+                        <div><span className="muted">arrival</span> {preview.arrival.title}</div>
+                      )}
+                      {preview.days.map((d, i) => (
+                        <div key={d.uid} style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                          <span className="muted" style={{ minWidth: 46 }}>day {i + (preview.arrival.on ? 2 : 1)}</span>
+                          <span style={{ flex: 1 }}>
+                            {d.title}
+                            <span className="muted"> · {d.photo ? d.photo.split('/').pop() : 'NO PHOTO'}</span>
+                            {d.sites.length > 0 && <span className="muted"> · {d.sites.join(' · ')}</span>}
+                          </span>
+                        </div>
+                      ))}
+                      {preview.departure.on && (
+                        <div><span className="muted">departure</span> {preview.departure.title}</div>
+                      )}
+                    </div>
+
+                    {preview.priceRows.length > 0 && (
+                      <div className="small" style={{ opacity: .85 }}>
+                        {preview.priceRows.map((r, i) => (
+                          <div key={i}>
+                            {r.category}: {[
+                              r.solo ? `${r.solo.toLocaleString('en-US')} solo` : '',
+                              r.dbl ? `${r.dbl.toLocaleString('en-US')} double` : '',
+                              r.single ? `${r.single.toLocaleString('en-US')} single` : '',
+                              r.triple ? `${r.triple.toLocaleString('en-US')} triple` : '',
+                              r.quad ? `${r.quad.toLocaleString('en-US')} quad` : '',
+                            ].filter(Boolean).join(' · ')} {r.hotels ? `— ${r.hotels}` : ''}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    <div className="small muted">
+                      {preview.included.split('\n').filter(Boolean).length} inclusions ·{' '}
+                      {preview.excluded.split('\n').filter(Boolean).length} exclusions ·{' '}
+                      {preview.hotels.map((h) => `${h.nights}× ${h.destination}`).join(' · ') || 'no nights counted'}
+                    </div>
+
+                    {preview.notes.length > 0 && (
+                      <div style={{ display: 'grid', gap: 3, fontSize: 12, borderTop: '1px solid rgba(255,255,255,.12)', paddingTop: 8 }}>
+                        {preview.notes.map((n, i) => (
+                          <div key={i} style={{ color: NOTE_LOOK[n.kind].colour }}>
+                            <b style={{ opacity: .75, marginRight: 6 }}>{NOTE_LOOK[n.kind].label}</b>{n.text}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center', borderTop: '1px solid rgba(255,255,255,.12)', paddingTop: 10 }}>
+                      <button className="primary" onClick={applyImport}>Apply to the builder</button>
+                      <button onClick={() => setPreview(null)}>Discard</button>
+                      <span className="muted small">
+                        {days.length || arrival.on
+                          ? 'This replaces the days, the lists and the price table that are on screen now.'
+                          : 'Nothing is saved or published until you press Save, then Publish.'}
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </section>
+
           <div className="b-trip">
             <div className="b-trip-dates">
               <label>Arrival <input type="date" value={meta.arrival} onChange={(e) => setMeta((m) => ({ ...m, arrival: e.target.value }))} /></label>

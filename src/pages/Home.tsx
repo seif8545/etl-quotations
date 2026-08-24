@@ -25,6 +25,10 @@ export default function Home({ go }: { go: (p: Page) => void }) {
           <h3>Text → Pages</h3>
           <p>Paste an itinerary, get A4 pages and a link</p>
         </button>
+        <button className="module" onClick={() => go('packagetext')}>
+          <h3>Text → Package</h3>
+          <p>Paste an itinerary, get a package page and a link</p>
+        </button>
       </div>
       <p className="muted" style={{ marginTop: 24 }}>
         Everything you generate is saved under <b>Documents</b> — reopen, duplicate, or re-download any time.

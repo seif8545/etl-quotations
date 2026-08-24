@@ -12,8 +12,9 @@ import Invoice from './pages/Invoice'
 import type { InvoiceData } from './pages/Invoice'
 import TextBuilder from './pages/TextBuilder'
 import Documents from './pages/Documents'
+import PackageBuilder from './pages/PackageBuilder'
 
-export type Page = 'home' | 'quotation' | 'letter' | 'voucher' | 'invoice' | 'textdoc' | 'documents' | 'admin'
+export type Page = 'home' | 'quotation' | 'letter' | 'voucher' | 'invoice' | 'textdoc' | 'packagetext' | 'documents' | 'admin'
 
 export default function App() {
   const [session, setSession] = useState<Session | null>(null)
@@ -76,6 +77,10 @@ export default function App() {
       {/* A blank Text → Pages document. Saved ones reopen from the Documents list,
           which mounts the same builder over itself. */}
       {page === 'textdoc' && <TextBuilder onClose={home} />}
+      {/* A package that starts from nothing but pasted text. The builder is otherwise only
+          reachable from a quotation or from a saved package, so without this there was no way
+          in for a programme that arrived as an email. It opens on the paste panel. */}
+      {page === 'packagetext' && <PackageBuilder importFirst onClose={home} />}
       {page === 'invoice' && (
         /* The editor seeds its state from these props once, on mount. That is safe only
            because leaving the page unmounts it — every open is therefore a fresh mount. */

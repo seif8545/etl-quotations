@@ -54,6 +54,11 @@ const ALIASES: [string, string, string][] = [
   ['djoser', 'memphis-sakkara-dahshur/sakkara-2.jpeg', 'Cairo & Giza'],
   ['memphis', 'memphis-sakkara-dahshur/memphis-1.jpeg', 'Cairo & Giza'],
   ['dahshur', 'memphis-sakkara-dahshur/dahshur-1.jpeg', 'Cairo & Giza'],
+  // Last of the Cairo group on purpose. Longest key wins (see SORTED), so every specific
+  // Cairo entry above still beats this one; it exists so a day that names the city and
+  // nothing else — "fly to Cairo, free time" — gets a photograph of Cairo rather than
+  // whatever filename happens to share four letters with it.
+  ['cairo', 'cairo-giza/cairo-nile.jpg', 'Cairo & Giza'],
 
   // --- Alexandria ---
   ['bibliotheca', 'alexandria/alex-library.jpeg', 'Alexandria'],
