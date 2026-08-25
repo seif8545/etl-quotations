@@ -28,6 +28,10 @@ import { importFromText } from '../lib/packageImport'
 
 import type { ImportResult, ImportNote } from '../lib/packageImport'
 
+import { streamPackageChat, normalizePatch } from '../lib/packageChat'
+
+import type { ChatMsg, Block, PackagePatch } from '../lib/packageChat'
+
 interface Meals { breakfast: boolean; lunch: boolean; dinner: boolean }
 
 interface EditableDay { uid: string; title: string; description: string; photo: string; sites: string[]; guide: boolean; meals: Meals; hotel: string; dayLabel?: string }
@@ -500,6 +504,29 @@ export default function PackageBuilder({ draft, saved, savedId, importFirst, onC
   const [impErr, setImpErr] = useState('')
   const [impMsg, setImpMsg] = useState('')
 
+  /* ── The itinerary desk ──────────────────────────────────────────────────
+     A conversation, not a form. The agent describes the trip or a change to it; the model
+     replies in prose and, when there is something to write, calls one tool whose arguments
+     are a patch of this builder's fields. The patch is applied to STATE, never to the
+     database — so a wrong turn is undone by the Undo button or by the next sentence, and
+     nothing reaches a client until Save and then Publish are pressed by hand.
+
+     `deskHistory` is the conversation in the model API's own shape, including the tool_use /
+     tool_result pairs it requires to continue. `deskLog` is the same conversation in the
+     shape the panel draws. They are kept apart because the panel wants to show which fields
+     changed, and the API must not be told. */
+  const [deskOpen, setDeskOpen] = useState(true)
+  const [deskInput, setDeskInput] = useState('')
+  const [deskLog, setDeskLog] = useState<{ who: 'you' | 'desk'; text: string; changed?: string[]; assumptions?: string[]; dropped?: string[] }[]>([])
+  const [deskHistory, setDeskHistory] = useState<ChatMsg[]>([])
+  const [deskBusy, setDeskBusy] = useState(false)
+  const [deskStream, setDeskStream] = useState('')
+  const [deskErr, setDeskErr] = useState('')
+  /** Restores every field the last patch touched. Null once used, or before the first patch. */
+  const [deskUndo, setDeskUndo] = useState<null | (() => void)>(null)
+  const deskAbort = useRef<AbortController | null>(null)
+  const deskScroll = useRef<HTMLDivElement | null>(null)
+
   useEffect(() => {
     loadRefData().then((r) => {
       setRef(r)
@@ -736,6 +763,127 @@ export default function PackageBuilder({ draft, saved, savedId, importFirst, onC
       roomBasis,
     }
   }, [title, intro, hero, days, arrival, departure, pp, sgl, showPrice, priceTableOn, priceRows, priceColumnsMode, included, excluded, draft, saved, hotels, totalNights, ref, meta, flights, roomBasis, manifest]) 
+
+  /* ── The itinerary desk: send, apply, undo ─────────────────────────────── */
+
+  /**
+   * Write a patch into the builder, and remember how to put it back.
+   *
+   * The snapshot is taken from the values in scope for THIS render, which is exactly the state
+   * the patch is about to overwrite — so Undo restores what was on screen when the agent hit
+   * send, including any field the model chose not to touch.
+   */
+  function applyDeskPatch(p: PackagePatch) {
+    const snap = {
+      title, intro, hero, internalLabel, meta, hotels, days, arrival, departure,
+      included, excluded, priceTableOn, priceRows, priceColumnsMode, roomBasis,
+    }
+    setDeskUndo(() => () => {
+      setTitle(snap.title); setIntro(snap.intro); setHero(snap.hero); setInternalLabel(snap.internalLabel)
+      setMeta(snap.meta); setHotels(snap.hotels); setDays(snap.days)
+      setArrival(snap.arrival); setDeparture(snap.departure)
+      setIncluded(snap.included); setExcluded(snap.excluded)
+      setPriceTableOn(snap.priceTableOn); setPriceRows(snap.priceRows)
+      setPriceColumnsMode(snap.priceColumnsMode); setRoomBasis(snap.roomBasis)
+      setDeskUndo(null)
+    })
+
+    if (p.title !== undefined) setTitle(p.title)
+    if (p.intro !== undefined) setIntro(p.intro)
+    if (p.hero !== undefined) setHero(p.hero)
+    if (p.internalLabel !== undefined) setInternalLabel(p.internalLabel)
+    if (p.pax !== undefined) setMeta((m) => ({ ...m, pax: p.pax as number }))
+    if (p.arrivalDate !== undefined) setMeta((m) => ({ ...m, arrival: p.arrivalDate as string }))
+    if (p.departureDate !== undefined) setMeta((m) => ({ ...m, departure: p.departureDate as string }))
+    if (p.roomBasis !== undefined) setRoomBasis(p.roomBasis)
+    if (p.hotels !== undefined) setHotels(p.hotels)
+    if (p.arrival !== undefined) setArrival(p.arrival)
+    if (p.departure !== undefined) setDeparture(p.departure)
+    if (p.days !== undefined) setDays(p.days)
+    if (p.included !== undefined) setIncluded(p.included)
+    if (p.excluded !== undefined) setExcluded(p.excluded)
+    if (p.priceTableOn !== undefined) setPriceTableOn(p.priceTableOn)
+    if (p.priceColumns !== undefined) setPriceColumnsMode(p.priceColumns)
+    if (p.priceRows !== undefined) setPriceRows(p.priceRows)
+
+    // A conversation that rewrote the days has invalidated every compact-sheet override,
+    // which is keyed to the OLD city names.
+    if (p.days !== undefined || p.hotels !== undefined) { setSegOverrides([]); setCityOv({}); setExtraCities([]) }
+  }
+
+  async function sendDesk() {
+    const text = deskInput.trim()
+    if (!text || deskBusy) return
+    setDeskErr(''); setDeskInput('')
+    setDeskLog((l) => [...l, { who: 'you', text }])
+
+    const sent: ChatMsg[] = [...deskHistory, { role: 'user', content: text }]
+    setDeskHistory(sent)
+    setDeskBusy(true); setDeskStream('')
+
+    const ctrl = new AbortController()
+    deskAbort.current = ctrl
+
+    let reply = ''
+    let toolId = ''
+    let toolName = ''
+    let toolInput: Record<string, unknown> | null = null
+
+    try {
+      const { data } = await supabase.auth.getSession()
+      const token = data.session?.access_token
+      if (!token) throw new Error('Your session has expired — sign in again and the conversation will still be here.')
+      await streamPackageChat(
+        { messages: sent, pkg: buildState(), accessToken: token, signal: ctrl.signal },
+        {
+          onText: (d) => { reply += d; setDeskStream(reply) },
+          onTool: (id, name, input) => { toolId = id; toolName = name; toolInput = input },
+        },
+      )
+    } catch (e: any) {
+      setDeskBusy(false); setDeskStream('')
+      if (ctrl.signal.aborted) return
+      setDeskErr(e?.message ?? String(e))
+      return
+    } finally {
+      deskAbort.current = null
+    }
+
+    setDeskBusy(false); setDeskStream('')
+
+    let changed: string[] = []
+    let assumptions: string[] = []
+    let dropped: string[] = []
+    if (toolInput && toolName === 'update_package') {
+      const n = normalizePatch(toolInput, manifest, days, arrival, departure)
+      changed = n.changed
+      assumptions = n.assumptions
+      dropped = n.dropped
+      applyDeskPatch(n.patch)
+    }
+    setDeskLog((l) => [...l, { who: 'desk', text: reply, changed, assumptions, dropped }])
+
+    // The API requires a tool_result immediately after a tool_use, so the pair is recorded now
+    // rather than left for the next turn to assemble.
+    const blocks: Block[] = []
+    if (reply.trim()) blocks.push({ type: 'text', text: reply })
+    if (toolInput) {
+      blocks.push({ type: 'tool_use', id: toolId || 'tu_local', name: toolName, input: toolInput })
+      setDeskHistory((h) => [
+        ...h,
+        { role: 'assistant', content: blocks },
+        { role: 'user', content: [{ type: 'tool_result', tool_use_id: toolId || 'tu_local', content: 'Applied to the builder.' }] },
+      ])
+    } else if (blocks.length) {
+      setDeskHistory((h) => [...h, { role: 'assistant', content: blocks }])
+    }
+  }
+
+  // Keep the newest message in view without yanking the page around.
+  useEffect(() => {
+    const el = deskScroll.current
+    if (el) el.scrollTop = el.scrollHeight
+  }, [deskLog, deskStream])
 
   /* ── Build from pasted text: the two actions ──────────────────────────── */
 
@@ -1624,6 +1772,110 @@ export default function PackageBuilder({ draft, saved, savedId, importFirst, onC
 
         <div className="builder-body">
 
+          {/* ── The itinerary desk ──────────────────────────────────────────
+              Describe the trip, or a change to it, in your own words. The reply is prose;
+              the work arrives as a patch of the fields below and is applied on the spot.
+              Nothing here writes to the database — Save and Publish are still yours. */}
+          <section className="b-sec b-desk">
+            <div className="b-day-head">
+              <h4>Itinerary desk</h4>
+              <span className="muted small">
+                Tell it what you want, the way you would tell a colleague. It can build a package from
+                nothing, or change the one on screen — "make day 3 shorter", "swap Alexandria for Sakkara",
+                "price it 4,200 double".
+              </span>
+              {deskLog.length > 0 && (
+                <button className="link" onClick={() => { setDeskLog([]); setDeskHistory([]); setDeskErr(''); setDeskUndo(null) }}>
+                  New conversation
+                </button>
+              )}
+              <button className="link" onClick={() => setDeskOpen((o) => !o)}>{deskOpen ? 'Hide' : 'Open'}</button>
+            </div>
+
+            {deskOpen && (
+              <div style={{ display: 'grid', gap: 10 }}>
+                {(deskLog.length > 0 || deskBusy) && (
+                  <div
+                    ref={deskScroll}
+                    style={{
+                      maxHeight: 320, overflowY: 'auto', display: 'grid', gap: 12,
+                      border: '1px solid rgba(255,255,255,.14)', borderRadius: 6, padding: 12,
+                    }}
+                  >
+                    {deskLog.map((m, i) => (
+                      <div key={i} style={{ display: 'grid', gap: 4 }}>
+                        <div className="small" style={{ opacity: .55, letterSpacing: '.08em', textTransform: 'uppercase' }}>
+                          {m.who === 'you' ? 'You' : 'Desk'}
+                        </div>
+                        <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.55, fontSize: 13 }}>{m.text}</div>
+                        {m.changed && m.changed.length > 0 && (
+                          <div className="small" style={{ color: '#bfe6c0' }}>
+                            Applied: {m.changed.join(' · ')}
+                          </div>
+                        )}
+                        {m.assumptions && m.assumptions.length > 0 && (
+                          <div className="small" style={{ color: '#f0d79a', display: 'grid', gap: 2 }}>
+                            {m.assumptions.map((a, j) => <div key={j}>Assumed: {a}</div>)}
+                          </div>
+                        )}
+                        {m.dropped && m.dropped.length > 0 && (
+                          <div className="small" style={{ color: '#f3b0b0', display: 'grid', gap: 2 }}>
+                            {m.dropped.map((a, j) => <div key={j}>Not applied: {a}. Set it by hand, or ask again.</div>)}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                    {deskBusy && (
+                      <div style={{ display: 'grid', gap: 4 }}>
+                        <div className="small" style={{ opacity: .55, letterSpacing: '.08em', textTransform: 'uppercase' }}>Desk</div>
+                        <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.55, fontSize: 13, opacity: deskStream ? 1 : .55 }}>
+                          {deskStream || 'Thinking…'}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {deskErr && <div className="error">{deskErr}</div>}
+
+                <textarea
+                  value={deskInput}
+                  onChange={(e) => setDeskInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    // Enter sends, because this is a conversation and not a document. A newline
+                    // is still available on Shift+Enter for someone pasting a whole programme in.
+                    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendDesk() }
+                  }}
+                  rows={3}
+                  placeholder={
+                    days.length || arrival.on
+                      ? 'e.g. "Cut the Alexandria day and put Memphis and Sakkara in its place, and move the concert to day 4."'
+                      : 'e.g. "6 days 5 nights from 16 to 21 November, solo traveller. Lands 01:25 and flies straight to Luxor for a 4-night cruise up to Aswan, then back to Cairo for the pyramids and the GEM. 4 star Cairo, 5 star boat. No price yet."'
+                  }
+                  style={{ width: '100%', fontSize: 13, lineHeight: 1.5 }}
+                />
+
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <button className="primary" disabled={deskBusy || !deskInput.trim()} onClick={sendDesk}>
+                    {deskBusy ? 'Working…' : 'Send'}
+                  </button>
+                  {deskBusy && (
+                    <button onClick={() => { deskAbort.current?.abort(); setDeskBusy(false); setDeskStream('') }}>Stop</button>
+                  )}
+                  {deskUndo && !deskBusy && (
+                    <button onClick={() => deskUndo()} title="Put every field back the way it was before the last change">
+                      Undo last change
+                    </button>
+                  )}
+                  <span className="spacer" style={{ flex: 1 }} />
+                  <span className="muted small">
+                    Enter sends · Shift+Enter for a new line · nothing is saved or published until you press Save
+                  </span>
+                </div>
+              </div>
+            )}
+          </section>
+
           {/* ── Build from pasted text ──────────────────────────────────────
               The same idea as Text → Pages, aimed at the package instead of at
               A4 sheets: a supplier's programme goes in, day cards with their own
@@ -1632,10 +1884,11 @@ export default function PackageBuilder({ draft, saved, savedId, importFirst, onC
               can reach a client without someone having looked at it. */}
           <section className="b-sec b-import">
             <div className="b-day-head">
-              <h4>Build from pasted text</h4>
+              <h4>Paste a supplier's programme</h4>
               <span className="muted small">
-                Paste the programme — days, meals, rate, includes and excludes. It reads the days,
-                picks the photographs and writes the cover; you check it and press Apply.
+                The offline route: a parser, no model, no API cost. Paste a rate sheet exactly as it
+                arrived and it reads the days, the meals, the rate block and both lists. Use it for a
+                straight transcription, or when the desk above is unavailable.
               </span>
               <button className="link" onClick={() => setImportOpen((o) => !o)}>
                 {importOpen ? 'Hide' : days.length || arrival.on ? 'Replace from text' : 'Open'}

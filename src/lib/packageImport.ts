@@ -442,9 +442,14 @@ const TITLE_NOUN = /\b(experience|tour|package|holiday|journey|discovery|adventu
  * These documents open with a line that is three things at once:
  * "5 Days / 4 Nights – Cairo & Alexandria Experience Pyramids • Ancient Egypt • Islamic".
  * The count is worth keeping, the name is the middle, and the bullet-separated keywords on
- * the end are for a brochure. Cutting after the last title noun drops them — unless the
- * trailing text has a digit in it, which usually means it is part of the name
- * ("Eclipse Tour 2027"), in which case nothing is cut.
+ * the end are for a brochure. Cutting after the last title noun drops them.
+ *
+ * TWO GUARDS ON THAT CUT, because it is easy to cut away half the name. The tail is dropped
+ * only when it contains no digit ("Eclipse Tour 2027" keeps its year) AND no function word.
+ * A marketing tail is a bare list of nouns — "Pyramids", "Ancient Egypt". A name that
+ * carries on reads like a phrase: "Nile Cruise & the Pyramids of Giza" came out as
+ * "Nile Cruise" before the function-word guard existed, because "Cruise" is on the noun
+ * list and everything after it was thrown away.
  */
 export function readTitleLine(raw: string): { title: string; days: number; nights: number } {
   let s = tidyLine(raw)
@@ -469,7 +474,8 @@ export function readTitleLine(raw: string): { title: string; days: number; night
   while ((m = TITLE_NOUN.exec(s))) cut = m.index + m[0].length
   if (cut > 8 && cut < s.length) {
     const tail = s.slice(cut)
-    if (!/\d/.test(tail)) s = s.slice(0, cut).trim()
+    const FUNCTION_WORD = /(?:^|\s)(?:and|or|of|the|a|an|in|on|at|to|from|with|for|&)(?:\s|$)/i
+    if (!/\d/.test(tail) && !FUNCTION_WORD.test(tail)) s = s.slice(0, cut).trim()
   }
   return { title: smartCase(s) || 'Egypt Travel Package', days, nights }
 }
@@ -516,7 +522,7 @@ const LIST_CANON: [RegExp, string | ((m: RegExpExecArray) => string)][] = [
   [/^meet\s*(?:and|&)\s*assist(?:ance)?\b.*?(?:at\s+(.+?)\s*)?$/i, (m) => `Meet and assist at ${smartCase(m[1] || '') || 'the airport'}`],
   [/^all\s+transfers?\b.*private/i, 'All transfers on a private basis as mentioned in the programme'],
   [/^(\d{1,2})\s*nights?\s+accommodation\s+in\s+(.+?)\s+(?:based\s+on|on)\s+bed\s*(?:and|&)\s*breakfast\b.*$/i,
-    (m) => `${num(m[1])} nights accommodation in ${smartCase(m[2])} on a bed & breakfast basis`],
+    (m) => `${num(m[1])} night${num(m[1]) === 1 ? '' : 's'} accommodation in ${smartCase(m[2])} on a bed & breakfast basis`],
   [/^all\s+tours?\b.*private/i, 'All tours on a private basis as mentioned in the programme'],
   [/^english[\s-]*speaking\s+guide\b.*$/i, 'English-speaking Egyptologist guide'],
   [/^all\s+meals\s+as\s+mentioned\b.*$/i, 'All meals as mentioned in the programme'],
@@ -554,36 +560,48 @@ function canonList(lines: string[]): string[] {
  * a thing the trip does not do reads as carelessness. All of them are reported as additions:
  * the concert line in particular encodes a house decision — the transfers are ours, the
  * ticket is the client's — and whoever built the package has to agree with it out loud.
+ *
+ * `when` decides whether the line is relevant to this trip. `dupe` decides whether the sheet
+ * ALREADY says it in its own words, and matches on the SUBJECT rather than on the wording: a
+ * sheet that already excluded "Interior pyramid and tomb entrance fees" and "Optional
+ * excursion to Abu Simbel" used to get both of them back a second time, phrased slightly
+ * differently, because the old check compared the first eighteen characters of the house line.
  */
-const PROTECTIVE: { when: RegExp; line: string; why: string }[] = [
+const PROTECTIVE: { when: RegExp; dupe: RegExp; line: string; why: string }[] = [
   {
     when: /\bconcert\b|\blive\s+show\b|\bperformance\b|\bopera\b/i,
     line: 'Event / concert tickets (private transfers to and from the venue are included)',
+    dupe: /\\b(?:concert|event|show|opera)\\b[^\\n]*\\bticket|\\bticket[^\\n]*\\b(?:concert|event|show|opera)\\b/i,
     why: 'the programme includes an evening event',
   },
   {
     when: /\bpyramid\b|\btomb\b|\bvalley\s+of\s+the\s+kings\b|\bburial\s+chamber\b/i,
     line: 'Interior pyramid / tomb entrance fees',
+    dupe: /\\binterior\\b[^\\n]*\\b(?:pyramid|tomb)|\\b(?:pyramid|tomb)\\b[^\\n]*\\binterior\\b|\\bburial\\s+chamber\\b/i,
     why: 'interiors are ticketed separately from the site',
   },
   {
     when: /\broyal\s+mumm(?:y|ies)\b|\bNMEC\b|\bcivili[sz]ation\s+museum\b/i,
     line: 'Royal Mummies Hall supplement at the Civilization Museum, if ticketed separately',
+    dupe: /\\broyal\\s+mumm(?:y|ies)\\b/i,
     why: 'the Royal Mummies Hall carries its own ticket',
   },
   {
     when: /\babu\s+simbel\b/i,
     line: 'Abu Simbel excursion — quoted on request',
+    dupe: /\\babu\\s+simbel\\b/i,
     why: 'Abu Simbel is quoted separately',
   },
   {
     when: /\b(?:scuba|diving|dives|liveaboard)\b/i,
     line: 'Dive equipment rental, nitrox and marine park / port fees',
+    dupe: /\\bdive\\s+(?:equipment|gear)\\b|\\bnitrox\\b/i,
     why: 'the programme includes diving',
   },
   {
     when: /\bballoon\b/i,
     line: 'Hot-air balloon flight — quoted on request',
+    dupe: /\\bballoon\\b/i,
     why: 'the balloon is an optional extra',
   },
 ]
@@ -855,8 +873,7 @@ export function importFromText(text: string, opts: ImportOptions): ImportResult 
   if (opts.protective) {
     for (const p of PROTECTIVE) {
       if (!p.when.test(src)) continue
-      const already = excluded.some((l) => l.toLowerCase().includes(p.line.slice(0, 18).toLowerCase()))
-      if (already) continue
+      if (excluded.some((l) => p.dupe.test(l))) continue
       excluded.push(p.line)
       add('added', `Exclusion added: "${p.line}" — ${p.why}. Confirm this is how you want it quoted.`)
     }
