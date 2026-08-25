@@ -30,7 +30,17 @@
 
 import { HOUSE_RULES, UPDATE_PACKAGE_TOOL, describeCurrent } from '../_lib/packagePrompt.js'
 
-const DEFAULT_MODEL = 'claude-sonnet-4-5-20250929'
+/**
+ * Checked against the pricing and models pages in August 2026. `claude-sonnet-5` is the
+ * current mid-tier id and is BOTH better and cheaper than the Sonnet 4.5 that was hardcoded
+ * here first ($2/$10 per million tokens against $3/$15). Override with PACKAGE_CHAT_MODEL:
+ * `claude-haiku-4-5` is a further five times cheaper if this ever needs economising, and
+ * `claude-opus-5` is there for the hardest itineraries.
+ *
+ * Still an env var rather than a constant, because ids change and the wrong one is a 404
+ * whose text is passed straight through to the panel.
+ */
+const DEFAULT_MODEL = 'claude-sonnet-5'
 const MAX_TOKENS = 8000
 
 /** Hard caps. A runaway loop in the panel must not be able to spend the whole API budget. */
@@ -140,8 +150,19 @@ export async function onRequestPost({ request, env }) {
   const cleaned = cleanMessages(body && body.messages)
   if (cleaned.error) return json(400, { error: cleaned.error })
 
+  /**
+   * The rulebook is identical on every single turn, and the tool schema with it, so the two
+   * of them are cached rather than re-read. Roughly 2,600 tokens move from $2 per million to
+   * $0.20 per million, and the reply starts sooner.
+   *
+   * The breakpoint sits on the FIRST block on purpose. Caching works on prefixes — tools,
+   * then system, then messages — so marking the stable block caches tools + rules, and the
+   * package JSON below it, which is different every turn, is left outside. Marking the last
+   * block instead would cache a prefix that never repeats and pay the write premium for
+   * nothing.
+   */
   const system = [
-    { type: 'text', text: HOUSE_RULES },
+    { type: 'text', text: HOUSE_RULES, cache_control: { type: 'ephemeral' } },
     { type: 'text', text: describeCurrent(body && body.package) },
   ]
 

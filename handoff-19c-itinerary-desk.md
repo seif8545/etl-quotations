@@ -116,10 +116,10 @@ pieces.
   basis); `departureDate: "next Saturday"`, `pax: 0`, `roomBasis: "family"` and
   `priceColumns: "both"` all rejected and reported.
 
-**Not verified:** any real reply from a model, the streaming feel in a browser, and the default
-model id — `claude-sonnet-4-5-20250929`. That id is an env var precisely because ids change, and
-the API's own error text is passed straight through to the panel, so a wrong one shows as
-"The model API returned 404. …" and is a one-variable fix.
+**Not verified:** any real reply from a model, and the streaming feel in a browser. The default
+model id was checked against the models page in August 2026 (`claude-sonnet-5`), but it stays an
+env var because ids change — and the API's own error text is passed straight through, so a wrong
+one shows as "The model API returned 404. …" and is a one-variable fix.
 
 ---
 
@@ -148,7 +148,38 @@ In **Cloudflare Pages → the quotations project → Settings → Environment va
 | `ANTHROPIC_API_KEY` | your key. Mark it a **secret**. |
 | `SUPABASE_URL` | the same URL as `VITE_SUPABASE_URL`. Public value. |
 | `SUPABASE_ANON_KEY` | the same key as `VITE_SUPABASE_ANON_KEY`. Public value. |
-| `PACKAGE_CHAT_MODEL` | optional. Set it to override the default model id. |
+| `PACKAGE_CHAT_MODEL` | optional. Overrides the default, which is `claude-sonnet-5`. |
+
+### The key, and what it costs
+
+**Use a key from whichever account you like** — a separate one is better practice, not worse.
+Nothing in the code cares whose key it is, and a key scoped to this one app is a key you can
+rotate without touching anything else.
+
+**There is no free API tier.** New organisations start in an "Evaluation tier", but that is lower
+*rate limits* while account history builds — not free credits. API usage is billed separately
+from a Claude Pro or Max subscription; a subscription does not carry API access or credits with
+it. (Checked against the pricing and rate-limit docs, August 2026.)
+
+The cost is small enough that it probably should not drive the decision. On `claude-sonnet-5` at
+$2 per million input tokens and $10 per million output:
+
+| | |
+|---|---|
+| a typical turn (~6k in, ~2k out) | **≈ $0.03** |
+| a package built over six turns | **≈ $0.19** |
+| a hundred packages | **≈ $19** |
+
+Two levers if that ever matters: prompt caching is already on (see below), and
+`PACKAGE_CHAT_MODEL=claude-haiku-4-5` is roughly five times cheaper again at some cost in
+judgement.
+
+**Prompt caching is on.** The rulebook and the tool schema are identical every turn — about
+2,600 tokens — so they are cached and re-read at $0.20 per million instead of $2. The breakpoint
+sits on the first system block deliberately: caching works on prefixes (tools, then system, then
+messages), so marking the stable block caches tools + rules and leaves the per-turn package JSON
+outside it. Marking the last block instead would cache a prefix that never repeats and pay the
+write premium for nothing.
 
 Then redeploy. Until the key is bound the panel answers: *"ANTHROPIC_API_KEY is not set on this
 deployment."*
