@@ -594,3 +594,12 @@ input[type=checkbox] { width: 17px; height: 17px; accent-color: var(--gold); cur
   .tb-edit { flex: 1 1 auto; width: 100%; }
   .tb-preview { width: 100%; }
 }
+
+/* Price table header labels in the package builder (2026-10-20) */
+.pr-label{width:100%;min-width:96px;font-size:12px;padding:3px 5px}
+/* Packages list: id chip, star, sort (2026-10-20) */
+.pkg-id{display:inline-block;font:600 11px/1.6 ui-monospace,Menlo,monospace;background:#eef2f7;color:#0e2a47;border-radius:4px;padding:0 5px;margin-right:6px;vertical-align:1px}
+.pkg-star{background:none;border:0;cursor:pointer;font-size:17px;line-height:1;color:#c9ccd2;padding:0 6px 0 0;vertical-align:-1px}
+.pkg-star.on{color:#c8960a}
+.pkg-sort{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.pkg-sort select{padding:4px 6px}

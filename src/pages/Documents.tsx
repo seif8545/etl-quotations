@@ -52,7 +52,9 @@ function pkgPrice(r: any): string {
   const d = r?.data
   if (!d) return '—'
   const rows: any[] = Array.isArray(d.priceRows) ? d.priceRows : []
-  const keys: string[] = d.priceColumns && d.priceColumns !== 'all'
+  const keys: string[] = Array.isArray(d.priceCols) && d.priceCols.length
+    ? [d.priceCols[0]]
+    : d.priceColumns && d.priceColumns !== 'all'
     ? [d.priceColumns]
     : ['dbl', 'triple', 'quad']
   const tiers = rows
@@ -65,6 +67,22 @@ function pkgPrice(r: any): string {
   const pp = Number(d.pp)
   return Number.isFinite(pp) && pp > 0 ? `$${pp.toLocaleString()}` : '—'
 }
+
+/** The same headline figure as pkgPrice, as a number for sorting. 0 = unpriced. */
+function pkgPriceNum(r: any): number {
+  const d = r?.data
+  if (!d) return 0
+  const rows: any[] = Array.isArray(d.priceRows) ? d.priceRows : []
+  const keys: string[] = Array.isArray(d.priceCols) && d.priceCols.length
+    ? [d.priceCols[0]]
+    : d.priceColumns && d.priceColumns !== 'all' ? [d.priceColumns] : ['dbl', 'triple', 'quad', 'solo']
+  const tiers = rows.flatMap((x) => keys.map((k) => Number(x?.[k]))).filter((n) => Number.isFinite(n) && n > 0)
+  if (d.priceTableOn && tiers.length) return Math.min(...tiers)
+  const pp = Number(d.pp)
+  return Number.isFinite(pp) && pp > 0 ? pp : 0
+}
+
+type PkgSort = 'grouped' | 'start' | 'length' | 'price' | 'id'
 
 const TABS = ['Quotations', 'Packages', 'Letters', 'Vouchers', 'Invoices', 'Pages'] as const
 type Tab = (typeof TABS)[number]
@@ -112,8 +130,45 @@ export default function Documents({ openQuotation, openInvoice, isAdmin, uid }: 
 
   const [catFilter, setCatFilter] = useState<PackageCategory | 'all'>('all')
   const [bandFilter, setBandFilter] = useState<string>('all')
+  const [starOnly, setStarOnly] = useState(false)
+  const [pkgSort, setPkgSort] = useState<PkgSort>('grouped')
+  const [sortDesc, setSortDesc] = useState(false)
 
   useEffect(() => { setCatFilter('all'); setBandFilter('all') }, [tab])
+
+  /** Star a package to keep it at hand for sending. A column, not a field in `data`, so
+   *  starring never rewrites (or races) the package JSON the builder saves. */
+  async function toggleStar(row: any) {
+    const next = !row.starred
+    setRows((rs) => rs.map((r) => (r.id === row.id ? { ...r, starred: next } : r)))
+    const { error } = await supabase.from('q_package_docs').update({ starred: next }).eq('id', row.id)
+    if (error) {
+      setError(error.message)
+      setRows((rs) => rs.map((r) => (r.id === row.id ? { ...r, starred: !next } : r)))
+    }
+  }
+
+  /** Sorting reorders; it never hides anything. Undated / unpriced rows go last either way. */
+  const sortedPkgs = useMemo(() => {
+    const pool = visible.filter((r) =>
+      (!starOnly || r.starred) &&
+      (catFilter === 'all' || categoryOf(r) === catFilter) &&
+      (bandFilter === 'all' || bandFor(packageDays(r)).key === bandFilter))
+    const keyOf = (r: any): number | null => {
+      if (pkgSort === 'start') { const t = Date.parse(r.arrival_date || r.data?.meta?.arrival || ''); return isNaN(t) ? null : t }
+      if (pkgSort === 'length') { const n = packageDays(r); return n > 0 ? n : null }
+      if (pkgSort === 'price') { const n = pkgPriceNum(r); return n > 0 ? n : null }
+      return Number(r.id)
+    }
+    return [...pool].sort((a, b) => {
+      const x = keyOf(a), y = keyOf(b)
+      if (x === null && y === null) return b.id - a.id
+      if (x === null) return 1
+      if (y === null) return -1
+      return sortDesc ? y - x : x - y
+    })
+  }, [visible, starOnly, catFilter, bandFilter, pkgSort, sortDesc])
+  const starCount = useMemo(() => visible.filter((r) => r.starred).length, [visible])
 
   /** Counts across everything loaded, so a chip still reads "0" when it filters to nothing. */
   const catCounts = useMemo(() => {
@@ -131,10 +186,11 @@ export default function Documents({ openQuotation, openInvoice, isAdmin, uid }: 
 
   const pkgGroups = useMemo(() => {
     const pool = visible.filter((r) =>
+      (!starOnly || r.starred) &&
       (catFilter === 'all' || categoryOf(r) === catFilter) &&
       (bandFilter === 'all' || bandFor(packageDays(r)).key === bandFilter))
     return groupPackages(pool)
-  }, [visible, catFilter, bandFilter])
+  }, [visible, catFilter, bandFilter, starOnly])
 
   /**
    * Pin a package to a category, or clear the pin and let the keywords decide again.
@@ -226,7 +282,11 @@ export default function Documents({ openQuotation, openInvoice, isAdmin, uid }: 
         const nights = route.reduce((s, x) => s + x.nights, 0)
         return <>
           <td className="c-name">
-            <span className="pkg-name">{r.name}</span>
+            <span className="pkg-name">
+              <button type="button" className={`pkg-star${r.starred ? ' on' : ''}`} title={r.starred ? 'Starred — click to unstar' : 'Star to keep for sending'}
+                onClick={() => toggleStar(r)}>{r.starred ? '★' : '☆'}</button>
+              <span className="pkg-id">#{r.id}</span>{r.name}
+            </span>
             {/* The internal label, when the package carries one. It goes ABOVE the ref line and
                 in the row's own voice, because its whole job is telling apart packages whose
                 name, dates and ref are identical — which is exactly when this column is
@@ -360,6 +420,22 @@ export default function Documents({ openQuotation, openInvoice, isAdmin, uid }: 
                 </button>
               ))}
             </div>
+            <div className="price-columns-picker pkg-sort">
+              <span className="meal-ticker-label">Sort</span>
+              <select value={pkgSort} onChange={(e) => { const v = e.target.value as PkgSort; setPkgSort(v); setSortDesc(v === 'id') }}>
+                <option value="grouped">Grouped by category</option>
+                <option value="start">Start date</option>
+                <option value="length">Length</option>
+                <option value="price">Price</option>
+                <option value="id">ID</option>
+              </select>
+              {pkgSort !== 'grouped' && (
+                <button type="button" className="meal-toggle on" onClick={() => setSortDesc((d) => !d)}>
+                  {pkgSort === 'start' ? (sortDesc ? 'Latest first' : 'Soonest first') : sortDesc ? 'High → low' : 'Low → high'}
+                </button>
+              )}
+              <button type="button" className={`meal-toggle${starOnly ? ' on' : ''}`} onClick={() => setStarOnly((v) => !v)}>★ Starred ({starCount})</button>
+            </div>
             <div className="price-columns-picker">
               <span className="meal-ticker-label">Length</span>
               <button type="button" className={`meal-toggle${bandFilter === 'all' ? ' on' : ''}`} onClick={() => setBandFilter('all')}>All</button>
@@ -386,7 +462,9 @@ export default function Documents({ openQuotation, openInvoice, isAdmin, uid }: 
               </tr>
             </thead>
             <tbody>
-              {(tab === 'Packages'
+              {(tab === 'Packages' && pkgSort !== 'grouped'
+                ? sortedPkgs.map(renderRow)
+                : tab === 'Packages'
                 ? pkgGroups.flatMap((g) => [
                     <tr key={'cat-' + g.category} className="grp-row grp-cat">
                       <td colSpan={COLS}>
@@ -402,7 +480,7 @@ export default function Documents({ openQuotation, openInvoice, isAdmin, uid }: 
                     ]),
                   ])
                 : visible.map(renderRow))}
-              {tab === 'Packages' && pkgGroups.length === 0 && (
+              {tab === 'Packages' && (pkgSort === 'grouped' ? pkgGroups.length === 0 : sortedPkgs.length === 0) && (
                 <tr><td colSpan={COLS} className="muted" style={{ padding: 14 }}>
                   No packages match this filter.
                 </td></tr>

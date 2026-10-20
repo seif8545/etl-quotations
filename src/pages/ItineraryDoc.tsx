@@ -12,7 +12,7 @@ export interface ItineraryData {
   included: string[]
   excluded: string[]
   price: { pp: number; sgl: number; show: boolean }
-  pricing: { show: boolean; refPp: number; refSgl: number; rows: { category: string; dbl: number; single: number; triple: number; quad: number; solo?: number; hotels: string }[]; columns?: 'all' | 'dbl' | 'single' | 'triple' | 'quad' | 'solo' }
+  pricing: { show: boolean; refPp: number; refSgl: number; rows: { category: string; dbl: number; single: number; triple: number; quad: number; solo?: number; hotels: string }[]; columns?: 'all' | 'dbl' | 'single' | 'triple' | 'quad' | 'solo'; cols?: ('dbl' | 'single' | 'triple' | 'quad' | 'solo')[]; labels?: Partial<Record<'dbl' | 'single' | 'triple' | 'quad' | 'solo' | 'category', string>> }
   contact: { phone: string; email: string; website: string; social: string }
   roomBasis?: string // <-- Added here
 }
@@ -556,7 +556,11 @@ const ItineraryDoc = forwardRef<HTMLDivElement, { data: ItineraryData }>(({ data
            page silently goes blank. So a mode is honoured only while it has something to
            show; otherwise fall back to whichever columns actually carry money. When no
            column anywhere has a figure, keep the chosen one and print dashes as before. */
-        const cols = mode === 'all'
+        /* Builder labels (2026-10-20) replace the defaults, and an explicit ordered column list
+           from the builder wins over the single-key mode. */
+        for (const c of PRICE_COLS) { const l = (d.pricing.labels?.[c.key] || '').trim(); if (l) c.label = l }
+        const listed = (d.pricing.cols || []).map((k) => PRICE_COLS.find((c) => c.key === k)!).filter(Boolean)
+        const cols = listed.length ? listed : mode === 'all'
           ? PRICE_COLS.filter((c) => c.key === 'dbl' || c.key === 'single' || hasAny(c.key))
           : picked.some((c) => hasAny(c.key)) || !anyMoneyAtAll
             ? picked
@@ -567,7 +571,7 @@ const ItineraryDoc = forwardRef<HTMLDivElement, { data: ItineraryData }>(({ data
             <h2 className="fr sec-title">Package Pricing</h2>
             <div className="sec-rule" />
             <table className="price-table">
-              <thead><tr><th>Category</th>{cols.map((c) => <th key={c.key}>{c.label}</th>)}<th>Offered Hotels</th></tr></thead>
+              <thead><tr><th>{(d.pricing.labels?.category || '').trim() || 'Category'}</th>{cols.map((c) => <th key={c.key}>{c.label}</th>)}<th>Offered Hotels</th></tr></thead>
               <tbody>
                 {d.pricing.rows.map((r, i) => (
                   <tr key={i}>

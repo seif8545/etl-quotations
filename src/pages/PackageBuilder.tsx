@@ -1,3 +1,4 @@
+import { downloadPriceSheetPng, downloadPriceSheetPdf } from '../lib/priceSheet'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { loadRefData, supabase } from '../lib/supabase'
@@ -41,6 +42,16 @@ interface FixedDay { on: boolean; title: string; description: string; photo: str
 interface PriceRow { category: string; dbl: number; single: number; triple: number; quad: number; solo?: number; hotels: string }
 
 type PriceColumnsMode = 'all' | 'dbl' | 'single' | 'triple' | 'quad' | 'solo'
+type PriceColKey = Exclude<PriceColumnsMode, 'all'>
+/** Builder-chosen header text per column (and 'category' for the first column). */
+type PriceLabels = Partial<Record<PriceColKey | 'category', string>>
+const PRICE_COL_DEFS: { key: PriceColKey; label: string; field: string }[] = [
+  { key: 'dbl', label: 'Double / pp', field: 'Double' },
+  { key: 'single', label: 'Single supplement', field: 'Single' },
+  { key: 'triple', label: 'Triple / pp', field: 'Triple' },
+  { key: 'quad', label: 'Quad / pp', field: 'Quad' },
+  { key: 'solo', label: 'Solo traveller', field: 'Solo' },
+]
 
 interface FlightInsert { id: number; label: string; text: string; targetUid: string; position: 'start' | 'end' }
 
@@ -100,6 +111,12 @@ export interface PackageState {
   pp: number; sgl: number; showPrice: boolean
   included: string; excluded: string
   priceTableOn: boolean; priceRows: PriceRow[]; priceColumns?: PriceColumnsMode
+  /** Ordered columns shown on the web page and price sheet (2026-10-20). Empty = automatic.
+   *  `priceColumns` is still written (single key, or 'all') for the PDFs and older readers. */
+  priceCols?: PriceColKey[]
+  priceLabels?: PriceLabels
+  /** Replaces "Per person, in US dollars." under the web price table. */
+  priceNote?: string
   flights: FlightInsert[]
   roomBasis?: string
 
@@ -397,7 +414,23 @@ export default function PackageBuilder({ draft, saved, savedId, importFirst, onC
   const [showPrice, setShowPrice] = useState(saved?.showPrice ?? true)
   const [priceTableOn, setPriceTableOn] = useState(saved?.priceTableOn ?? false)
   const [priceRows, setPriceRows] = useState<PriceRow[]>(saved?.priceRows ?? DEFAULT_PRICE_ROWS())
-  const [priceColumnsMode, setPriceColumnsMode] = useState<PriceColumnsMode>(saved?.priceColumns ?? 'all')
+  const [priceColumnsMode, setPriceColumnsModeRaw] = useState<PriceColumnsMode>(saved?.priceColumns ?? 'all')
+  const [priceCols, setPriceCols] = useState<PriceColKey[]>(
+    saved?.priceCols ?? (saved?.priceColumns && saved.priceColumns !== 'all' ? [saved.priceColumns] : []))
+  /** Anything that sets the old single-key mode (import, the desk, undo) resets the column list to match. */
+  const setPriceColumnsMode = (m: PriceColumnsMode) => { setPriceColumnsModeRaw(m); setPriceCols(m === 'all' ? [] : [m]) }
+  function togglePriceCol(k: PriceColKey) {
+    setPriceCols((cur) => {
+      const next = cur.includes(k) ? cur.filter((x) => x !== k) : [...cur, k]
+      setPriceColumnsModeRaw(next.length === 1 ? next[0] : 'all')
+      return next
+    })
+  }
+  const [priceLabels, setPriceLabels] = useState<PriceLabels>(saved?.priceLabels ?? {})
+  const [priceNote, setPriceNote] = useState(saved?.priceNote ?? '')
+  const [sheetKids, setSheetKids] = useState(false)
+  const [sheetKidBands, setSheetKidBands] = useState([{ label: 'Under 2', off: 75 }, { label: '2 to 6 years', off: 50 }, { label: '6 to 12 years', off: 25 }])
+  const [sheetBusy, setSheetBusy] = useState(false)
   const [included, setIncluded] = useState(saved?.included ?? '')
   const [excluded, setExcluded] = useState(saved?.excluded ?? '')
   /**
@@ -758,11 +791,11 @@ export default function PackageBuilder({ draft, saved, savedId, importFirst, onC
       included: included.split('\n').map((s) => s.trim()).filter(Boolean),
       excluded: excluded.split('\n').map((s) => s.trim()).filter(Boolean),
       price: { pp, sgl, show: showPrice },
-      pricing: { show: priceTableOn, refPp: pp, refSgl: sgl, rows: priceRows, columns: priceColumnsMode },
+      pricing: { show: priceTableOn, refPp: pp, refSgl: sgl, rows: priceRows, columns: priceColumnsMode, cols: priceCols, labels: priceLabels },
       contact: CONTACT,
       roomBasis,
     }
-  }, [title, intro, hero, days, arrival, departure, pp, sgl, showPrice, priceTableOn, priceRows, priceColumnsMode, included, excluded, draft, saved, hotels, totalNights, ref, meta, flights, roomBasis, manifest]) 
+  }, [title, intro, hero, days, arrival, departure, pp, sgl, showPrice, priceTableOn, priceRows, priceColumnsMode, priceCols, priceLabels, included, excluded, draft, saved, hotels, totalNights, ref, meta, flights, roomBasis, manifest]) 
 
   /* ── The itinerary desk: send, apply, undo ─────────────────────────────── */
 
@@ -941,12 +974,45 @@ export default function PackageBuilder({ draft, saved, savedId, importFirst, onC
     setTimeout(() => setImpMsg(''), 9000)
   }
 
+  /** The price table as a branded sheet — PNG for WhatsApp, PDF for email. */
+  async function exportSheet(kind: 'png' | 'pdf') {
+    const used = priceCols.length
+      ? priceCols
+      : PRICE_COL_DEFS.map((c) => c.key).filter((k) => priceRows.some((r) => (Number((r as any)[k]) || 0) > 0))
+    const cols = (used.length ? used : (['dbl'] as PriceColKey[])).map((k) => ({
+      key: k,
+      label: (priceLabels[k] || '').trim() || PRICE_COL_DEFS.find((c) => c.key === k)!.label,
+    }))
+    const ov = data.overview
+    const stays = hotels.filter((h) => h.nights > 0).map((h) => `${h.nights} nights ${h.destination.split(/[—,(]/)[0].trim()}`)
+    const subtitle = [ov.days ? `${ov.days} days / ${ov.nights} nights` : '', stays.join(' + ')].filter(Boolean).join(' · ')
+    const short = (t: string) => t.split('\n').map((x) => x.trim()).filter(Boolean)
+    const input = {
+      title: title || 'Price sheet', subtitle,
+      rows: priceRows, cols,
+      plusKeys: roomBasis === 'single' ? [] : (['single'] as PriceColKey[]),
+      children: sheetKids ? sheetKidBands : [],
+      included: short(included), excluded: short(excluded),
+      note: priceNote.trim() || 'US dollars',
+    }
+    setSheetBusy(true)
+    try {
+      if (kind === 'png') await downloadPriceSheetPng(input)
+      else await downloadPriceSheetPdf(input)
+    } catch (e: any) {
+      alert('Price sheet failed: ' + (e?.message ?? String(e)))
+    } finally {
+      setSheetBusy(false)
+    }
+  }
+
   function buildState(): PackageState {
     return {
       title, intro, hero, meta, internalLabel: internalLabel.trim(),
       overview: { days: data.overview.days, nights: data.overview.nights, cities: data.overview.cities },
       hotels, days, arrival, departure,
       pp, sgl, showPrice, included, excluded, priceTableOn, priceRows, priceColumns: priceColumnsMode, flights,
+      priceCols, priceLabels, priceNote: priceNote.trim(),
       roomBasis, 
       compactSegments: segOverrides,
       compactCities: cityOv,
@@ -2275,17 +2341,35 @@ export default function PackageBuilder({ draft, saved, savedId, importFirst, onC
               <div className="b-ptable">
                 <div className="muted small">Quote reference: ${pp.toLocaleString()} per person (double){sgl > 0 ? ` · $${sgl.toLocaleString()} single supplement` : ''}</div>
                 <div className="price-columns-picker">
-                  <span className="meal-ticker-label">Show in PDF</span>
-                  {([
-                    ['all', 'All'], ['dbl', 'Double only'], ['single', 'Single only'], ['triple', 'Triple only'], ['quad', 'Quadruple only'], ['solo', 'Solo only'],
-                  ] as [PriceColumnsMode, string][]).map(([mode, label]) => (
-                    <button type="button" key={mode} className={`meal-toggle${priceColumnsMode === mode ? ' on' : ''}`}
-                      onClick={() => setPriceColumnsMode(mode)}>{label}</button>
-                  ))}
+                  <span className="meal-ticker-label">Columns shown</span>
+                  <button type="button" className={`meal-toggle${priceCols.length === 0 ? ' on' : ''}`}
+                    title="Show every column that has a figure"
+                    onClick={() => setPriceColumnsMode('all')}>Auto</button>
+                  {PRICE_COL_DEFS.map((c) => {
+                    const at = priceCols.indexOf(c.key)
+                    return (
+                      <button type="button" key={c.key} className={`meal-toggle${at >= 0 ? ' on' : ''}`}
+                        title="Click in the order you want them; the first one is the headline price"
+                        onClick={() => togglePriceCol(c.key)}>{at >= 0 ? `${at + 1}. ` : ''}{c.field}</button>
+                    )
+                  })}
+                </div>
+                <div className="muted small">The first column picked is the headline ("From" on the web page, highlighted on the price sheet). Rename any header below — e.g. "Twin sharing", "Per adult", "Family total".</div>
+                <div className="b-price" style={{ flexWrap: 'wrap' }}>
+                  <label>Note under the table <input style={{ minWidth: 260 }} placeholder="Per person, in US dollars." value={priceNote} onChange={(e) => setPriceNote(e.target.value)} /></label>
                 </div>
                 <div className="table-scroll">
                   <table className="grid-table wide">
-                    <thead><tr><th>Category</th><th>Per person (DBL) USD</th><th>Single supp. USD</th><th>Triple USD</th><th>Quad USD</th><th>Solo USD</th><th>Offered hotels</th><th /></tr></thead>
+                    <thead><tr>
+                      <th><input className="pr-label" placeholder="Hotel category" value={priceLabels.category ?? ''} onChange={(e) => setPriceLabels((l) => ({ ...l, category: e.target.value }))} /></th>
+                      {PRICE_COL_DEFS.map((c) => (
+                        <th key={c.key}>
+                          <input className="pr-label" placeholder={c.label} value={priceLabels[c.key] ?? ''} onChange={(e) => setPriceLabels((l) => ({ ...l, [c.key]: e.target.value }))} />
+                          <span className="muted small" style={{ display: 'block' }}>{c.field} USD</span>
+                        </th>
+                      ))}
+                      <th>Offered hotels</th><th />
+                    </tr></thead>
                     <tbody>
                       {priceRows.map((r, i) => (
                         <tr key={i}>
@@ -2321,6 +2405,27 @@ export default function PackageBuilder({ draft, saved, savedId, importFirst, onC
                   </table>
                 </div>
                 <button onClick={() => setPriceRows((rs) => [...rs, { category: '', dbl: 0, single: 0, triple: 0, quad: 0, solo: 0, hotels: '' }])}>+ Add row</button>
+
+                <div className="b-sheet" style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid #e5e5e5' }}>
+                  <b>Price sheet</b> <span className="muted small">— branded one-page image of this table, levels down the side and the columns above across the top</span>
+                  <div className="b-price" style={{ flexWrap: 'wrap', marginTop: 8 }}>
+                    <label className="check"><input type="checkbox" checked={sheetKids} onChange={(e) => setSheetKids(e.target.checked)} /> Add children table (worked from the first column)</label>
+                  </div>
+                  {sheetKids && (
+                    <div className="b-price" style={{ flexWrap: 'wrap' }}>
+                      {sheetKidBands.map((b, i) => (
+                        <label key={i}>
+                          <input style={{ width: 110 }} value={b.label} onChange={(e) => setSheetKidBands((bs) => bs.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)))} />
+                          <input type="number" min={0} max={100} style={{ width: 60 }} value={b.off} onChange={(e) => setSheetKidBands((bs) => bs.map((x, j) => (j === i ? { ...x, off: +e.target.value } : x)))} />% off
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                    <button disabled={sheetBusy} onClick={() => exportSheet('png')}>{sheetBusy ? 'Working…' : 'Download PNG'}</button>
+                    <button disabled={sheetBusy} onClick={() => exportSheet('pdf')}>Download PDF</button>
+                  </div>
+                </div>
               </div>
             )}
           </section>
